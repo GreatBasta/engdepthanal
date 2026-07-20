@@ -23,11 +23,34 @@ analysis this project is named for.
 | Path | What |
 |---|---|
 | [`STRUCTURE.md`](STRUCTURE.md) | Full design: product concept, user journeys, entity model, depth levels, survey design, data-quality rules, aggregation pipeline, app routes, phased build order |
-| [`db/schema.sql`](db/schema.sql) | Complete Postgres schema (portable to Drizzle) |
+| [`src/lib/db/schema.ts`](src/lib/db/schema.ts) | The Drizzle schema (all 15 tables) — [`db/schema.sql`](db/schema.sql) is the original raw-SQL reference |
+| [`drizzle/`](drizzle/) | Generated migrations, incl. the finished-only survey guard trigger |
 | [`curriculum/calculus-1.json`](curriculum/calculus-1.json) | Comprehensive Calculus I taxonomy — 12 topics, 105 subtopics with depth levels, estimated hours, and a prerequisite graph |
+| [`src/lib/db/seed.ts`](src/lib/db/seed.ts) | Idempotent seed: engineering programs + curriculum JSON files |
+| [`src/app/`](src/app/) | Next.js app: login/signup, onboarding, dashboard, subject tree |
 
-Stack target: Next.js (App Router) + Drizzle ORM + Postgres. Built with
-Fable 5.
+Stack: Next.js (App Router) + Drizzle ORM + Postgres + next-auth
+(email + password, JWT sessions) + Tailwind v4. Built with Fable 5.
 
-See [`STRUCTURE.md`](STRUCTURE.md) for the complete design and the phased
-build order.
+## Running locally
+
+```bash
+cp .env.example .env        # set DATABASE_URL and AUTH_SECRET
+npm install
+npm run db:migrate          # apply migrations to your Postgres
+npm run db:seed             # programs + Calculus I curriculum (safe to re-run)
+npm run dev
+```
+
+Then sign up, name your university and course (added automatically if it's
+not in the database yet), say whether you're **starting** or **actively
+attending** first year, and the first-year database unlocks.
+
+## Build status
+
+**Phase 1 (this repo, done):** schema + migrations, Calculus I seed, auth,
+onboarding, and the read-only branch outlook per subject.
+
+**Next (see STRUCTURE.md §8):** Phase 2 progress tracking → Phase 3 the
+finished-student coverage survey with grades → Phase 4 aggregation and the
+per-university gap analysis → Phase 5 remaining first-year subjects.
