@@ -189,7 +189,7 @@ export default async function SurveyPage({
           </Link>
           <Link
             href="/dashboard"
-            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500"
           >
             Back to dashboard
           </Link>

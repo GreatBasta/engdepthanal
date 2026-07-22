@@ -79,13 +79,25 @@ export default async function DashboardPage() {
 
   return (
     <main className="mx-auto max-w-3xl px-6 py-12">
-      <header className="mb-10 flex items-start justify-between gap-4">
+      <header className="mb-8 flex items-start justify-between gap-4 border-b border-zinc-200 pb-6 dark:border-zinc-800">
         <div>
-          <h1 className="text-2xl font-bold">First-year database</h1>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-            {enrollment.programName} · {enrollment.universityName} · intake{" "}
-            {enrollment.intakeYear} ·{" "}
-            {enrollment.phase === "starting" ? "starting" : "attending"}
+          <p className="text-sm font-semibold text-indigo-600 dark:text-indigo-400">
+            engdepthanal
+          </p>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight">
+            Your first-year database
+          </h1>
+          <p className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-zinc-600 dark:text-zinc-400">
+            <span className="font-medium text-zinc-800 dark:text-zinc-200">
+              {enrollment.programName}
+            </span>
+            <span aria-hidden>·</span>
+            <span>{enrollment.universityName}</span>
+            <span aria-hidden>·</span>
+            <span>intake {enrollment.intakeYear}</span>
+            <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium capitalize text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+              {enrollment.phase}
+            </span>
           </p>
         </div>
         <form
@@ -96,14 +108,15 @@ export default async function DashboardPage() {
         >
           <button
             type="submit"
-            className="text-sm text-zinc-500 underline-offset-2 hover:underline"
+            className="shrink-0 text-sm text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline dark:hover:text-zinc-100"
           >
             Sign out
           </button>
         </form>
       </header>
 
-      <ul className="space-y-4">
+      <h2 className="mb-3 text-sm font-semibold text-zinc-500">Subjects</h2>
+      <ul className="space-y-3">
         {subjectRows.map((subject) => {
           const progress = progressBySubject.get(subject.id);
           const total = subject.subtopicCount;
@@ -114,13 +127,27 @@ export default async function DashboardPage() {
             <li key={subject.slug}>
               <Link
                 href={`/subjects/${subject.slug}`}
-                className="block rounded-xl border border-zinc-200 bg-white p-5 transition hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-zinc-600"
+                className="group block rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-indigo-800"
               >
-                <div className="flex items-baseline justify-between gap-4">
-                  <h2 className="text-lg font-semibold">{subject.name}</h2>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 dark:bg-indigo-950/60 dark:text-indigo-300">
+                      <SubjectGlyph slug={subject.slug} />
+                    </span>
+                    <div>
+                      <h3 className="text-lg font-semibold group-hover:text-indigo-700 dark:group-hover:text-indigo-300">
+                        {subject.name}
+                      </h3>
+                      {subject.description && (
+                        <p className="mt-0.5 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
+                          {subject.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
                   {finished ? (
-                    <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                      Finished
+                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                      ✓ Finished
                     </span>
                   ) : (
                     <span className="shrink-0 text-xs text-zinc-500">
@@ -128,21 +155,16 @@ export default async function DashboardPage() {
                     </span>
                   )}
                 </div>
-                {subject.description && (
-                  <p className="mt-1 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">
-                    {subject.description}
-                  </p>
-                )}
                 {progress && !finished && done > 0 && (
-                  <div className="mt-3">
+                  <div className="mt-4">
                     <div className="h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
                       <div
-                        className="h-full rounded-full bg-emerald-500"
+                        className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500"
                         style={{ width: `${pct}%` }}
                       />
                     </div>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {done} of {total} subtopics done
+                    <p className="mt-1.5 text-xs text-zinc-500">
+                      {done} of {total} subtopics done · {pct}%
                     </p>
                   </div>
                 )}
@@ -157,5 +179,18 @@ export default async function DashboardPage() {
         </p>
       )}
     </main>
+  );
+}
+
+/** A small monogram per subject; falls back to the first letter. */
+function SubjectGlyph({ slug }: { slug: string }) {
+  const glyphs: Record<string, string> = {
+    "calculus-1": "∫",
+    "linear-algebra": "⎡⎤",
+  };
+  return (
+    <span className="text-sm font-semibold">
+      {glyphs[slug] ?? slug.charAt(0).toUpperCase()}
+    </span>
   );
 }
