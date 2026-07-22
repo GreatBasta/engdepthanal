@@ -15,7 +15,11 @@ const globalForDb = globalThis as unknown as {
 function client() {
   const url = process.env.DATABASE_URL;
   if (!url) throw new Error("DATABASE_URL is not set");
-  globalForDb.pgClient ??= postgres(url, { max: 10 });
+  // `prepare: false` is required when connecting through a transaction-mode
+  // pooler (Neon/Supabase pooled endpoints, PgBouncer) — prepared statements
+  // aren't supported there. `max` is kept low because each serverless
+  // instance opens its own pool. Harmless for a direct local connection too.
+  globalForDb.pgClient ??= postgres(url, { max: 5, prepare: false });
   return globalForDb.pgClient;
 }
 
