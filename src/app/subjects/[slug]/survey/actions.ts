@@ -17,6 +17,7 @@ import {
 } from "@/lib/db/schema";
 import { getStudentEnrollment } from "@/lib/enrollment";
 import { normalizeGrade } from "@/lib/grades";
+import { recomputeSubjectAggregates } from "@/lib/aggregate";
 
 /**
  * Resolve the current student's FINISHED subject enrollment. The survey is
@@ -50,7 +51,12 @@ async function requireFinishedEnrollment(subjectSlug: string) {
   if (!subjectEnrollment || subjectEnrollment.status !== "finished") {
     throw new Error("subject is not finished");
   }
-  return { studentId, subjectEnrollment, subjectId: subject.id };
+  return {
+    studentId,
+    enrollment,
+    subjectEnrollment,
+    subjectId: subject.id,
+  };
 }
 
 const gradeSchema = z.object({
@@ -63,7 +69,8 @@ const gradeSchema = z.object({
 /** Save the student's grade (normalized to 0–100), then advance. */
 export async function saveGrade(input: unknown) {
   const { subjectSlug, scale, rawValue, nextHref } = gradeSchema.parse(input);
-  const { subjectEnrollment } = await requireFinishedEnrollment(subjectSlug);
+  const { enrollment, subjectEnrollment, subjectId } =
+    await requireFinishedEnrollment(subjectSlug);
 
   const normalized = normalizeGrade(scale, rawValue);
   if (!normalized) throw new Error("invalid grade for the chosen scale");
@@ -76,6 +83,9 @@ export async function saveGrade(input: unknown) {
       gradeNormalized: String(normalized.normalized),
     })
     .where(eq(subjectEnrollments.id, subjectEnrollment.id));
+
+  // The grade feeds the average in the aggregates — refresh them.
+  await recomputeSubjectAggregates(enrollment.universityProgramId, subjectId);
 
   revalidatePath(`/subjects/${subjectSlug}/survey`);
   redirect(nextHref);
@@ -99,7 +109,7 @@ const answersSchema = z.object({
 export async function saveTopicAnswers(input: unknown) {
   const { subjectSlug, topicId, answers, suggestion, nextHref } =
     answersSchema.parse(input);
-  const { studentId, subjectEnrollment, subjectId } =
+  const { studentId, enrollment, subjectEnrollment, subjectId } =
     await requireFinishedEnrollment(subjectSlug);
 
   // The topic must belong to this subject.
@@ -166,6 +176,10 @@ export async function saveTopicAnswers(input: unknown) {
       body: suggestion,
     });
   }
+
+  // Keep this university-program's gap analysis current (STRUCTURE.md §6:
+  // "on N new responses"). Cheap at this scale; a nightly job also exists.
+  await recomputeSubjectAggregates(enrollment.universityProgramId, subjectId);
 
   revalidatePath(`/subjects/${subjectSlug}/survey`);
   redirect(nextHref);
