@@ -1,0 +1,203 @@
+{
+  "subject": {
+    "slug": "linear-algebra",
+    "name": "Linear Algebra",
+    "description": "First-year linear algebra for engineering: vectors and geometry, systems of equations, matrices and determinants, vector spaces, linear transformations, eigenvalues, orthogonality and least squares, and the diagonalization theory that underpins second-year methods. University-independent — everything expected before second year.",
+    "year": 1,
+    "position": 2,
+    "min_sample_size": 5
+  },
+  "depth_levels": {
+    "awareness": "Know it exists and recognize it",
+    "procedural": "Apply it mechanically to standard problems",
+    "fluency": "Combine it with other tools in multi-step problems",
+    "proof": "State it precisely and prove or derive it"
+  },
+  "topics": [
+    {
+      "slug": "vectors-and-geometry",
+      "name": "Vectors and Vector Geometry",
+      "description": "The geometric starting point: vectors in the plane and space, the operations on them, and the geometry of lines and planes.",
+      "subtopics": [
+        { "slug": "vectors-intro", "name": "Vectors in R² and R³: notation and geometric meaning", "depth": "awareness", "est_hours": 1.5, "description": "Points versus vectors, components, position vectors, and the arrow picture." },
+        { "slug": "vector-operations", "name": "Vector addition, subtraction, and scalar multiplication", "depth": "procedural", "est_hours": 1.5, "description": "The parallelogram and triangle rules; scaling and negation of vectors.", "prerequisites": ["vectors-intro"] },
+        { "slug": "linear-combinations-intro", "name": "Linear combinations of vectors", "depth": "procedural", "est_hours": 1.5, "description": "Building vectors from others; the geometric meaning of a linear combination.", "prerequisites": ["vector-operations"] },
+        { "slug": "vector-magnitude-unit", "name": "Vector magnitude (norm) and unit vectors", "depth": "procedural", "est_hours": 1, "description": "Length of a vector, normalizing to a unit vector, standard basis vectors i, j, k.", "prerequisites": ["vectors-intro"] },
+        { "slug": "dot-product", "name": "The dot (scalar) product and its properties", "depth": "fluency", "est_hours": 2, "description": "Definition, algebraic properties, and the link to length and orthogonality.", "prerequisites": ["vector-operations"] },
+        { "slug": "angle-projection", "name": "Angle between vectors and vector projection", "depth": "fluency", "est_hours": 2, "description": "cosθ from the dot product; scalar and vector projections; work as a dot product.", "prerequisites": ["dot-product", "vector-magnitude-unit"] },
+        { "slug": "cross-product", "name": "The cross product in R³", "depth": "procedural", "est_hours": 2, "description": "Definition, right-hand rule, magnitude as area, and algebraic properties.", "prerequisites": ["vector-operations"] },
+        { "slug": "triple-products", "name": "Scalar and vector triple products", "depth": "procedural", "est_hours": 1.5, "description": "The scalar triple product as a volume; coplanarity tests.", "prerequisites": ["cross-product", "dot-product"] },
+        { "slug": "lines-planes", "name": "Lines and planes in R³: vector, parametric, and normal forms", "depth": "fluency", "est_hours": 2.5, "description": "Direction vectors, normal vectors, and converting between equation forms.", "prerequisites": ["vector-operations", "cross-product"] },
+        { "slug": "distance-geometry", "name": "Distances between points, lines, and planes", "depth": "procedural", "est_hours": 2, "description": "Point-to-line and point-to-plane distances via projection and normals.", "prerequisites": ["lines-planes", "angle-projection"] },
+        { "slug": "vectors-rn", "name": "Vectors in Rⁿ: generalizing beyond three dimensions", "depth": "procedural", "est_hours": 1.5, "description": "n-tuples, the standard operations, dot product and norm in Rⁿ.", "prerequisites": ["vector-operations", "dot-product"] }
+      ]
+    },
+    {
+      "slug": "linear-systems",
+      "name": "Systems of Linear Equations",
+      "description": "The central computational engine of the course: solving systems by elimination and understanding the structure of their solution sets.",
+      "subtopics": [
+        { "slug": "linear-equations-intro", "name": "Linear equations and their solution sets", "depth": "awareness", "est_hours": 1, "description": "What makes an equation linear; solutions as intersections." },
+        { "slug": "systems-geometry", "name": "Geometric interpretation of systems (intersecting lines and planes)", "depth": "procedural", "est_hours": 1.5, "description": "Two/three-variable systems as intersections; the three solution outcomes geometrically.", "prerequisites": ["linear-equations-intro", "lines-planes"] },
+        { "slug": "augmented-matrices", "name": "Representing systems with augmented matrices", "depth": "procedural", "est_hours": 1, "description": "Coefficient and augmented matrices; the three elementary row operations.", "prerequisites": ["linear-equations-intro"] },
+        { "slug": "gaussian-elimination", "name": "Gaussian elimination and row echelon form", "depth": "fluency", "est_hours": 3, "description": "Forward elimination to echelon form; back substitution; pivots.", "prerequisites": ["augmented-matrices"] },
+        { "slug": "gauss-jordan", "name": "Gauss–Jordan elimination and reduced row echelon form", "depth": "fluency", "est_hours": 2, "description": "Full reduction to RREF; uniqueness of the reduced form.", "prerequisites": ["gaussian-elimination"] },
+        { "slug": "consistency-solutions", "name": "Consistency and the number of solutions (unique, none, infinitely many)", "depth": "fluency", "est_hours": 2, "description": "Reading solvability off an echelon form; pivot versus free columns.", "prerequisites": ["gaussian-elimination"] },
+        { "slug": "parametric-solutions", "name": "Free variables and parametric solution descriptions", "depth": "procedural", "est_hours": 1.5, "description": "Writing the general solution with parameters; solution sets as lines/planes.", "prerequisites": ["gauss-jordan", "consistency-solutions"] },
+        { "slug": "homogeneous-systems", "name": "Homogeneous systems and their solution structure", "depth": "fluency", "est_hours": 2, "description": "The trivial solution, nontrivial solutions, and the solution space.", "prerequisites": ["consistency-solutions"] },
+        { "slug": "rank-systems", "name": "Rank of a system and the Rouché–Capelli criterion", "depth": "fluency", "est_hours": 2, "description": "Rank of coefficient vs augmented matrix; deciding consistency and dimension of solutions.", "prerequisites": ["consistency-solutions"] },
+        { "slug": "systems-applications", "name": "Applications: networks, balancing equations, and circuit currents", "depth": "procedural", "est_hours": 2, "description": "Modelling flows, chemical equations, and Kirchhoff's laws as linear systems.", "prerequisites": ["consistency-solutions"] }
+      ]
+    },
+    {
+      "slug": "matrix-algebra",
+      "name": "Matrices and Matrix Algebra",
+      "description": "Matrices as objects in their own right: the operations, the inverse, and the factorizations that make computation possible.",
+      "subtopics": [
+        { "slug": "matrix-notation", "name": "Matrix notation, size, and entries", "depth": "awareness", "est_hours": 0.5, "description": "Rows, columns, dimensions, and indexing conventions." },
+        { "slug": "matrix-addition-scalar", "name": "Matrix addition and scalar multiplication", "depth": "procedural", "est_hours": 1, "description": "Entrywise operations and their algebraic rules.", "prerequisites": ["matrix-notation"] },
+        { "slug": "matrix-multiplication", "name": "Matrix multiplication and its interpretation", "depth": "fluency", "est_hours": 2.5, "description": "Row-by-column definition; multiplication as composition and as linear combinations of columns.", "prerequisites": ["matrix-addition-scalar"] },
+        { "slug": "matrix-algebra-properties", "name": "Algebraic properties of matrix operations (and non-commutativity)", "depth": "procedural", "est_hours": 1.5, "description": "Associativity, distributivity, the identity, and why AB ≠ BA in general.", "prerequisites": ["matrix-multiplication"] },
+        { "slug": "transpose", "name": "The transpose of a matrix and its properties", "depth": "procedural", "est_hours": 1, "description": "Definition and the rule (AB)ᵀ = BᵀAᵀ.", "prerequisites": ["matrix-notation"] },
+        { "slug": "special-matrices", "name": "Diagonal, triangular, symmetric, and identity matrices", "depth": "procedural", "est_hours": 1, "description": "Named matrix families and their defining properties.", "prerequisites": ["transpose"] },
+        { "slug": "matrix-equation", "name": "The matrix equation Ax = b and its solution sets", "depth": "fluency", "est_hours": 2, "description": "Rewriting linear systems as Ax = b; existence and uniqueness in matrix terms.", "prerequisites": ["matrix-multiplication", "consistency-solutions"] },
+        { "slug": "matrix-inverse", "name": "The inverse of a matrix", "depth": "fluency", "est_hours": 2, "description": "Definition, the 2×2 formula, uniqueness, and (AB)⁻¹ = B⁻¹A⁻¹.", "prerequisites": ["matrix-multiplication"] },
+        { "slug": "inverse-computation", "name": "Computing inverses by Gauss–Jordan elimination", "depth": "fluency", "est_hours": 2, "description": "The [A | I] → [I | A⁻¹] algorithm and when it fails.", "prerequisites": ["matrix-inverse", "gauss-jordan"] },
+        { "slug": "invertibility-theorem", "name": "The invertible matrix theorem (equivalent conditions)", "depth": "fluency", "est_hours": 2, "description": "The chain of equivalent statements characterizing an invertible square matrix.", "prerequisites": ["inverse-computation", "matrix-equation"] },
+        { "slug": "elementary-matrices", "name": "Elementary matrices and their role in row reduction", "depth": "procedural", "est_hours": 1.5, "description": "Row operations as left multiplication; inverses of elementary matrices.", "prerequisites": ["gaussian-elimination", "matrix-multiplication"] },
+        { "slug": "lu-factorization", "name": "LU factorization of a matrix", "depth": "procedural", "est_hours": 2, "description": "Factoring A = LU from elimination and solving systems with it.", "prerequisites": ["elementary-matrices", "inverse-computation"] },
+        { "slug": "partitioned-matrices", "name": "Block (partitioned) matrices", "depth": "awareness", "est_hours": 1, "description": "Multiplying and inverting matrices by blocks.", "prerequisites": ["matrix-multiplication"] }
+      ]
+    },
+    {
+      "slug": "determinants",
+      "name": "Determinants",
+      "description": "A single number that captures invertibility, volume scaling, and orientation, with the rules for computing and using it.",
+      "subtopics": [
+        { "slug": "determinant-intro", "name": "The determinant of 2×2 and 3×3 matrices", "depth": "procedural", "est_hours": 1.5, "description": "The 2×2 formula and the rule of Sarrus for 3×3.", "prerequisites": ["matrix-notation"] },
+        { "slug": "cofactor-expansion", "name": "Cofactor (Laplace) expansion for n×n determinants", "depth": "fluency", "est_hours": 2.5, "description": "Minors, cofactors, and expansion along any row or column.", "prerequisites": ["determinant-intro"] },
+        { "slug": "determinant-row-ops", "name": "Evaluating determinants using row operations", "depth": "fluency", "est_hours": 2, "description": "How each elementary operation changes the determinant; triangular shortcut.", "prerequisites": ["cofactor-expansion", "gaussian-elimination"] },
+        { "slug": "determinant-properties", "name": "Properties of determinants", "depth": "fluency", "est_hours": 1.5, "description": "Effect of transpose, zero rows, repeated rows, and linearity in a row.", "prerequisites": ["cofactor-expansion"] },
+        { "slug": "determinant-product", "name": "The determinant of a product and of an inverse", "depth": "procedural", "est_hours": 1, "description": "det(AB) = det(A)det(B) and det(A⁻¹) = 1/det(A).", "prerequisites": ["determinant-properties", "matrix-inverse"] },
+        { "slug": "determinant-invertibility", "name": "Determinants and invertibility", "depth": "fluency", "est_hours": 1.5, "description": "A is invertible ⇔ det(A) ≠ 0; adding det to the invertible matrix theorem.", "prerequisites": ["determinant-properties", "invertibility-theorem"] },
+        { "slug": "adjugate-inverse", "name": "The adjugate and the inverse via cofactors", "depth": "procedural", "est_hours": 1.5, "description": "The cofactor (adjugate) matrix and the formula A⁻¹ = adj(A)/det(A).", "prerequisites": ["cofactor-expansion", "matrix-inverse"] },
+        { "slug": "cramers-rule", "name": "Cramer's rule", "depth": "procedural", "est_hours": 1.5, "description": "Solving square systems by ratios of determinants; when it is (im)practical.", "prerequisites": ["determinant-invertibility", "matrix-equation"] },
+        { "slug": "determinant-geometry", "name": "Determinants as area and volume; orientation", "depth": "fluency", "est_hours": 1.5, "description": "|det| as the scaling factor for area/volume; sign as orientation.", "prerequisites": ["determinant-intro", "cross-product"] }
+      ]
+    },
+    {
+      "slug": "vector-spaces",
+      "name": "Vector Spaces and Subspaces",
+      "description": "The abstraction that unifies the course: spaces, subspaces, span, independence, basis, dimension, and the fundamental subspaces of a matrix.",
+      "subtopics": [
+        { "slug": "vector-space-axioms", "name": "Vector spaces: the defining axioms", "depth": "proof", "est_hours": 2.5, "description": "The ten axioms; verifying whether a given set with operations is a vector space.", "prerequisites": ["vector-operations", "matrix-addition-scalar"] },
+        { "slug": "examples-vector-spaces", "name": "Examples of vector spaces (Rⁿ, matrices, polynomials, functions)", "depth": "procedural", "est_hours": 1.5, "description": "Recognizing familiar objects as vector spaces beyond arrows in space.", "prerequisites": ["vector-space-axioms"] },
+        { "slug": "subspaces", "name": "Subspaces and the subspace test", "depth": "fluency", "est_hours": 2, "description": "Closure under addition and scaling; testing whether a subset is a subspace.", "prerequisites": ["vector-space-axioms"] },
+        { "slug": "span", "name": "The span of a set of vectors", "depth": "fluency", "est_hours": 2, "description": "Spanning sets; span as the smallest subspace containing a set.", "prerequisites": ["linear-combinations-intro", "subspaces"] },
+        { "slug": "column-null-row-space", "name": "Column space, row space, and null space of a matrix", "depth": "fluency", "est_hours": 2.5, "description": "The fundamental subspaces and how row reduction reveals them.", "prerequisites": ["span", "homogeneous-systems"] },
+        { "slug": "linear-independence", "name": "Linear independence and dependence", "depth": "fluency", "est_hours": 2.5, "description": "Definition, the dependence relation, and geometric meaning.", "prerequisites": ["linear-combinations-intro"] },
+        { "slug": "independence-tests", "name": "Testing independence via row reduction and determinants", "depth": "fluency", "est_hours": 2, "description": "Deciding independence of vectors using RREF or the determinant.", "prerequisites": ["linear-independence", "gaussian-elimination"] },
+        { "slug": "basis", "name": "Basis of a vector space", "depth": "fluency", "est_hours": 2.5, "description": "Independent spanning sets; standard and non-standard bases.", "prerequisites": ["linear-independence", "span"] },
+        { "slug": "dimension", "name": "Dimension and its invariance", "depth": "fluency", "est_hours": 2, "description": "All bases have the same size; dimensions of common spaces and subspaces.", "prerequisites": ["basis"] },
+        { "slug": "coordinates", "name": "Coordinates relative to a basis", "depth": "fluency", "est_hours": 2, "description": "Coordinate vectors and the isomorphism to Rⁿ.", "prerequisites": ["basis"] },
+        { "slug": "rank-nullity", "name": "Rank, nullity, and the rank–nullity theorem", "depth": "proof", "est_hours": 2.5, "description": "Dimensions of column and null spaces and the relation rank + nullity = n.", "prerequisites": ["column-null-row-space", "dimension"] },
+        { "slug": "change-of-basis", "name": "Change of basis and transition matrices", "depth": "fluency", "est_hours": 2.5, "description": "Converting coordinates between bases; the change-of-basis matrix and its inverse.", "prerequisites": ["coordinates"] }
+      ]
+    },
+    {
+      "slug": "linear-transformations",
+      "name": "Linear Transformations",
+      "description": "Functions that respect vector-space structure, their matrices, and what kernel and image reveal about them.",
+      "subtopics": [
+        { "slug": "linear-map-definition", "name": "Linear transformations: definition and examples", "depth": "fluency", "est_hours": 2, "description": "Additivity and homogeneity; recognizing linear versus nonlinear maps.", "prerequisites": ["vector-space-axioms"] },
+        { "slug": "matrix-of-transformation", "name": "The standard matrix of a linear transformation", "depth": "fluency", "est_hours": 2, "description": "Building the matrix from images of basis vectors; every linear map on Rⁿ is a matrix.", "prerequisites": ["linear-map-definition", "matrix-multiplication"] },
+        { "slug": "geometric-transformations", "name": "Geometric transformations of the plane (rotation, reflection, scaling, shear)", "depth": "fluency", "est_hours": 2, "description": "Standard matrices for common 2D transformations and their composition.", "prerequisites": ["matrix-of-transformation"] },
+        { "slug": "kernel-image", "name": "Kernel (null space) and image (range) of a transformation", "depth": "fluency", "est_hours": 2, "description": "Defining and computing the kernel and image; relation to matrix subspaces.", "prerequisites": ["linear-map-definition", "column-null-row-space"] },
+        { "slug": "injective-surjective", "name": "One-to-one and onto transformations", "depth": "fluency", "est_hours": 2, "description": "Characterizing injectivity via the kernel and surjectivity via the image.", "prerequisites": ["kernel-image"] },
+        { "slug": "composition-transformations", "name": "Composition of transformations and matrix products", "depth": "procedural", "est_hours": 1, "description": "Composition corresponds to multiplying standard matrices.", "prerequisites": ["matrix-of-transformation"] },
+        { "slug": "inverse-transformations", "name": "Invertible transformations and their matrices", "depth": "fluency", "est_hours": 1.5, "description": "When a transformation is invertible; the inverse map's matrix.", "prerequisites": ["injective-surjective", "matrix-inverse"] },
+        { "slug": "matrix-general-bases", "name": "Matrix of a transformation relative to general bases", "depth": "fluency", "est_hours": 2, "description": "Representing a transformation in arbitrary input/output bases.", "prerequisites": ["matrix-of-transformation", "change-of-basis"] }
+      ]
+    },
+    {
+      "slug": "eigenvalues-eigenvectors",
+      "name": "Eigenvalues and Eigenvectors",
+      "description": "The directions a matrix merely stretches, the characteristic equation that finds them, and the invariants of similar matrices.",
+      "subtopics": [
+        { "slug": "eigen-definition", "name": "Eigenvalues and eigenvectors: definition and meaning", "depth": "fluency", "est_hours": 2, "description": "Av = λv; the geometric picture of invariant directions.", "prerequisites": ["matrix-multiplication", "linear-map-definition"] },
+        { "slug": "characteristic-polynomial", "name": "The characteristic equation and characteristic polynomial", "depth": "fluency", "est_hours": 2.5, "description": "det(A − λI) = 0; finding eigenvalues as its roots.", "prerequisites": ["determinant-invertibility", "eigen-definition"] },
+        { "slug": "computing-eigenvectors", "name": "Computing eigenvectors and eigenspaces", "depth": "fluency", "est_hours": 2, "description": "Solving (A − λI)v = 0 for each eigenvalue; the eigenspace as a null space.", "prerequisites": ["characteristic-polynomial", "homogeneous-systems"] },
+        { "slug": "eigen-properties", "name": "Properties of eigenvalues (trace, determinant, powers)", "depth": "procedural", "est_hours": 1.5, "description": "Sum and product of eigenvalues; eigenvalues of Aᵏ and A⁻¹.", "prerequisites": ["characteristic-polynomial"] },
+        { "slug": "algebraic-geometric-multiplicity", "name": "Algebraic and geometric multiplicity", "depth": "fluency", "est_hours": 2, "description": "Counting eigenvalues with multiplicity; when geometric < algebraic.", "prerequisites": ["computing-eigenvectors", "dimension"] },
+        { "slug": "complex-eigenvalues", "name": "Complex eigenvalues and eigenvectors", "depth": "procedural", "est_hours": 2, "description": "Real matrices with complex spectra; conjugate pairs and rotation blocks.", "prerequisites": ["characteristic-polynomial", "complex-numbers-review"] },
+        { "slug": "similarity", "name": "Similar matrices and their shared invariants", "depth": "fluency", "est_hours": 2, "description": "B = P⁻¹AP; similarity preserves eigenvalues, trace, and determinant.", "prerequisites": ["change-of-basis", "characteristic-polynomial"] }
+      ]
+    },
+    {
+      "slug": "diagonalization",
+      "name": "Diagonalization",
+      "description": "Turning a matrix into a diagonal one in a new basis, and why that makes powers, dynamics, and differential equations easy.",
+      "subtopics": [
+        { "slug": "diagonalization-definition", "name": "Diagonalization: when a matrix is diagonalizable", "depth": "fluency", "est_hours": 2, "description": "The eigenbasis condition; the criterion in terms of multiplicities.", "prerequisites": ["algebraic-geometric-multiplicity", "similarity"] },
+        { "slug": "diagonalization-procedure", "name": "Diagonalizing a matrix in practice", "depth": "fluency", "est_hours": 2, "description": "Assembling P from eigenvectors and D from eigenvalues; A = PDP⁻¹.", "prerequisites": ["diagonalization-definition"] },
+        { "slug": "matrix-powers-diagonal", "name": "Using diagonalization to compute matrix powers", "depth": "procedural", "est_hours": 1.5, "description": "Aᵏ = PDᵏP⁻¹ and evaluating matrix polynomials.", "prerequisites": ["diagonalization-procedure"] },
+        { "slug": "discrete-dynamical-systems", "name": "Applications: difference equations and discrete dynamical systems", "depth": "procedural", "est_hours": 2, "description": "Long-term behaviour of xₖ₊₁ = Axₖ; steady states and Markov chains.", "prerequisites": ["matrix-powers-diagonal"] },
+        { "slug": "matrix-exponential", "name": "The matrix exponential and systems of linear ODEs", "depth": "awareness", "est_hours": 1.5, "description": "Defining e^{At} via diagonalization and solving x' = Ax.", "prerequisites": ["diagonalization-procedure"] },
+        { "slug": "cayley-hamilton", "name": "The Cayley–Hamilton theorem", "depth": "awareness", "est_hours": 1, "description": "A matrix satisfies its own characteristic equation; using it to find inverses and powers.", "prerequisites": ["characteristic-polynomial"] }
+      ]
+    },
+    {
+      "slug": "orthogonality",
+      "name": "Orthogonality and Inner Product Spaces",
+      "description": "Length, angle, and perpendicularity in general spaces: orthonormal bases, projection, and the Gram–Schmidt process.",
+      "subtopics": [
+        { "slug": "inner-product-general", "name": "Inner products and inner product spaces", "depth": "fluency", "est_hours": 2, "description": "Generalizing the dot product; the axioms of an inner product.", "prerequisites": ["dot-product", "vector-space-axioms"] },
+        { "slug": "norm-distance-general", "name": "Norm, distance, and angle from an inner product", "depth": "procedural", "est_hours": 1.5, "description": "Induced norm, Cauchy–Schwarz, and the triangle inequality.", "prerequisites": ["inner-product-general"] },
+        { "slug": "orthogonal-sets", "name": "Orthogonal and orthonormal sets", "depth": "fluency", "est_hours": 2, "description": "Orthogonality of vectors, orthonormal bases, and their computational advantages.", "prerequisites": ["inner-product-general", "linear-independence"] },
+        { "slug": "orthogonal-projection", "name": "Orthogonal projection onto a subspace", "depth": "fluency", "est_hours": 2.5, "description": "Projecting a vector onto a line and a subspace; the best-approximation property.", "prerequisites": ["orthogonal-sets", "span"] },
+        { "slug": "orthogonal-complements", "name": "Orthogonal complements and the four fundamental subspaces", "depth": "fluency", "est_hours": 2, "description": "The orthogonal complement and how the fundamental subspaces pair up.", "prerequisites": ["orthogonal-projection", "column-null-row-space"] },
+        { "slug": "gram-schmidt", "name": "The Gram–Schmidt process", "depth": "fluency", "est_hours": 2.5, "description": "Turning any basis into an orthonormal one.", "prerequisites": ["orthogonal-projection", "basis"] },
+        { "slug": "qr-factorization", "name": "QR factorization", "depth": "procedural", "est_hours": 1.5, "description": "Factoring A = QR from Gram–Schmidt and its uses.", "prerequisites": ["gram-schmidt"] },
+        { "slug": "orthogonal-matrices", "name": "Orthogonal matrices and their properties", "depth": "fluency", "est_hours": 1.5, "description": "QᵀQ = I; length preservation and orthonormal columns.", "prerequisites": ["orthogonal-sets", "transpose"] }
+      ]
+    },
+    {
+      "slug": "least-squares",
+      "name": "Least Squares and Applications",
+      "description": "Best-fit solutions when a system has no exact answer — the workhorse of engineering data fitting.",
+      "subtopics": [
+        { "slug": "least-squares-problem", "name": "The least-squares problem and the normal equations", "depth": "fluency", "est_hours": 2.5, "description": "Minimizing ‖Ax − b‖; deriving and solving AᵀAx = Aᵀb.", "prerequisites": ["orthogonal-projection", "matrix-equation"] },
+        { "slug": "least-squares-fitting", "name": "Least-squares curve fitting and linear regression", "depth": "fluency", "est_hours": 2, "description": "Fitting lines, polynomials, and models to data by least squares.", "prerequisites": ["least-squares-problem"] },
+        { "slug": "least-squares-qr", "name": "Solving least squares with QR factorization", "depth": "procedural", "est_hours": 1.5, "description": "Using A = QR for a numerically stable least-squares solution.", "prerequisites": ["least-squares-problem", "qr-factorization"] },
+        { "slug": "inconsistent-systems", "name": "Approximate solutions to inconsistent systems", "depth": "procedural", "est_hours": 1, "description": "Interpreting the least-squares solution when no exact solution exists.", "prerequisites": ["least-squares-problem", "consistency-solutions"] }
+      ]
+    },
+    {
+      "slug": "symmetric-quadratic",
+      "name": "Symmetric Matrices and Quadratic Forms",
+      "description": "The especially well-behaved symmetric case: orthogonal diagonalization, the spectral theorem, quadratic forms, and the SVD.",
+      "subtopics": [
+        { "slug": "symmetric-diagonalization", "name": "Orthogonal diagonalization of symmetric matrices", "depth": "fluency", "est_hours": 2, "description": "Symmetric matrices have orthonormal eigenbases; A = QDQᵀ.", "prerequisites": ["diagonalization-procedure", "orthogonal-matrices"] },
+        { "slug": "spectral-theorem", "name": "The spectral theorem for symmetric matrices", "depth": "proof", "est_hours": 2.5, "description": "Real eigenvalues, orthogonal eigenspaces, and the spectral decomposition.", "prerequisites": ["symmetric-diagonalization"] },
+        { "slug": "quadratic-forms", "name": "Quadratic forms and their matrices", "depth": "fluency", "est_hours": 2, "description": "Writing a quadratic form as xᵀAx with A symmetric.", "prerequisites": ["symmetric-diagonalization"] },
+        { "slug": "principal-axes", "name": "The principal axes theorem and change of variable", "depth": "fluency", "est_hours": 2, "description": "Eliminating cross terms by rotating to eigenvector axes; conic/quadric classification.", "prerequisites": ["quadratic-forms", "spectral-theorem"] },
+        { "slug": "definiteness", "name": "Positive-definite matrices and classification of quadratic forms", "depth": "fluency", "est_hours": 2, "description": "Positive/negative definite, semidefinite, and indefinite via eigenvalue signs.", "prerequisites": ["quadratic-forms"] },
+        { "slug": "svd-intro", "name": "The singular value decomposition (introduction)", "depth": "awareness", "est_hours": 2, "description": "A = UΣVᵀ; singular values and what the SVD reveals about any matrix.", "prerequisites": ["spectral-theorem", "orthogonal-matrices"] }
+      ]
+    },
+    {
+      "slug": "complex-and-numerical",
+      "name": "Complex and Numerical Linear Algebra",
+      "description": "The finishing tools: complex vectors and matrices, and the numerical realities of solving large systems on a computer.",
+      "subtopics": [
+        { "slug": "complex-numbers-review", "name": "Complex numbers: arithmetic, modulus, and the complex plane", "depth": "procedural", "est_hours": 1.5, "description": "Rectangular and polar forms, conjugates, modulus, and Euler's formula." },
+        { "slug": "complex-vector-spaces", "name": "Complex vector spaces and the complex (Hermitian) inner product", "depth": "awareness", "est_hours": 1.5, "description": "Vectors over C and the conjugate-linear inner product.", "prerequisites": ["complex-numbers-review", "inner-product-general"] },
+        { "slug": "hermitian-unitary", "name": "Hermitian and unitary matrices", "depth": "awareness", "est_hours": 1.5, "description": "The complex analogues of symmetric and orthogonal matrices.", "prerequisites": ["complex-vector-spaces", "orthogonal-matrices"] },
+        { "slug": "pivoting-stability", "name": "Partial pivoting and numerical stability", "depth": "awareness", "est_hours": 1.5, "description": "Why elimination reorders rows; roundoff and loss of significance.", "prerequisites": ["gaussian-elimination"] },
+        { "slug": "condition-number", "name": "Condition number and ill-conditioned systems", "depth": "awareness", "est_hours": 1.5, "description": "Sensitivity of solutions to small perturbations in A or b.", "prerequisites": ["matrix-inverse"] },
+        { "slug": "iterative-methods", "name": "Iterative methods for linear systems (Jacobi and Gauss–Seidel)", "depth": "awareness", "est_hours": 1.5, "description": "Solving large sparse systems by iteration; convergence conditions.", "prerequisites": ["consistency-solutions"] },
+        { "slug": "power-method", "name": "The power method for the dominant eigenvalue", "depth": "awareness", "est_hours": 1.5, "description": "Iteratively approximating the largest eigenvalue and its eigenvector.", "prerequisites": ["eigen-definition"] }
+      ]
+    }
+  ]
+}

@@ -54,8 +54,8 @@ const INTAKE_YEARS = [THIS_YEAR + 1, THIS_YEAR, THIS_YEAR - 1, THIS_YEAR - 2];
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm " +
-  "focus:outline-none focus:ring-2 focus:ring-zinc-500 " +
-  "dark:border-zinc-700 dark:bg-zinc-900";
+  "focus:outline-none focus:ring-2 focus:ring-indigo-500 " +
+  "dark:border-zinc-700 dark:bg-zinc-950";
 
 export function OnboardingForm({
   universities,
@@ -139,7 +139,7 @@ export function OnboardingForm({
           Are you starting first year, or actively attending it?
         </legend>
         <div className="space-y-2">
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-zinc-300 p-3 has-[:checked]:border-zinc-900 has-[:checked]:ring-1 has-[:checked]:ring-zinc-900 dark:border-zinc-700 dark:has-[:checked]:border-zinc-100 dark:has-[:checked]:ring-zinc-100">
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-zinc-300 p-3 transition has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50/50 has-[:checked]:ring-1 has-[:checked]:ring-indigo-500 dark:border-zinc-700 dark:has-[:checked]:bg-indigo-950/30">
             <input
               type="radio"
               name="phase"
@@ -157,7 +157,7 @@ export function OnboardingForm({
               </span>
             </span>
           </label>
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-zinc-300 p-3 has-[:checked]:border-zinc-900 has-[:checked]:ring-1 has-[:checked]:ring-zinc-900 dark:border-zinc-700 dark:has-[:checked]:border-zinc-100 dark:has-[:checked]:ring-zinc-100">
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-zinc-300 p-3 transition has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50/50 has-[:checked]:ring-1 has-[:checked]:ring-indigo-500 dark:border-zinc-700 dark:has-[:checked]:bg-indigo-950/30">
             <input
               type="radio"
               name="phase"
@@ -185,7 +185,7 @@ export function OnboardingForm({
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-zinc-900 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+        className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-50"
       >
         {pending ? "Setting up…" : "Unlock the first-year database"}
       </button>

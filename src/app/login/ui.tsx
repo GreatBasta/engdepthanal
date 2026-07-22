@@ -8,13 +8,12 @@ const initialState: AuthFormState = { error: null };
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm " +
-  "focus:outline-none focus:ring-2 focus:ring-zinc-500 " +
-  "dark:border-zinc-700 dark:bg-zinc-900";
+  "focus:outline-none focus:ring-2 focus:ring-indigo-500 " +
+  "dark:border-zinc-700 dark:bg-zinc-950";
 
 const buttonClass =
-  "w-full rounded-lg bg-zinc-900 py-2.5 text-sm font-medium text-white " +
-  "hover:bg-zinc-700 disabled:opacity-50 " +
-  "dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300";
+  "w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white " +
+  "shadow-sm transition hover:bg-indigo-500 disabled:opacity-50";
 
 export function AuthForms({ next }: { next: string }) {
   const [mode, setMode] = useState<"signin" | "signup">("signin");
@@ -40,7 +39,7 @@ export function AuthForms({ next }: { next: string }) {
             onClick={() => setMode(m)}
             className={`flex-1 rounded-md py-1.5 text-sm font-medium transition ${
               mode === m
-                ? "bg-white shadow dark:bg-zinc-950"
+                ? "bg-white text-indigo-700 shadow dark:bg-zinc-950 dark:text-indigo-300"
                 : "text-zinc-600 dark:text-zinc-400"
             }`}
           >

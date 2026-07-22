@@ -38,7 +38,7 @@ export function SurveyProgress({
       </div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
         <div
-          className="h-full rounded-full bg-zinc-900 transition-all dark:bg-zinc-100"
+          className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500 transition-all"
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -63,8 +63,8 @@ type ScaleOption =
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm " +
-  "focus:outline-none focus:ring-2 focus:ring-zinc-500 " +
-  "dark:border-zinc-700 dark:bg-zinc-900";
+  "focus:outline-none focus:ring-2 focus:ring-indigo-500 " +
+  "dark:border-zinc-700 dark:bg-zinc-950";
 
 export function GradeForm({
   subjectSlug,
@@ -172,7 +172,7 @@ export function GradeForm({
           type="button"
           onClick={submit}
           disabled={pending}
-          className="w-full rounded-lg bg-zinc-900 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-50"
         >
           {pending ? "Saving…" : "Continue to the questions →"}
         </button>
@@ -267,8 +267,8 @@ export function TopicForm({
                     }
                     className={`rounded-lg border px-2 py-2 text-left text-xs transition ${
                       selected
-                        ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-                        : "border-zinc-300 hover:border-zinc-500 dark:border-zinc-700"
+                        ? "border-indigo-600 bg-indigo-600 text-white shadow-sm"
+                        : "border-zinc-300 hover:border-indigo-400 dark:border-zinc-700"
                     }`}
                   >
                     <span className="block font-medium">{opt.label}</span>
@@ -312,7 +312,7 @@ export function TopicForm({
           type="button"
           onClick={submit}
           disabled={pending}
-          className="rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          className="rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-50"
         >
           {pending
             ? "Saving…"
