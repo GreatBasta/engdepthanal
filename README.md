@@ -45,6 +45,13 @@ npm run dev
 `npm run aggregate` recomputes the coverage aggregates that power the gap
 analysis (the "nightly job"; also refreshed live as students submit surveys).
 
+## Deploying it online
+
+To put the MVP on the web (free) so others can use it, see
+[`DEPLOY.md`](DEPLOY.md) — a step-by-step guide using Neon (Postgres) +
+Vercel (the app). Sign-in fails until a database is connected and seeded;
+that guide fixes it.
+
 Then sign up, name your university and course (added automatically if it's
 not in the database yet), say whether you're **starting** or **actively
 attending** first year, and the first-year database unlocks.
