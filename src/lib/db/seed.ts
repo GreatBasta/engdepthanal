@@ -56,7 +56,7 @@ interface CurriculumFile {
   }[];
 }
 
-const CURRICULUM_FILES = ["calculus-1.json"];
+const CURRICULUM_FILES = ["calculus-1.json", "linear-algebra.json"];
 
 async function seedPrograms() {
   for (const program of ENGINEERING_PROGRAMS) {

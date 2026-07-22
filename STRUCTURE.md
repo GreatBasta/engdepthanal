@@ -196,6 +196,25 @@ estimated hours, and prerequisites — is in
 11. Sequences and series
 12. Introduction to differential equations
 
+### 4.4 Linear Algebra
+
+The complete taxonomy — 12 topics, 101 subtopics, each with depth level,
+estimated hours, and prerequisites — is in
+[`curriculum/linear-algebra.json`](curriculum/linear-algebra.json). Topic outline:
+
+1. Vectors and vector geometry
+2. Systems of linear equations
+3. Matrices and matrix algebra
+4. Determinants
+5. Vector spaces and subspaces
+6. Linear transformations
+7. Eigenvalues and eigenvectors
+8. Diagonalization
+9. Orthogonality and inner product spaces
+10. Least squares and applications
+11. Symmetric matrices and quadratic forms
+12. Complex and numerical linear algebra
+
 ---
 
 ## 5. Data-quality rules
