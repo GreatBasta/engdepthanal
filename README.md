@@ -42,15 +42,25 @@ npm run db:seed             # programs + Calculus I curriculum (safe to re-run)
 npm run dev
 ```
 
+`npm run aggregate` recomputes the coverage aggregates that power the gap
+analysis (the "nightly job"; also refreshed live as students submit surveys).
+
 Then sign up, name your university and course (added automatically if it's
 not in the database yet), say whether you're **starting** or **actively
 attending** first year, and the first-year database unlocks.
 
 ## Build status
 
-**Phase 1 (this repo, done):** schema + migrations, Calculus I seed, auth,
-onboarding, and the read-only branch outlook per subject.
+Phases 1–4 are built and verified end-to-end:
 
-**Next (see STRUCTURE.md §8):** Phase 2 progress tracking → Phase 3 the
-finished-student coverage survey with grades → Phase 4 aggregation and the
-per-university gap analysis → Phase 5 remaining first-year subjects.
+- **Phase 1** — schema + migrations, Calculus I seed, auth, onboarding, the
+  read-only branch outlook per subject.
+- **Phase 2** — the interactive progress tracker and the finish gate.
+- **Phase 3** — grade capture and the chunked, resumable coverage survey
+  (finished subjects only).
+- **Phase 4** — the coverage-aggregation pipeline (weighted, sample-gated)
+  plus the gap-analysis page and coverage badges on the outlook.
+
+**Next (see STRUCTURE.md §8):** Phase 5 — remaining first-year subjects
+(linear algebra, physics I, …), curriculum-suggestion review, and cohort /
+grade analytics.

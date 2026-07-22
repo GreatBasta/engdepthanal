@@ -5,12 +5,31 @@ import { asc, eq } from "drizzle-orm";
 import { currentStudentId } from "@/auth";
 import { db } from "@/lib/db/client";
 import { subjects, subtopics, topics } from "@/lib/db/schema";
+import { getStudentEnrollment } from "@/lib/enrollment";
+import { getSubjectCoverage, type Verdict } from "@/lib/coverage";
 
 const DEPTH_LABEL: Record<string, string> = {
   awareness: "awareness",
   procedural: "procedural",
   fluency: "fluency",
   proof: "proof-level",
+};
+
+const COVERAGE_META: Record<Verdict, { label: string; badge: string }> = {
+  taught: {
+    label: "taught here",
+    badge:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+  },
+  partially_taught: {
+    label: "partial",
+    badge: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
+  },
+  not_taught: {
+    label: "not taught",
+    badge: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
+  },
+  insufficient_data: { label: "", badge: "" },
 };
 
 const DEPTH_CLASS: Record<string, string> = {
@@ -38,6 +57,9 @@ export default async function SubjectPage({
   if (!studentId) redirect("/login");
   const { slug } = await params;
 
+  const enrollment = await getStudentEnrollment(studentId);
+  if (!enrollment) redirect("/onboarding");
+
   const [subject] = await db
     .select()
     .from(subjects)
@@ -45,12 +67,18 @@ export default async function SubjectPage({
     .limit(1);
   if (!subject) notFound();
 
+  const coverage = await getSubjectCoverage(
+    enrollment.universityProgramId,
+    subject.id,
+  );
+
   const rows = await db
     .select({
       topicId: topics.id,
       topicName: topics.name,
       topicDescription: topics.description,
       topicPosition: topics.position,
+      subtopicId: subtopics.id,
       subtopicName: subtopics.name,
       subtopicDescription: subtopics.description,
       depthLevel: subtopics.depthLevel,
@@ -100,12 +128,31 @@ export default async function SubjectPage({
         {Math.round(totalHours)} study hours
       </p>
 
-      <Link
-        href={`/subjects/${slug}/track`}
-        className="mt-4 inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-      >
-        Track your progress →
-      </Link>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <Link
+          href={`/subjects/${slug}/track`}
+          className="inline-block rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+        >
+          Track your progress →
+        </Link>
+        <Link
+          href={`/subjects/${slug}/gaps`}
+          className="inline-block rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+        >
+          What your university teaches →
+        </Link>
+      </div>
+      {coverage.hasEnough ? (
+        <p className="mt-3 text-xs text-zinc-500">
+          Coverage badges below reflect {coverage.respondents} finished
+          students at your university and course.
+        </p>
+      ) : (
+        <p className="mt-3 text-xs text-zinc-500">
+          Coverage data appears once {coverage.minSample} finished students
+          respond ({coverage.respondents} so far).
+        </p>
+      )}
 
       <ol className="mt-10 space-y-8">
         {[...grouped.values()].map((topic) => (
@@ -119,33 +166,52 @@ export default async function SubjectPage({
               </p>
             )}
             <ul className="mt-3 space-y-px border-l-2 border-zinc-200 dark:border-zinc-800">
-              {topic.items.map((item) => (
-                <li
-                  key={item.subtopicName}
-                  className="flex items-start justify-between gap-4 py-2 pl-4"
-                >
-                  <div>
-                    <p className="text-sm font-medium">{item.subtopicName}</p>
-                    {item.subtopicDescription && (
-                      <p className="text-xs text-zinc-500">
-                        {item.subtopicDescription}
+              {topic.items.map((item) => {
+                const cov = coverage.hasEnough
+                  ? coverage.bySubtopic.get(item.subtopicId)
+                  : undefined;
+                const covMeta =
+                  cov && cov.verdict !== "insufficient_data"
+                    ? COVERAGE_META[cov.verdict]
+                    : null;
+                return (
+                  <li
+                    key={item.subtopicId}
+                    className="flex items-start justify-between gap-4 py-2 pl-4"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">
+                        {item.subtopicName}
                       </p>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {item.estHours && (
-                      <span className="text-xs text-zinc-400">
-                        {Number(item.estHours)}h
+                      {item.subtopicDescription && (
+                        <p className="text-xs text-zinc-500">
+                          {item.subtopicDescription}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {covMeta && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${covMeta.badge}`}
+                          title={`${cov!.pctCovered}% coverage`}
+                        >
+                          {covMeta.label}
+                        </span>
+                      )}
+                      {item.estHours && (
+                        <span className="text-xs text-zinc-400">
+                          {Number(item.estHours)}h
+                        </span>
+                      )}
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${DEPTH_CLASS[item.depthLevel]}`}
+                      >
+                        {DEPTH_LABEL[item.depthLevel]}
                       </span>
-                    )}
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${DEPTH_CLASS[item.depthLevel]}`}
-                    >
-                      {DEPTH_LABEL[item.depthLevel]}
-                    </span>
-                  </div>
-                </li>
-              ))}
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </li>
         ))}

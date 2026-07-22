@@ -181,17 +181,24 @@ function ProgressHeader({
           </p>
           <p className="mt-1 text-sm text-emerald-700 dark:text-emerald-400">
             Next: the coverage survey — record what your university actually
-            taught, so it feeds the gap analysis for your course. (Coming in
-            Phase 3.)
+            taught, so it feeds the gap analysis for your course.
           </p>
-          <button
-            type="button"
-            disabled={pending}
-            onClick={() => run(() => reopenSubject(subjectSlug))}
-            className="mt-3 text-xs text-emerald-700 underline-offset-2 hover:underline disabled:opacity-50 dark:text-emerald-400"
+          <a
+            href={`/subjects/${subjectSlug}/survey`}
+            className="mt-3 inline-block rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500"
           >
-            Reopen (marked finished by mistake)
-          </button>
+            Start the coverage survey →
+          </a>
+          <div>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => run(() => reopenSubject(subjectSlug))}
+              className="mt-3 text-xs text-emerald-700 underline-offset-2 hover:underline disabled:opacity-50 dark:text-emerald-400"
+            >
+              Reopen (marked finished by mistake)
+            </button>
+          </div>
         </div>
       ) : confirming ? (
         <div className="mt-4 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
