@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { desc, eq } from "drizzle-orm";
 
 import { currentAdmin } from "@/lib/admin";
@@ -14,7 +14,7 @@ import { ReviewButtons } from "../ui";
  */
 export default async function CurriculumReview() {
   const admin = await currentAdmin();
-  if (!admin) notFound();
+  if (!admin) redirect("/admin/login");
 
   const rows = await db
     .select({
