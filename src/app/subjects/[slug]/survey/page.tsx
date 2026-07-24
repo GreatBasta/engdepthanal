@@ -108,7 +108,10 @@ export default async function SurveyPage({
   const topicList = order.map((id) => grouped.get(id)!);
 
   const hasGrade = subjectEnrollment.gradeNormalized != null;
-  const current = step ?? (hasGrade ? "capture" : "grade");
+  const anyAnswered = answered.length > 0;
+  // grade → pick a mode → capture (highlighter) or the swipe deck → done
+  const current =
+    step ?? (!hasGrade ? "grade" : anyAnswered ? "capture" : "choose");
 
   // ---------- Completion summary ----------
   if (current === "done") {
@@ -178,7 +181,7 @@ export default async function SurveyPage({
         </h1>
         <GradeForm
           subjectSlug={slug}
-          nextHref={`/subjects/${slug}/survey?step=capture`}
+          nextHref={`/subjects/${slug}/survey?step=choose`}
           scales={Object.entries(GRADE_SCALES).map(([id, s]) =>
             s.kind === "numeric"
               ? {
@@ -199,6 +202,67 @@ export default async function SurveyPage({
           existingScale={subjectEnrollment.gradeScale}
           existingValue={subjectEnrollment.gradeValue}
         />
+      </main>
+    );
+  }
+
+  // ---------- Mode chooser ----------
+  if (current === "choose") {
+    const total = topicList.reduce((n, t) => n + t.subtopics.length, 0);
+    return (
+      <main className="mx-auto max-w-lg px-6 py-12">
+        <Link
+          href={`/subjects/${slug}/track`}
+          className="text-sm text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline dark:hover:text-zinc-100"
+        >
+          ← {subject.name}
+        </Link>
+        <h1 className="mt-3 text-2xl font-bold tracking-tight">
+          How do you want to do this?
+        </h1>
+        <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-400">
+          {total} subtopics in {subject.name}. Both record the same thing —
+          pick whichever suits you. You can switch later.
+        </p>
+
+        <div className="mt-7 space-y-3">
+          <Link
+            href={`/subjects/${slug}/survey?step=capture`}
+            className="group block rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-600 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold group-hover:text-cyan-800 dark:group-hover:text-cyan-300">
+                🖍️ Quick pass
+              </h2>
+              <span className="shrink-0 rounded-full bg-cyan-50 px-2.5 py-0.5 text-xs font-bold text-cyan-800 dark:bg-cyan-950/60 dark:text-cyan-300">
+                ~2 min
+              </span>
+            </div>
+            <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-400">
+              Pick a highlighter, tap the exceptions, fill the rest in one go.
+              Fastest way to map the whole subject.
+            </p>
+          </Link>
+
+          <Link
+            href={`/subjects/${slug}/swipe`}
+            className="group block rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-lg font-bold group-hover:text-emerald-700 dark:group-hover:text-emerald-300">
+                🃏 Card by card
+              </h2>
+              <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
+                richer
+              </span>
+            </div>
+            <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-400">
+              Swipe through one at a time. Rate how hard each was, how deep you
+              went, save the ones to revisit, and read notes from others on your
+              course.
+            </p>
+          </Link>
+        </div>
       </main>
     );
   }

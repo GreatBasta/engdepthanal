@@ -60,6 +60,18 @@ export const coverageAnswer = pgEnum("coverage_answer", [
   "unsure",
 ]);
 
+/**
+ * Why a student hasn't studied a subtopic. Crucial distinction: only
+ * `not_covered` is a real university gap — `not_reached` (still to come) and
+ * `skipped` (taught, but they haven't done it) must never count against the
+ * university, so both map to the `unsure` answer that aggregation excludes.
+ */
+export const notStudiedReason = pgEnum("not_studied_reason", [
+  "not_covered",
+  "not_reached",
+  "skipped",
+]);
+
 export const coverageVerdict = pgEnum("coverage_verdict", [
   "taught",
   "partially_taught",
@@ -319,6 +331,12 @@ export const coverageResponses = pgTable(
       .notNull()
       .references(() => subtopics.id),
     answer: coverageAnswer("answer").notNull(),
+    /** 1–5, how hard the student found it (swipe deck only). */
+    difficulty: smallint("difficulty"),
+    /** The depth the student actually reached (vs the curriculum target). */
+    studiedDepth: depthLevel("studied_depth"),
+    /** Set when the student hasn't studied it; distinguishes a real gap. */
+    notStudiedReason: notStudiedReason("not_studied_reason"),
     answeredAt: timestamp("answered_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -330,6 +348,49 @@ export const coverageResponses = pgTable(
     primaryKey({ columns: [t.subjectEnrollmentId, t.subtopicId] }),
     index("idx_responses_subtopic").on(t.subtopicId),
   ],
+);
+
+/**
+ * Per-subtopic notes students leave for each other ("our lecturer skipped
+ * the proof"). Scoped to a university-program so a student reads advice from
+ * their own course, not a different university's.
+ */
+export const subtopicComments = pgTable(
+  "subtopic_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    subtopicId: uuid("subtopic_id")
+      .notNull()
+      .references(() => subtopics.id),
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id),
+    universityProgramId: uuid("university_program_id")
+      .notNull()
+      .references(() => universityPrograms.id),
+    body: text("body").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("idx_comments_subtopic").on(t.subtopicId, t.universityProgramId)],
+);
+
+/** A student's saved/starred subtopics — the seed of their study roadmap. */
+export const subtopicStars = pgTable(
+  "subtopic_stars",
+  {
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id),
+    subtopicId: uuid("subtopic_id")
+      .notNull()
+      .references(() => subtopics.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.studentId, t.subtopicId] })],
 );
 
 // ---------------------------------------------------------------------------

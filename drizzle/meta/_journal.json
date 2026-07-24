@@ -15,6 +15,13 @@
       "when": 1784587599635,
       "tag": "0001_finished_guard_trigger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1784930697588,
+      "tag": "0002_mute_dreadnoughts",
+      "breakpoints": true
     }
   ]
 }
