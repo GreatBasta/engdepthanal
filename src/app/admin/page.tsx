@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { count, eq } from "drizzle-orm";
 
 import { currentAdmin } from "@/lib/admin";
+import { adminLogout } from "./login/actions";
 import { db } from "@/lib/db/client";
 import {
   curriculumSuggestions,
@@ -11,12 +12,12 @@ import {
 } from "@/lib/db/schema";
 
 /**
- * Admin review console (Phase 5). Gated by the ADMIN_EMAILS allowlist;
- * non-admins get a 404 so the area isn't discoverable.
+ * Admin review console (Phase 5). Requires an admin session (username +
+ * password login, or an ADMIN_EMAILS student); otherwise redirects to login.
  */
 export default async function AdminHome() {
   const admin = await currentAdmin();
-  if (!admin) notFound();
+  if (!admin) redirect("/admin/login");
 
   const [[suggestions], [unis], [progs]] = await Promise.all([
     db
@@ -41,11 +42,23 @@ export default async function AdminHome() {
       >
         ← Dashboard
       </Link>
-      <h1 className="mt-4 text-2xl font-bold tracking-tight">Admin console</h1>
-      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-        Signed in as {admin.email}. Review what students contribute before it
-        feeds the platform.
-      </p>
+      <div className="mt-4 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Admin console</h1>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            Signed in as {admin.label}. Review what students contribute before
+            it feeds the platform.
+          </p>
+        </div>
+        <form action={adminLogout}>
+          <button
+            type="submit"
+            className="shrink-0 text-sm text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline dark:hover:text-zinc-100"
+          >
+            Sign out
+          </button>
+        </form>
+      </div>
 
       <div className="mt-8 grid gap-4 sm:grid-cols-2">
         <AdminCard

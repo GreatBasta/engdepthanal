@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { redirect } from "next/navigation";
 import { alias } from "drizzle-orm/pg-core";
 import { desc, eq } from "drizzle-orm";
 
@@ -20,7 +20,7 @@ import { ReviewButtons } from "../ui";
  */
 export default async function VerifyReview() {
   const admin = await currentAdmin();
-  if (!admin) notFound();
+  if (!admin) redirect("/admin/login");
 
   const uni = alias(universities, "uni");
 
