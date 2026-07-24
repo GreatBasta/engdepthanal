@@ -6,49 +6,52 @@ import { currentStudentId } from "@/auth";
 import { db } from "@/lib/db/client";
 import { subjects, subtopics, topics } from "@/lib/db/schema";
 import { getStudentEnrollment } from "@/lib/enrollment";
-import { getSubjectCoverage, type Verdict } from "@/lib/coverage";
+import { getCohortAnalytics, type CohortAnalytics } from "@/lib/analytics";
+import type { Verdict } from "@/lib/aggregate";
 
-const VERDICT_META: Record<
-  Verdict,
-  { label: string; badge: string; order: number }
-> = {
+const VERDICT_META: Record<Verdict, { label: string; badge: string }> = {
   not_taught: {
     label: "Not taught",
     badge: "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300",
-    order: 0,
   },
   partially_taught: {
     label: "Partially taught",
-    badge:
-      "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-    order: 1,
+    badge: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
   },
   taught: {
     label: "Taught",
     badge:
       "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
-    order: 2,
   },
   insufficient_data: {
     label: "Not enough data",
     badge: "bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400",
-    order: 3,
   },
+};
+
+type Row = {
+  topicName: string;
+  topicPosition: number;
+  subtopicId: string;
+  subtopicName: string;
 };
 
 /**
  * The gap analysis (STRUCTURE.md §2.5): for the student's own university +
- * course, which subtopics their university does NOT teach — reconstructed
- * from finished students' coverage answers. Gated on the sample size (§5.1).
+ * course, which subtopics their university does NOT teach — plus how coverage
+ * tracks with grades. Filterable by intake-year cohort. Gated on sample size.
  */
 export default async function GapsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ cohort?: string }>;
 }) {
   const studentId = await currentStudentId();
   if (!studentId) redirect("/login");
   const { slug } = await params;
+  const { cohort } = await searchParams;
 
   const enrollment = await getStudentEnrollment(studentId);
   if (!enrollment) redirect("/onboarding");
@@ -60,10 +63,26 @@ export default async function GapsPage({
     .limit(1);
   if (!subject) notFound();
 
-  const coverage = await getSubjectCoverage(
+  // Peek at which cohorts exist, then resolve the requested one.
+  const peek = await getCohortAnalytics(
     enrollment.universityProgramId,
     subject.id,
+    null,
   );
+  const requestedYear = cohort ? Number(cohort) : NaN;
+  const selectedYear =
+    Number.isFinite(requestedYear) && peek.intakeYears.includes(requestedYear)
+      ? requestedYear
+      : null;
+
+  const analytics =
+    selectedYear == null
+      ? peek
+      : await getCohortAnalytics(
+          enrollment.universityProgramId,
+          subject.id,
+          selectedYear,
+        );
 
   const rows = await db
     .select({
@@ -71,7 +90,6 @@ export default async function GapsPage({
       topicPosition: topics.position,
       subtopicId: subtopics.id,
       subtopicName: subtopics.name,
-      subtopicDescription: subtopics.description,
     })
     .from(topics)
     .innerJoin(subtopics, eq(subtopics.topicId, topics.id))
@@ -82,11 +100,11 @@ export default async function GapsPage({
     <main className="mx-auto max-w-3xl px-6 py-12">
       <Link
         href={`/subjects/${slug}`}
-        className="text-sm text-zinc-500 underline-offset-2 hover:underline"
+        className="text-sm text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline dark:hover:text-zinc-100"
       >
         ← {subject.name} outlook
       </Link>
-      <h1 className="mt-3 text-2xl font-bold">
+      <h1 className="mt-3 text-2xl font-bold tracking-tight">
         What your university teaches — {subject.name}
       </h1>
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
@@ -94,33 +112,80 @@ export default async function GapsPage({
         this subject.
       </p>
 
-      {!coverage.hasEnough ? (
+      {peek.intakeYears.length > 1 && (
+        <CohortFilter
+          slug={slug}
+          years={peek.intakeYears}
+          selected={selectedYear}
+        />
+      )}
+
+      {!analytics.hasEnough ? (
         <GatheringData
-          respondents={coverage.respondents}
-          minSample={coverage.minSample}
+          respondents={analytics.respondents}
+          minSample={analytics.minSample}
+          cohort={selectedYear}
         />
       ) : (
-        <GapContent subject={subject.name} coverage={coverage} rows={rows} />
+        <GapContent subject={subject.name} analytics={analytics} rows={rows} />
       )}
     </main>
+  );
+}
+
+function CohortFilter({
+  slug,
+  years,
+  selected,
+}: {
+  slug: string;
+  years: number[];
+  selected: number | null;
+}) {
+  const chip = (label: string, href: string, active: boolean) => (
+    <Link
+      key={label}
+      href={href}
+      className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+        active
+          ? "bg-cyan-800 text-white"
+          : "border border-zinc-300 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+      }`}
+    >
+      {label}
+    </Link>
+  );
+  return (
+    <div className="mt-5 flex flex-wrap items-center gap-2">
+      <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+        Intake
+      </span>
+      {chip("All", `/subjects/${slug}/gaps`, selected == null)}
+      {years.map((y) =>
+        chip(String(y), `/subjects/${slug}/gaps?cohort=${y}`, selected === y),
+      )}
+    </div>
   );
 }
 
 function GatheringData({
   respondents,
   minSample,
+  cohort,
 }: {
   respondents: number;
   minSample: number;
+  cohort: number | null;
 }) {
   const pct = Math.round((respondents / minSample) * 100);
   return (
-    <div className="mt-8 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="mt-6 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
       <h2 className="text-lg font-semibold">Still gathering data</h2>
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-        We show the gap analysis once at least {minSample} students at your
-        university and course have finished this subject and completed the
-        coverage survey. So far: <strong>{respondents}</strong>.
+        We show the analysis once at least {minSample} students
+        {cohort != null ? ` from the ${cohort} intake` : ""} at your university
+        and course have finished this subject and completed the survey. So far:{" "}
+        <strong>{respondents}</strong>.
       </p>
       <div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800">
         <div
@@ -128,49 +193,49 @@ function GatheringData({
           style={{ width: `${Math.min(100, pct)}%` }}
         />
       </div>
-      <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-        Finished this subject yourself? Completing the survey brings everyone
-        one step closer.
-      </p>
     </div>
   );
 }
 
 function GapContent({
   subject,
-  coverage,
+  analytics,
   rows,
 }: {
   subject: string;
-  coverage: Awaited<ReturnType<typeof getSubjectCoverage>>;
-  rows: {
-    topicName: string;
-    topicPosition: number;
-    subtopicId: string;
-    subtopicName: string;
-    subtopicDescription: string | null;
-  }[];
+  analytics: CohortAnalytics;
+  rows: Row[];
 }) {
-  const withVerdict = rows.map((r) => ({
+  const withStat = rows.map((r) => ({
     ...r,
-    coverage: coverage.bySubtopic.get(r.subtopicId),
+    stat: analytics.bySubtopic.get(r.subtopicId),
   }));
-  const gaps = withVerdict.filter(
-    (r) => r.coverage?.verdict === "not_taught",
+  const gaps = withStat.filter((r) => r.stat?.verdict === "not_taught");
+  const partial = withStat.filter(
+    (r) => r.stat?.verdict === "partially_taught",
   );
-  const partial = withVerdict.filter(
-    (r) => r.coverage?.verdict === "partially_taught",
-  );
+
+  // Gaps/partials that most correlate with a better grade — self-study first.
+  const gradeGaps = withStat
+    .filter(
+      (r) =>
+        (r.stat?.verdict === "not_taught" ||
+          r.stat?.verdict === "partially_taught") &&
+        r.stat?.lift &&
+        r.stat.lift.delta >= 3,
+    )
+    .sort((a, b) => (b.stat!.lift!.delta ?? 0) - (a.stat!.lift!.delta ?? 0))
+    .slice(0, 6);
 
   return (
     <>
-      <dl className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Stat label="Finished students" value={coverage.respondents} />
+      <dl className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Stat label="Finished students" value={analytics.respondents} />
         <Stat label="Not taught" value={gaps.length} tone="rose" />
         <Stat label="Partially" value={partial.length} tone="amber" />
         <Stat
           label="Avg grade"
-          value={coverage.avgGrade == null ? "—" : `${coverage.avgGrade}`}
+          value={analytics.avgGrade == null ? "—" : `${analytics.avgGrade}`}
         />
       </dl>
 
@@ -202,7 +267,7 @@ function GapContent({
                     </p>
                   </div>
                   <span className="shrink-0 text-xs text-rose-600 dark:text-rose-400">
-                    {r.coverage!.pctCovered}% coverage · n={r.coverage!.n}
+                    {r.stat!.pctCovered}% coverage · n={r.stat!.n}
                   </span>
                 </div>
               </li>
@@ -211,14 +276,66 @@ function GapContent({
         )}
       </section>
 
+      {/* ---- Grade analytics ---- */}
+      {(analytics.correlation || gradeGaps.length > 0) && (
+        <section className="mt-10">
+          <h2 className="text-lg font-semibold">Coverage &amp; grades</h2>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            How what students studied relates to how they scored — grades are
+            aggregate-only and never individually visible.
+          </p>
+
+          {analytics.correlation && (
+            <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+              <p className="text-sm">{readCorrelation(analytics.correlation.r)}</p>
+              <p className="mt-1 text-xs text-zinc-500">
+                r = {analytics.correlation.r} · n = {analytics.correlation.n}{" "}
+                graded students · syllabus breadth vs final grade
+              </p>
+            </div>
+          )}
+
+          {gradeGaps.length > 0 && (
+            <div className="mt-4">
+              <h3 className="text-sm font-semibold">
+                Missing topics that track with better grades
+              </h3>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                Among students here, those who studied these scored higher on
+                average — worth prioritising in your self-study.
+              </p>
+              <ul className="mt-3 space-y-2">
+                {gradeGaps.map((r) => (
+                  <li
+                    key={r.subtopicId}
+                    className="flex items-center justify-between gap-4 rounded-xl border border-zinc-200 bg-white p-3.5 dark:border-zinc-800 dark:bg-zinc-900"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{r.subtopicName}</p>
+                      <p className="mt-0.5 text-xs text-zinc-500">
+                        studied: {r.stat!.lift!.covered} avg · not:{" "}
+                        {r.stat!.lift!.not} avg
+                      </p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                      +{r.stat!.lift!.delta}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </section>
+      )}
+
       <section className="mt-10">
         <h2 className="text-lg font-semibold">Full coverage map</h2>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
           Every subtopic, and how much your university covers it.
         </p>
         <ul className="mt-4 space-y-px">
-          {withVerdict.map((r) => {
-            const meta = VERDICT_META[r.coverage?.verdict ?? "insufficient_data"];
+          {withStat.map((r) => {
+            const meta = VERDICT_META[r.stat?.verdict ?? "insufficient_data"];
             return (
               <li
                 key={r.subtopicId}
@@ -226,9 +343,9 @@ function GapContent({
               >
                 <span className="text-sm">{r.subtopicName}</span>
                 <div className="flex shrink-0 items-center gap-3">
-                  {r.coverage && r.coverage.n > 0 && (
+                  {r.stat && r.stat.n > 0 && (
                     <span className="text-xs text-zinc-400">
-                      {r.coverage.pctCovered}%
+                      {r.stat.pctCovered}%
                     </span>
                   )}
                   <span
@@ -244,6 +361,16 @@ function GapContent({
       </section>
     </>
   );
+}
+
+function readCorrelation(r: number): string {
+  const mag = Math.abs(r);
+  if (mag < 0.2)
+    return "How much of the syllabus students studied shows little relationship with their grade in this cohort.";
+  const strength =
+    mag < 0.4 ? "a weak" : mag < 0.7 ? "a moderate" : "a strong";
+  const dir = r >= 0 ? "higher" : "lower";
+  return `Students who studied more of the syllabus tended to score ${dir} — ${strength} relationship.`;
 }
 
 function Stat({
