@@ -1,0 +1,199 @@
+{
+  "subject": {
+    "slug": "physics-1",
+    "name": "Physics I: Mechanics",
+    "description": "Calculus-based mechanics for first-year engineering: kinematics, Newton's laws, energy and momentum, rotation, gravitation, and oscillations. The foundation for all later engineering physics.",
+    "year": 1,
+    "position": 3,
+    "min_sample_size": 5
+  },
+  "depth_levels": {
+    "awareness": "Know it exists and recognize it",
+    "procedural": "Apply it mechanically to standard problems",
+    "fluency": "Combine it with other tools in multi-step problems",
+    "proof": "State it precisely and derive or prove it"
+  },
+  "topics": [
+    {
+      "slug": "measurement-and-vectors",
+      "name": "Measurement, Units, and Vectors",
+      "description": "The mathematical toolkit the whole course runs on: units, uncertainty, and vector algebra.",
+      "subtopics": [
+        { "slug": "si-units-dimensional-analysis", "name": "SI units and dimensional analysis", "depth": "procedural", "est_hours": 1.5, "description": "Base and derived SI units; checking equations with dimensional analysis; unit conversion." },
+        { "slug": "significant-figures-uncertainty", "name": "Significant figures and measurement uncertainty", "depth": "procedural", "est_hours": 1, "description": "Reporting results to the right precision; propagating simple uncertainties." },
+        { "slug": "scalars-vs-vectors", "name": "Scalars versus vectors", "depth": "awareness", "est_hours": 0.5, "description": "What makes a quantity a vector; magnitude and direction." },
+        { "slug": "vector-components", "name": "Resolving vectors into components", "depth": "procedural", "est_hours": 1.5, "description": "Breaking a vector into x, y, z components and rebuilding it.", "prerequisites": ["scalars-vs-vectors"] },
+        { "slug": "unit-vectors", "name": "Unit vectors and i, j, k notation", "depth": "procedural", "est_hours": 1, "description": "Writing vectors in component (unit-vector) form.", "prerequisites": ["vector-components"] },
+        { "slug": "vector-addition", "name": "Vector addition and subtraction", "depth": "fluency", "est_hours": 2, "description": "Graphical (tip-to-tail) and component methods for combining vectors.", "prerequisites": ["vector-components"] },
+        { "slug": "dot-product", "name": "The scalar (dot) product", "depth": "fluency", "est_hours": 1.5, "description": "Computing A·B; using it for angles and projections.", "prerequisites": ["vector-addition"] },
+        { "slug": "cross-product", "name": "The vector (cross) product and the right-hand rule", "depth": "fluency", "est_hours": 1.5, "description": "Computing A×B; direction via the right-hand rule.", "prerequisites": ["vector-addition"] },
+        { "slug": "coordinate-systems", "name": "Coordinate systems", "depth": "awareness", "est_hours": 0.5, "description": "Cartesian and polar coordinates and when each is convenient." }
+      ]
+    },
+    {
+      "slug": "kinematics-1d",
+      "name": "Kinematics in One Dimension",
+      "description": "Describing straight-line motion with position, velocity, and acceleration.",
+      "subtopics": [
+        { "slug": "position-displacement-distance", "name": "Position, displacement, and distance", "depth": "procedural", "est_hours": 1, "description": "Displacement as a vector versus total distance travelled.", "prerequisites": ["scalars-vs-vectors"] },
+        { "slug": "average-velocity-speed", "name": "Average velocity and average speed", "depth": "procedural", "est_hours": 1, "description": "The difference between average velocity and average speed.", "prerequisites": ["position-displacement-distance"] },
+        { "slug": "instantaneous-velocity", "name": "Instantaneous velocity as a derivative", "depth": "fluency", "est_hours": 1.5, "description": "Velocity as the derivative of position with respect to time.", "prerequisites": ["average-velocity-speed"] },
+        { "slug": "acceleration-1d", "name": "Acceleration in one dimension", "depth": "fluency", "est_hours": 1.5, "description": "Average and instantaneous acceleration; sign conventions.", "prerequisites": ["instantaneous-velocity"] },
+        { "slug": "kinematic-equations-constant-a", "name": "Kinematic equations for constant acceleration", "depth": "fluency", "est_hours": 2.5, "description": "The constant-acceleration (SUVAT) equations and choosing which to use.", "prerequisites": ["acceleration-1d"] },
+        { "slug": "free-fall", "name": "Free fall under gravity", "depth": "fluency", "est_hours": 1.5, "description": "Vertical motion with g; symmetry of the trajectory.", "prerequisites": ["kinematic-equations-constant-a"] },
+        { "slug": "motion-graphs", "name": "Interpreting motion graphs", "depth": "fluency", "est_hours": 1.5, "description": "Reading slopes and areas of x–t, v–t, and a–t graphs.", "prerequisites": ["acceleration-1d"] },
+        { "slug": "calculus-kinematics", "name": "Kinematics with calculus", "depth": "fluency", "est_hours": 2, "description": "Getting velocity and position by integrating acceleration.", "prerequisites": ["acceleration-1d"] }
+      ]
+    },
+    {
+      "slug": "kinematics-2d-3d",
+      "name": "Kinematics in Two and Three Dimensions",
+      "description": "Motion in a plane and in space, using vectors.",
+      "subtopics": [
+        { "slug": "position-velocity-vectors", "name": "Position and velocity vectors", "depth": "fluency", "est_hours": 1.5, "description": "Describing motion in 2D/3D with vector position and velocity.", "prerequisites": ["vector-components", "instantaneous-velocity"] },
+        { "slug": "acceleration-vector", "name": "The acceleration vector", "depth": "fluency", "est_hours": 1.5, "description": "Acceleration as a vector; its components along and perpendicular to velocity.", "prerequisites": ["position-velocity-vectors"] },
+        { "slug": "projectile-motion", "name": "Projectile motion", "depth": "fluency", "est_hours": 2.5, "description": "Independent horizontal and vertical motion under gravity.", "prerequisites": ["kinematic-equations-constant-a", "position-velocity-vectors"] },
+        { "slug": "projectile-range-trajectory", "name": "Range, maximum height, and the trajectory equation", "depth": "fluency", "est_hours": 2, "description": "Deriving range and height; the parabolic path equation.", "prerequisites": ["projectile-motion"] },
+        { "slug": "uniform-circular-motion-kinematics", "name": "Uniform circular motion and centripetal acceleration", "depth": "fluency", "est_hours": 2, "description": "Why circular motion is accelerated; a = v²/r toward the center.", "prerequisites": ["acceleration-vector"] },
+        { "slug": "nonuniform-circular-motion", "name": "Non-uniform circular motion", "depth": "procedural", "est_hours": 1.5, "description": "Splitting acceleration into radial and tangential parts.", "prerequisites": ["uniform-circular-motion-kinematics"] },
+        { "slug": "relative-velocity", "name": "Relative velocity and reference frames", "depth": "fluency", "est_hours": 2, "description": "Transforming velocities between moving reference frames.", "prerequisites": ["vector-addition", "average-velocity-speed"] }
+      ]
+    },
+    {
+      "slug": "newtons-laws",
+      "name": "Newton's Laws of Motion",
+      "description": "The link between force and motion — the core of dynamics.",
+      "subtopics": [
+        { "slug": "newtons-first-law-inertia", "name": "Newton's first law and inertia", "depth": "procedural", "est_hours": 1, "description": "Inertia and the idea of an inertial reference frame." },
+        { "slug": "force-concept", "name": "Force as a vector", "depth": "awareness", "est_hours": 1, "description": "Forces, their units, and combining them as vectors.", "prerequisites": ["vector-addition"] },
+        { "slug": "newtons-second-law", "name": "Newton's second law (F = ma)", "depth": "fluency", "est_hours": 2.5, "description": "Net force, mass, and acceleration; component form of the second law.", "prerequisites": ["force-concept", "acceleration-1d"] },
+        { "slug": "mass-vs-weight", "name": "Mass versus weight", "depth": "procedural", "est_hours": 1, "description": "The distinction between mass and gravitational weight.", "prerequisites": ["newtons-second-law"] },
+        { "slug": "newtons-third-law", "name": "Newton's third law and action–reaction pairs", "depth": "fluency", "est_hours": 1.5, "description": "Identifying correct action–reaction pairs.", "prerequisites": ["newtons-second-law"] },
+        { "slug": "free-body-diagrams", "name": "Drawing free-body diagrams", "depth": "fluency", "est_hours": 2, "description": "Isolating an object and drawing every force acting on it.", "prerequisites": ["force-concept"] },
+        { "slug": "normal-tension-forces", "name": "Normal, tension, and other contact forces", "depth": "fluency", "est_hours": 1.5, "description": "Modeling surfaces, strings, and supports as forces.", "prerequisites": ["free-body-diagrams"] },
+        { "slug": "applying-newtons-laws", "name": "Solving Newton's-law problems", "depth": "fluency", "est_hours": 2.5, "description": "Setting up and solving systems of equations from free-body diagrams.", "prerequisites": ["newtons-second-law", "free-body-diagrams"] }
+      ]
+    },
+    {
+      "slug": "applications-newtons-laws",
+      "name": "Applications of Newton's Laws",
+      "description": "Friction, drag, and circular dynamics — Newton's laws in real situations.",
+      "subtopics": [
+        { "slug": "static-friction", "name": "Static friction", "depth": "fluency", "est_hours": 1.5, "description": "The maximum-static-friction model and impending motion.", "prerequisites": ["applying-newtons-laws", "normal-tension-forces"] },
+        { "slug": "kinetic-friction", "name": "Kinetic friction", "depth": "fluency", "est_hours": 1.5, "description": "Friction on a sliding surface; the coefficient of kinetic friction.", "prerequisites": ["applying-newtons-laws", "normal-tension-forces"] },
+        { "slug": "inclined-plane-problems", "name": "Inclined-plane problems", "depth": "fluency", "est_hours": 2, "description": "Choosing tilted axes; motion on ramps with and without friction.", "prerequisites": ["applying-newtons-laws", "kinetic-friction"] },
+        { "slug": "drag-terminal-velocity", "name": "Drag forces and terminal velocity", "depth": "procedural", "est_hours": 1.5, "description": "Velocity-dependent resistive forces; reaching terminal velocity.", "prerequisites": ["newtons-second-law"] },
+        { "slug": "dynamics-circular-motion", "name": "Dynamics of circular motion (centripetal force)", "depth": "fluency", "est_hours": 2, "description": "Applying F = ma to circular motion; what provides the centripetal force.", "prerequisites": ["uniform-circular-motion-kinematics", "applying-newtons-laws"] },
+        { "slug": "banked-curves", "name": "Banked curves", "depth": "procedural", "est_hours": 1.5, "description": "Circular motion on a banked track, with and without friction.", "prerequisites": ["dynamics-circular-motion"] },
+        { "slug": "connected-objects-pulleys", "name": "Connected objects and pulleys", "depth": "fluency", "est_hours": 2, "description": "Atwood machines and coupled systems with constraints.", "prerequisites": ["applying-newtons-laws"] }
+      ]
+    },
+    {
+      "slug": "work-and-energy",
+      "name": "Work and Kinetic Energy",
+      "description": "The work–energy view of mechanics.",
+      "subtopics": [
+        { "slug": "work-constant-force", "name": "Work done by a constant force", "depth": "fluency", "est_hours": 1.5, "description": "W = F·d as a dot product; positive, negative, and zero work.", "prerequisites": ["dot-product"] },
+        { "slug": "work-variable-force", "name": "Work done by a variable force", "depth": "fluency", "est_hours": 2, "description": "Work as the integral of force over displacement.", "prerequisites": ["work-constant-force"] },
+        { "slug": "work-energy-theorem", "name": "The work–energy theorem", "depth": "fluency", "est_hours": 2, "description": "Net work equals the change in kinetic energy.", "prerequisites": ["work-variable-force", "newtons-second-law"] },
+        { "slug": "kinetic-energy", "name": "Kinetic energy", "depth": "procedural", "est_hours": 1, "description": "The definition ½mv² and its units.", "prerequisites": ["work-energy-theorem"] },
+        { "slug": "power", "name": "Power", "depth": "procedural", "est_hours": 1, "description": "Average and instantaneous power; P = F·v.", "prerequisites": ["work-constant-force"] },
+        { "slug": "work-by-spring", "name": "Work done by a spring (Hooke's law)", "depth": "procedural", "est_hours": 1.5, "description": "Force and work for an ideal spring.", "prerequisites": ["work-variable-force"] }
+      ]
+    },
+    {
+      "slug": "potential-energy-conservation",
+      "name": "Potential Energy and Conservation of Energy",
+      "description": "Storing energy and tracking it through a process.",
+      "subtopics": [
+        { "slug": "conservative-nonconservative-forces", "name": "Conservative versus non-conservative forces", "depth": "fluency", "est_hours": 1.5, "description": "Path-independence and what defines a conservative force.", "prerequisites": ["work-variable-force"] },
+        { "slug": "gravitational-pe", "name": "Gravitational potential energy (near Earth)", "depth": "procedural", "est_hours": 1, "description": "U = mgy and choice of reference level.", "prerequisites": ["conservative-nonconservative-forces"] },
+        { "slug": "elastic-pe", "name": "Elastic potential energy", "depth": "procedural", "est_hours": 1, "description": "The ½kx² energy stored in a spring.", "prerequisites": ["work-by-spring", "conservative-nonconservative-forces"] },
+        { "slug": "mechanical-energy-conservation", "name": "Conservation of mechanical energy", "depth": "fluency", "est_hours": 2.5, "description": "Trading kinetic and potential energy when only conservative forces act.", "prerequisites": ["gravitational-pe", "kinetic-energy"] },
+        { "slug": "energy-with-friction", "name": "Energy with friction and other losses", "depth": "fluency", "est_hours": 2, "description": "Accounting for energy dissipated by non-conservative forces.", "prerequisites": ["mechanical-energy-conservation", "kinetic-friction"] },
+        { "slug": "force-from-potential", "name": "Force as the gradient of potential energy", "depth": "proof", "est_hours": 1.5, "description": "Recovering force from U via F = −dU/dx.", "prerequisites": ["conservative-nonconservative-forces"] },
+        { "slug": "energy-diagrams", "name": "Energy diagrams and equilibrium", "depth": "fluency", "est_hours": 1.5, "description": "Reading potential-energy curves; stable and unstable equilibria.", "prerequisites": ["force-from-potential"] }
+      ]
+    },
+    {
+      "slug": "momentum-and-collisions",
+      "name": "Momentum, Impulse, and Collisions",
+      "description": "The momentum view, and what stays constant in interactions.",
+      "subtopics": [
+        { "slug": "linear-momentum", "name": "Linear momentum", "depth": "procedural", "est_hours": 1, "description": "The definition p = mv as a vector quantity." },
+        { "slug": "impulse-momentum-theorem", "name": "Impulse and the impulse–momentum theorem", "depth": "fluency", "est_hours": 1.5, "description": "Impulse as the integral of force; its equality with the change in momentum.", "prerequisites": ["linear-momentum", "newtons-second-law"] },
+        { "slug": "conservation-of-momentum", "name": "Conservation of momentum", "depth": "fluency", "est_hours": 2, "description": "Why total momentum is conserved for an isolated system.", "prerequisites": ["linear-momentum", "newtons-third-law"] },
+        { "slug": "elastic-collisions", "name": "Elastic collisions", "depth": "fluency", "est_hours": 2, "description": "Collisions conserving both momentum and kinetic energy.", "prerequisites": ["conservation-of-momentum", "kinetic-energy"] },
+        { "slug": "inelastic-collisions", "name": "Inelastic and perfectly inelastic collisions", "depth": "fluency", "est_hours": 1.5, "description": "Momentum conserved, kinetic energy lost; objects sticking together.", "prerequisites": ["conservation-of-momentum"] },
+        { "slug": "collisions-2d", "name": "Collisions in two dimensions", "depth": "procedural", "est_hours": 1.5, "description": "Applying momentum conservation component-by-component.", "prerequisites": ["conservation-of-momentum", "vector-components"] },
+        { "slug": "center-of-mass", "name": "Center of mass", "depth": "fluency", "est_hours": 2, "description": "Locating the center of mass of particles and continuous bodies.", "prerequisites": ["linear-momentum"] },
+        { "slug": "motion-of-com", "name": "Motion of the center of mass", "depth": "procedural", "est_hours": 1.5, "description": "The center of mass moves as if all mass and net external force acted there.", "prerequisites": ["center-of-mass", "newtons-second-law"] },
+        { "slug": "variable-mass-rockets", "name": "Systems of variable mass (rockets)", "depth": "awareness", "est_hours": 1, "description": "The rocket equation and thrust from ejected mass.", "prerequisites": ["conservation-of-momentum"] }
+      ]
+    },
+    {
+      "slug": "rotational-motion",
+      "name": "Rotational Motion",
+      "description": "Rotation of rigid bodies: kinematics, inertia, torque, and energy.",
+      "subtopics": [
+        { "slug": "angular-kinematics", "name": "Angular position, velocity, and acceleration", "depth": "fluency", "est_hours": 1.5, "description": "Rotational analogues of linear kinematic quantities.", "prerequisites": ["acceleration-1d"] },
+        { "slug": "rotational-kinematic-equations", "name": "Rotational kinematic equations", "depth": "fluency", "est_hours": 1.5, "description": "Constant-angular-acceleration equations.", "prerequisites": ["angular-kinematics"] },
+        { "slug": "relating-linear-angular", "name": "Relating linear and angular quantities", "depth": "fluency", "est_hours": 1.5, "description": "v = rω and a = rα for points on a rotating body.", "prerequisites": ["angular-kinematics"] },
+        { "slug": "moment-of-inertia", "name": "Moment of inertia", "depth": "fluency", "est_hours": 2, "description": "Rotational inertia and its dependence on the axis.", "prerequisites": ["angular-kinematics"] },
+        { "slug": "parallel-axis-theorem", "name": "The parallel-axis theorem", "depth": "procedural", "est_hours": 1, "description": "Shifting the moment of inertia to a parallel axis.", "prerequisites": ["moment-of-inertia"] },
+        { "slug": "calculating-moment-of-inertia", "name": "Calculating moments of inertia by integration", "depth": "proof", "est_hours": 2, "description": "Integrating r²dm for rods, disks, and spheres.", "prerequisites": ["moment-of-inertia"] },
+        { "slug": "torque", "name": "Torque", "depth": "fluency", "est_hours": 1.5, "description": "Torque as r×F; moment arm and sign.", "prerequisites": ["cross-product", "force-concept"] },
+        { "slug": "newtons-second-law-rotation", "name": "Newton's second law for rotation (τ = Iα)", "depth": "fluency", "est_hours": 2, "description": "The rotational analogue of F = ma.", "prerequisites": ["torque", "moment-of-inertia"] },
+        { "slug": "rotational-kinetic-energy", "name": "Rotational kinetic energy", "depth": "procedural", "est_hours": 1.5, "description": "½Iω² and energy methods for rotation.", "prerequisites": ["moment-of-inertia", "kinetic-energy"] },
+        { "slug": "rolling-without-slipping", "name": "Rolling without slipping", "depth": "fluency", "est_hours": 2, "description": "Combining translation and rotation; the rolling constraint.", "prerequisites": ["rotational-kinetic-energy", "relating-linear-angular"] },
+        { "slug": "work-power-rotation", "name": "Work and power in rotation", "depth": "procedural", "est_hours": 1, "description": "Work done by a torque and rotational power.", "prerequisites": ["torque", "work-constant-force"] }
+      ]
+    },
+    {
+      "slug": "angular-momentum-equilibrium",
+      "name": "Angular Momentum and Static Equilibrium",
+      "description": "Conservation of angular momentum, and the conditions for a body at rest.",
+      "subtopics": [
+        { "slug": "angular-momentum-particle", "name": "Angular momentum of a particle", "depth": "fluency", "est_hours": 1.5, "description": "L = r×p and its dependence on the reference point.", "prerequisites": ["cross-product", "linear-momentum"] },
+        { "slug": "angular-momentum-rigid-body", "name": "Angular momentum of a rigid body", "depth": "procedural", "est_hours": 1.5, "description": "L = Iω for rotation about a fixed axis.", "prerequisites": ["angular-momentum-particle", "moment-of-inertia"] },
+        { "slug": "torque-angular-momentum", "name": "Torque and the rate of change of angular momentum", "depth": "proof", "est_hours": 1.5, "description": "Deriving τ = dL/dt.", "prerequisites": ["angular-momentum-particle", "torque"] },
+        { "slug": "conservation-angular-momentum", "name": "Conservation of angular momentum", "depth": "fluency", "est_hours": 2, "description": "Why L is conserved with no net external torque; the spinning-skater effect.", "prerequisites": ["angular-momentum-rigid-body", "torque-angular-momentum"] },
+        { "slug": "gyroscopes-precession", "name": "Gyroscopes and precession", "depth": "awareness", "est_hours": 1, "description": "Qualitative precession of a spinning top.", "prerequisites": ["conservation-angular-momentum"] },
+        { "slug": "conditions-static-equilibrium", "name": "Conditions for static equilibrium", "depth": "fluency", "est_hours": 2, "description": "Zero net force and zero net torque together.", "prerequisites": ["torque", "free-body-diagrams"] },
+        { "slug": "center-of-gravity", "name": "Center of gravity", "depth": "procedural", "est_hours": 1, "description": "Where gravity effectively acts; relation to center of mass.", "prerequisites": ["center-of-mass", "conditions-static-equilibrium"] },
+        { "slug": "solving-equilibrium-problems", "name": "Solving equilibrium problems (beams, ladders)", "depth": "fluency", "est_hours": 2, "description": "Choosing a pivot and solving rigid-body statics.", "prerequisites": ["conditions-static-equilibrium"] },
+        { "slug": "stress-strain-elasticity", "name": "Stress, strain, and elasticity", "depth": "awareness", "est_hours": 1.5, "description": "Young's modulus and the elastic response of materials.", "prerequisites": ["conditions-static-equilibrium"] }
+      ]
+    },
+    {
+      "slug": "gravitation",
+      "name": "Gravitation",
+      "description": "Newtonian gravity, orbits, and Kepler's laws.",
+      "subtopics": [
+        { "slug": "newtons-law-gravitation", "name": "Newton's law of universal gravitation", "depth": "procedural", "est_hours": 1.5, "description": "The inverse-square gravitational force between masses.", "prerequisites": ["force-concept"] },
+        { "slug": "gravitational-field-g", "name": "Gravitational field and g", "depth": "procedural", "est_hours": 1, "description": "Field strength near a planet and the meaning of g.", "prerequisites": ["newtons-law-gravitation"] },
+        { "slug": "gravitational-pe-general", "name": "Gravitational potential energy (−GMm/r)", "depth": "fluency", "est_hours": 1.5, "description": "The general form of gravitational PE and its reference at infinity.", "prerequisites": ["newtons-law-gravitation", "conservative-nonconservative-forces"] },
+        { "slug": "orbital-motion", "name": "Circular orbital motion", "depth": "fluency", "est_hours": 2, "description": "Orbital speed and period from gravity as the centripetal force.", "prerequisites": ["dynamics-circular-motion", "newtons-law-gravitation"] },
+        { "slug": "keplers-laws", "name": "Kepler's laws of planetary motion", "depth": "fluency", "est_hours": 2, "description": "The three laws and their basis in gravitation and angular momentum.", "prerequisites": ["orbital-motion", "conservation-angular-momentum"] },
+        { "slug": "escape-velocity", "name": "Escape velocity", "depth": "procedural", "est_hours": 1.5, "description": "The speed needed to escape a gravitational well, from energy conservation.", "prerequisites": ["gravitational-pe-general", "mechanical-energy-conservation"] },
+        { "slug": "energy-in-orbits", "name": "Energy in orbits", "depth": "fluency", "est_hours": 1.5, "description": "Total mechanical energy of bound orbits and its sign.", "prerequisites": ["gravitational-pe-general", "orbital-motion"] }
+      ]
+    },
+    {
+      "slug": "oscillations",
+      "name": "Oscillations (Simple Harmonic Motion)",
+      "description": "Periodic motion: springs, pendulums, energy, and resonance.",
+      "subtopics": [
+        { "slug": "shm-definition", "name": "Simple harmonic motion and the restoring force", "depth": "fluency", "est_hours": 1.5, "description": "Motion driven by a restoring force proportional to displacement.", "prerequisites": ["newtons-second-law", "work-by-spring"] },
+        { "slug": "shm-kinematics", "name": "SHM kinematics: amplitude, period, and phase", "depth": "fluency", "est_hours": 2, "description": "x(t) = A cos(ωt + φ) and the velocity and acceleration that follow.", "prerequisites": ["shm-definition", "instantaneous-velocity"] },
+        { "slug": "shm-differential-equation", "name": "The SHM differential equation", "depth": "proof", "est_hours": 2, "description": "Deriving and solving x'' = −ω²x.", "prerequisites": ["shm-kinematics"] },
+        { "slug": "energy-in-shm", "name": "Energy in simple harmonic motion", "depth": "fluency", "est_hours": 1.5, "description": "Continuous exchange between kinetic and potential energy.", "prerequisites": ["shm-kinematics", "mechanical-energy-conservation", "elastic-pe"] },
+        { "slug": "mass-spring-system", "name": "The mass–spring oscillator", "depth": "fluency", "est_hours": 1.5, "description": "Angular frequency ω = √(k/m) and period.", "prerequisites": ["shm-definition"] },
+        { "slug": "simple-pendulum", "name": "The simple pendulum", "depth": "fluency", "est_hours": 1.5, "description": "Small-angle SHM of a pendulum and its period.", "prerequisites": ["shm-definition"] },
+        { "slug": "physical-pendulum", "name": "The physical pendulum", "depth": "procedural", "est_hours": 1.5, "description": "Oscillation of an extended body about a pivot.", "prerequisites": ["simple-pendulum", "moment-of-inertia"] },
+        { "slug": "damped-oscillations", "name": "Damped oscillations", "depth": "awareness", "est_hours": 1, "description": "How damping reduces amplitude over time.", "prerequisites": ["shm-differential-equation"] },
+        { "slug": "driven-oscillations-resonance", "name": "Driven oscillations and resonance", "depth": "awareness", "est_hours": 1, "description": "Response to a periodic driving force and resonance.", "prerequisites": ["damped-oscillations"] }
+      ]
+    }
+  ]
+}
