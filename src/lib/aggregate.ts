@@ -19,10 +19,20 @@ import {
  * Answer weighting (§5.2): yes_depth = 1.0, yes_brief = 0.5, no = 0;
  * `unsure` is excluded from the denominator entirely.
  */
-const WEIGHT: Record<string, number> = { yes_depth: 1, yes_brief: 0.5, no: 0 };
+export const WEIGHT: Record<string, number> = {
+  yes_depth: 1,
+  yes_brief: 0.5,
+  no: 0,
+};
+
+export type Verdict =
+  | "taught"
+  | "partially_taught"
+  | "not_taught"
+  | "insufficient_data";
 
 // Verdict thresholds on weighted coverage (§5.2).
-function verdictFor(
+export function verdictFor(
   respondentCount: number,
   minSample: number,
   answerCount: number,
