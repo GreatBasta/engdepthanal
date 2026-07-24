@@ -13,19 +13,15 @@ import {
 } from "@/lib/db/schema";
 import { getStudentEnrollment } from "@/lib/enrollment";
 import { GRADE_SCALES } from "@/lib/grades";
-import { GradeForm, SurveyProgress, TopicForm } from "./ui";
+import { CaptureForm, GradeForm, type CaptureTopic } from "./ui";
 
 type CoverageAnswer = "yes_depth" | "yes_brief" | "no" | "unsure";
 
-function surveyHref(slug: string, step: string) {
-  return `/subjects/${slug}/survey?step=${encodeURIComponent(step)}`;
-}
-
 /**
- * The coverage survey (Phase 3): grade first, then one topic per screen of
- * "Have you studied: {subtopic}?" questions. Available only for a finished
- * subject. Resumable — every answer is persisted per subtopic, so the
- * survey reopens at the first unanswered step.
+ * The coverage survey. Grade first, then a single fast "highlighter" capture
+ * page for the whole subject: pick an answer, tap the subtopics it applies to,
+ * fill the rest in one tap. Available only for a finished subject; every mark
+ * autosaves, so it's fully resumable.
  */
 export default async function SurveyPage({
   params,
@@ -60,12 +56,12 @@ export default async function SurveyPage({
     )
     .limit(1);
 
-  // The survey is gated on a finished subject; send unfinished back to track.
+  // Gated on a finished subject; send unfinished back to track.
   if (!subjectEnrollment || subjectEnrollment.status !== "finished") {
     redirect(`/subjects/${slug}/track`);
   }
 
-  // Load the tree and this student's existing answers.
+  // Load the tree with this student's existing answers (scoped to them).
   const rows = await db
     .select({
       topicId: topics.id,
@@ -74,7 +70,6 @@ export default async function SurveyPage({
       subtopicId: subtopics.id,
       subtopicName: subtopics.name,
       subtopicDescription: subtopics.description,
-      depthLevel: subtopics.depthLevel,
       answer: coverageResponses.answer,
     })
     .from(topics)
@@ -89,145 +84,101 @@ export default async function SurveyPage({
     .where(eq(topics.subjectId, subject.id))
     .orderBy(asc(topics.position), asc(subtopics.position));
 
-  interface TopicData {
-    id: string;
-    slug: string;
-    name: string;
-    position: number;
-    subtopics: {
-      id: string;
-      name: string;
-      description: string | null;
-      depthLevel: string;
-      answer: CoverageAnswer | null;
-    }[];
-  }
-
-  // Only THIS student's answers should count — filter the left-joined rows.
-  const answered = new Map<string, CoverageAnswer>();
-  const grouped = new Map<string, TopicData>();
-  const topicOrder: string[] = [];
+  const grouped = new Map<string, CaptureTopic>();
+  const order: string[] = [];
+  const answered: CoverageAnswer[] = [];
   for (const row of rows) {
     if (!grouped.has(row.topicId)) {
       grouped.set(row.topicId, {
         id: row.topicId,
-        slug: `t${row.topicPosition}`,
-        name: row.topicName,
         position: row.topicPosition,
+        name: row.topicName,
         subtopics: [],
       });
-      topicOrder.push(row.topicId);
+      order.push(row.topicId);
     }
-    const topic = grouped.get(row.topicId)!;
-    if (!topic.subtopics.some((s) => s.id === row.subtopicId)) {
-      topic.subtopics.push({
-        id: row.subtopicId,
-        name: row.subtopicName,
-        description: row.subtopicDescription,
-        depthLevel: row.depthLevel,
-        answer: row.answer as CoverageAnswer | null,
-      });
-    }
-    if (row.answer) answered.set(row.subtopicId, row.answer as CoverageAnswer);
+    grouped.get(row.topicId)!.subtopics.push({
+      id: row.subtopicId,
+      name: row.subtopicName,
+      description: row.subtopicDescription,
+      answer: (row.answer as CoverageAnswer | null) ?? null,
+    });
+    if (row.answer) answered.push(row.answer as CoverageAnswer);
   }
-  const topicList = topicOrder.map((id) => grouped.get(id)!);
+  const topicList = order.map((id) => grouped.get(id)!);
 
-  // Form steps: 'grade' then one per topic (keyed t1..tN). 'done' is terminal.
-  const stepKeys = ["grade", ...topicList.map((t) => t.slug)];
   const hasGrade = subjectEnrollment.gradeNormalized != null;
+  const current = step ?? (hasGrade ? "capture" : "grade");
 
-  function firstUnansweredStep(): string {
-    if (!hasGrade) return "grade";
-    for (const topic of topicList) {
-      if (topic.subtopics.some((s) => s.answer == null)) return topic.slug;
-    }
-    return "done";
-  }
-
-  const current = step ?? firstUnansweredStep();
-
-  // ---- Completion summary ----
+  // ---------- Completion summary ----------
   if (current === "done") {
     const subtopicTotal = topicList.reduce(
       (n, t) => n + t.subtopics.length,
       0,
     );
-    const answers = [...answered.values()];
-    const covered = answers.filter(
+    const covered = answered.filter(
       (a) => a === "yes_depth" || a === "yes_brief",
     ).length;
-    const notTaught = answers.filter((a) => a === "no").length;
-    const inDepth = answers.filter((a) => a === "yes_depth").length;
+    const notTaught = answered.filter((a) => a === "no").length;
+    const inDepth = answered.filter((a) => a === "yes_depth").length;
 
     return (
       <main className="mx-auto max-w-2xl px-6 py-12">
-        <h1 className="text-2xl font-bold">Survey complete — thank you 🎉</h1>
+        <h1 className="text-2xl font-bold tracking-tight">
+          Survey complete — thank you 🎉
+        </h1>
         <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
           Your answers for <strong>{subject.name}</strong> now feed the
           coverage map for your university and course. Once enough finished
-          students respond, everyone starting your course will see what it
-          does and doesn&apos;t teach.
+          students respond, everyone starting your course sees what it does and
+          doesn&apos;t teach.
         </p>
 
         <dl className="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
           <Stat label="Subtopics" value={subtopicTotal} />
-          <Stat label="Answered" value={answers.length} />
+          <Stat label="Answered" value={answered.length} />
           <Stat label="Covered" value={covered} tone="emerald" />
           <Stat label="Not taught" value={notTaught} tone="rose" />
         </dl>
         <p className="mt-4 text-xs text-zinc-500">
-          {inDepth} studied in depth. The per-university gap analysis lands in
-          Phase 4.
+          {inDepth} studied in depth · {subtopicTotal - answered.length} left
+          blank.
         </p>
 
-        <div className="mt-8 flex gap-3">
+        <div className="mt-8 flex flex-wrap gap-3">
           <Link
-            href={surveyHref(slug, topicList[0]?.slug ?? "grade")}
+            href={`/subjects/${slug}/survey?step=capture`}
             className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
           >
             Review my answers
           </Link>
           <Link
-            href="/dashboard"
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500"
+            href={`/subjects/${slug}/gaps`}
+            className="rounded-lg bg-cyan-800 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700"
           >
-            Back to dashboard
+            See the gap analysis →
           </Link>
         </div>
       </main>
     );
   }
 
-  const currentIndex = Math.max(0, stepKeys.indexOf(current));
-  const nextKey = stepKeys[currentIndex + 1] ?? "done";
-  const nextHref = surveyHref(slug, nextKey);
-  const backHref =
-    currentIndex === 0
-      ? `/subjects/${slug}/track`
-      : surveyHref(slug, stepKeys[currentIndex - 1]);
-
-  return (
-    <main className="mx-auto max-w-2xl px-6 py-12">
-      <Link
-        href={`/subjects/${slug}/track`}
-        className="text-sm text-zinc-500 underline-offset-2 hover:underline"
-      >
-        ← {subject.name}
-      </Link>
-      <h1 className="mt-3 text-2xl font-bold">
-        {subject.name} — coverage survey
-      </h1>
-
-      <SurveyProgress
-        current={currentIndex}
-        total={stepKeys.length}
-        labels={["Grade", ...topicList.map((t) => `${t.position}`)]}
-      />
-
-      {current === "grade" ? (
+  // ---------- Grade step ----------
+  if (current === "grade") {
+    return (
+      <main className="mx-auto max-w-2xl px-6 py-12">
+        <Link
+          href={`/subjects/${slug}/track`}
+          className="text-sm text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline dark:hover:text-zinc-100"
+        >
+          ← {subject.name}
+        </Link>
+        <h1 className="mt-3 text-2xl font-bold tracking-tight">
+          {subject.name} — coverage survey
+        </h1>
         <GradeForm
           subjectSlug={slug}
-          nextHref={nextHref}
+          nextHref={`/subjects/${slug}/survey?step=capture`}
           scales={Object.entries(GRADE_SCALES).map(([id, s]) =>
             s.kind === "numeric"
               ? {
@@ -248,24 +199,18 @@ export default async function SurveyPage({
           existingScale={subjectEnrollment.gradeScale}
           existingValue={subjectEnrollment.gradeValue}
         />
-      ) : (
-        (() => {
-          const topic = topicList.find((t) => t.slug === current);
-          if (!topic) notFound();
-          return (
-            <TopicForm
-              subjectSlug={slug}
-              topicId={topic.id}
-              topicName={`${topic.position}. ${topic.name}`}
-              subtopics={topic.subtopics}
-              nextHref={nextHref}
-              backHref={backHref}
-              isLastTopic={nextKey === "done"}
-            />
-          );
-        })()
-      )}
-    </main>
+      </main>
+    );
+  }
+
+  // ---------- Capture step (the highlighter) ----------
+  return (
+    <CaptureForm
+      subjectSlug={slug}
+      subjectName={subject.name}
+      topics={topicList}
+      gradeHref={`/subjects/${slug}/survey?step=grade`}
+    />
   );
 }
 
