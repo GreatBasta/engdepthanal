@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { and, asc, count, eq, sql } from "drizzle-orm";
 
 import { currentStudentId, signOut } from "@/auth";
+import { isAdmin } from "@/lib/admin";
 import { db } from "@/lib/db/client";
 import {
   enrollments,
@@ -38,6 +39,8 @@ export default async function DashboardPage() {
     .where(eq(enrollments.studentId, studentId))
     .limit(1);
   if (!enrollment) redirect("/onboarding");
+
+  const admin = await isAdmin();
 
   const [subjectRows, progressRows] = await Promise.all([
     // Every subject with its total subtopic count.
@@ -100,19 +103,29 @@ export default async function DashboardPage() {
             </span>
           </p>
         </div>
-        <form
-          action={async () => {
-            "use server";
-            await signOut({ redirectTo: "/" });
-          }}
-        >
-          <button
-            type="submit"
-            className="shrink-0 text-sm text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline dark:hover:text-zinc-100"
+        <div className="flex shrink-0 items-center gap-4">
+          {admin && (
+            <Link
+              href="/admin"
+              className="text-sm font-medium text-indigo-600 underline-offset-4 hover:underline dark:text-indigo-400"
+            >
+              Admin
+            </Link>
+          )}
+          <form
+            action={async () => {
+              "use server";
+              await signOut({ redirectTo: "/" });
+            }}
           >
-            Sign out
-          </button>
-        </form>
+            <button
+              type="submit"
+              className="text-sm text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline dark:hover:text-zinc-100"
+            >
+              Sign out
+            </button>
+          </form>
+        </div>
       </header>
 
       <h2 className="mb-3 text-sm font-semibold text-zinc-500">Subjects</h2>
