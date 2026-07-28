@@ -1,0 +1,198 @@
+{
+  "subject": {
+    "slug": "chemistry-1",
+    "name": "Chemistry for Engineers",
+    "description": "First-year general chemistry with an engineering slant: atomic structure, bonding, stoichiometry, gases, thermodynamics, equilibrium, kinetics, electrochemistry, and the chemistry of engineering materials.",
+    "year": 1,
+    "position": 4,
+    "min_sample_size": 5
+  },
+  "depth_levels": {
+    "awareness": "Know it exists and recognize it",
+    "procedural": "Apply it mechanically to standard problems",
+    "fluency": "Combine it with other tools in multi-step problems",
+    "proof": "State it precisely and derive or prove it"
+  },
+  "topics": [
+    {
+      "slug": "matter-and-measurement",
+      "name": "Matter, Measurement and Calculation",
+      "description": "The vocabulary and numeracy the whole course depends on.",
+      "subtopics": [
+        { "slug": "states-and-classification", "name": "States of matter and classification of substances", "depth": "awareness", "est_hours": 1, "description": "Elements, compounds and mixtures; solids, liquids and gases." },
+        { "slug": "physical-chemical-properties", "name": "Physical versus chemical properties and changes", "depth": "awareness", "est_hours": 1, "description": "Telling a physical change from a chemical one." },
+        { "slug": "si-units-chem", "name": "SI units, prefixes and unit conversion", "depth": "procedural", "est_hours": 1.5, "description": "Working fluently in the units chemistry actually uses." },
+        { "slug": "sig-figs-precision", "name": "Significant figures, precision and accuracy", "depth": "procedural", "est_hours": 1, "description": "Carrying the right precision through a calculation.", "prerequisites": ["si-units-chem"] },
+        { "slug": "density-and-derived", "name": "Density and other derived quantities", "depth": "procedural", "est_hours": 1, "description": "Using density as a conversion factor.", "prerequisites": ["si-units-chem"] },
+        { "slug": "dimensional-analysis-chem", "name": "Dimensional analysis (factor-label method)", "depth": "fluency", "est_hours": 1.5, "description": "Chaining conversion factors to solve multi-step problems.", "prerequisites": ["si-units-chem"] }
+      ]
+    },
+    {
+      "slug": "atomic-structure",
+      "name": "Atomic Structure",
+      "description": "What atoms are made of and how electrons are arranged.",
+      "subtopics": [
+        { "slug": "subatomic-particles", "name": "Protons, neutrons and electrons", "depth": "awareness", "est_hours": 1, "description": "Charge, mass and location of each subatomic particle." },
+        { "slug": "atomic-number-mass-number", "name": "Atomic number, mass number and isotopes", "depth": "procedural", "est_hours": 1.5, "description": "Reading nuclide symbols; identifying isotopes.", "prerequisites": ["subatomic-particles"] },
+        { "slug": "atomic-mass-abundance", "name": "Average atomic mass from isotopic abundance", "depth": "procedural", "est_hours": 1, "description": "Weighted-average calculations from abundances.", "prerequisites": ["atomic-number-mass-number"] },
+        { "slug": "light-and-quantization", "name": "Light, energy quantization and atomic spectra", "depth": "procedural", "est_hours": 2, "description": "Photon energy, wavelength and frequency; line spectra." },
+        { "slug": "bohr-model", "name": "The Bohr model of the atom", "depth": "awareness", "est_hours": 1.5, "description": "Energy levels and transitions; where the model breaks down.", "prerequisites": ["light-and-quantization"] },
+        { "slug": "quantum-numbers", "name": "Quantum numbers and orbitals", "depth": "fluency", "est_hours": 2, "description": "The four quantum numbers (n, l, m-l, m-s) and the orbital shapes they describe.", "prerequisites": ["bohr-model"] },
+        { "slug": "electron-configuration", "name": "Electron configurations", "depth": "fluency", "est_hours": 2.5, "description": "Aufbau order, Hund's rule and the Pauli exclusion principle.", "prerequisites": ["quantum-numbers"] },
+        { "slug": "valence-electrons", "name": "Valence electrons and core electrons", "depth": "fluency", "est_hours": 1, "description": "Identifying the electrons that drive bonding.", "prerequisites": ["electron-configuration"] }
+      ]
+    },
+    {
+      "slug": "periodic-table",
+      "name": "The Periodic Table and Periodic Trends",
+      "description": "Why the table is shaped the way it is, and what it predicts.",
+      "subtopics": [
+        { "slug": "periodic-organization", "name": "Organization of the periodic table", "depth": "awareness", "est_hours": 1, "description": "Groups, periods, blocks; metals, non-metals and metalloids.", "prerequisites": ["electron-configuration"] },
+        { "slug": "atomic-radius-trend", "name": "Atomic and ionic radius trends", "depth": "fluency", "est_hours": 1.5, "description": "How size varies across a period and down a group, and why.", "prerequisites": ["periodic-organization"] },
+        { "slug": "ionization-energy", "name": "Ionization energy", "depth": "fluency", "est_hours": 1.5, "description": "Trends in ionization energy and the exceptions.", "prerequisites": ["periodic-organization"] },
+        { "slug": "electron-affinity", "name": "Electron affinity", "depth": "procedural", "est_hours": 1, "description": "Energy change on gaining an electron; periodic behaviour.", "prerequisites": ["ionization-energy"] },
+        { "slug": "electronegativity", "name": "Electronegativity", "depth": "fluency", "est_hours": 1.5, "description": "Predicting bond polarity from electronegativity differences.", "prerequisites": ["periodic-organization"] },
+        { "slug": "effective-nuclear-charge", "name": "Effective nuclear charge and shielding", "depth": "fluency", "est_hours": 1.5, "description": "The idea that explains every periodic trend.", "prerequisites": ["periodic-organization"] }
+      ]
+    },
+    {
+      "slug": "chemical-bonding",
+      "name": "Chemical Bonding",
+      "description": "How atoms hold together — the core of everything that follows.",
+      "subtopics": [
+        { "slug": "ionic-bonding", "name": "Ionic bonding and lattice energy", "depth": "fluency", "est_hours": 2, "description": "Electron transfer, ion formation and lattice energy trends.", "prerequisites": ["electronegativity"] },
+        { "slug": "covalent-bonding", "name": "Covalent bonding and bond polarity", "depth": "fluency", "est_hours": 2, "description": "Shared pairs; polar versus non-polar covalent bonds.", "prerequisites": ["electronegativity"] },
+        { "slug": "metallic-bonding", "name": "Metallic bonding and the electron-sea model", "depth": "awareness", "est_hours": 1, "description": "Why metals conduct and deform the way they do." },
+        { "slug": "lewis-structures", "name": "Drawing Lewis structures", "depth": "fluency", "est_hours": 2.5, "description": "The octet rule and a reliable procedure for any molecule.", "prerequisites": ["covalent-bonding", "valence-electrons"] },
+        { "slug": "formal-charge", "name": "Formal charge and choosing the best structure", "depth": "procedural", "est_hours": 1.5, "description": "Using formal charge to pick between valid Lewis structures.", "prerequisites": ["lewis-structures"] },
+        { "slug": "resonance", "name": "Resonance structures", "depth": "procedural", "est_hours": 1.5, "description": "Delocalization and when a single structure isn't enough.", "prerequisites": ["lewis-structures"] },
+        { "slug": "octet-exceptions", "name": "Exceptions to the octet rule", "depth": "procedural", "est_hours": 1, "description": "Incomplete octets, odd electrons and expanded valence shells.", "prerequisites": ["lewis-structures"] },
+        { "slug": "bond-energy-length", "name": "Bond energy, bond length and bond order", "depth": "procedural", "est_hours": 1.5, "description": "How the three relate; estimating enthalpy from bond energies.", "prerequisites": ["covalent-bonding"] }
+      ]
+    },
+    {
+      "slug": "molecular-geometry-imf",
+      "name": "Molecular Geometry and Intermolecular Forces",
+      "description": "Shape, polarity, and the forces that set physical properties.",
+      "subtopics": [
+        { "slug": "vsepr", "name": "VSEPR theory and molecular shapes", "depth": "fluency", "est_hours": 2.5, "description": "Predicting geometry from electron-domain counts.", "prerequisites": ["lewis-structures"] },
+        { "slug": "bond-angles", "name": "Bond angles and the effect of lone pairs", "depth": "procedural", "est_hours": 1.5, "description": "Why lone pairs compress bond angles.", "prerequisites": ["vsepr"] },
+        { "slug": "molecular-polarity", "name": "Molecular polarity and dipole moments", "depth": "fluency", "est_hours": 2, "description": "Combining bond dipoles with geometry to get molecular polarity.", "prerequisites": ["vsepr", "electronegativity"] },
+        { "slug": "hybridization", "name": "Valence bond theory and hybridization", "depth": "fluency", "est_hours": 2, "description": "sp, sp², sp³ hybrid orbitals; sigma and pi bonds.", "prerequisites": ["vsepr"] },
+        { "slug": "molecular-orbital-theory", "name": "Molecular orbital theory", "depth": "awareness", "est_hours": 2, "description": "Bonding and antibonding orbitals; MO diagrams and bond order.", "prerequisites": ["hybridization"] },
+        { "slug": "dispersion-forces", "name": "London dispersion forces", "depth": "procedural", "est_hours": 1, "description": "Induced dipoles and how polarizability scales with size." },
+        { "slug": "dipole-dipole", "name": "Dipole–dipole forces", "depth": "procedural", "est_hours": 1, "description": "Attractions between permanent dipoles.", "prerequisites": ["molecular-polarity"] },
+        { "slug": "hydrogen-bonding", "name": "Hydrogen bonding", "depth": "fluency", "est_hours": 1.5, "description": "When it occurs and why it dominates properties like boiling point.", "prerequisites": ["dipole-dipole"] },
+        { "slug": "imf-and-properties", "name": "Predicting physical properties from intermolecular forces", "depth": "fluency", "est_hours": 2, "description": "Ranking boiling point, viscosity and surface tension.", "prerequisites": ["hydrogen-bonding", "dispersion-forces"] }
+      ]
+    },
+    {
+      "slug": "stoichiometry",
+      "name": "Stoichiometry and Chemical Reactions",
+      "description": "Counting atoms and molecules through a reaction — the workhorse skill.",
+      "subtopics": [
+        { "slug": "mole-concept", "name": "The mole and Avogadro's number", "depth": "fluency", "est_hours": 1.5, "description": "Converting between mass, moles and number of particles." },
+        { "slug": "molar-mass", "name": "Molar mass and formula mass", "depth": "procedural", "est_hours": 1, "description": "Computing molar mass from a formula.", "prerequisites": ["mole-concept"] },
+        { "slug": "empirical-molecular-formula", "name": "Empirical and molecular formulas", "depth": "fluency", "est_hours": 2, "description": "Deriving formulas from percent composition or combustion data.", "prerequisites": ["molar-mass"] },
+        { "slug": "balancing-equations", "name": "Writing and balancing chemical equations", "depth": "fluency", "est_hours": 2, "description": "Balancing by inspection; state symbols.", "prerequisites": ["mole-concept"] },
+        { "slug": "reaction-stoichiometry", "name": "Mass and mole relationships in reactions", "depth": "fluency", "est_hours": 2.5, "description": "Using the balanced equation as a conversion factor.", "prerequisites": ["balancing-equations", "molar-mass"] },
+        { "slug": "limiting-reagent", "name": "Limiting reagent problems", "depth": "fluency", "est_hours": 2, "description": "Identifying the limiting reactant and the excess left over.", "prerequisites": ["reaction-stoichiometry"] },
+        { "slug": "percent-yield", "name": "Theoretical, actual and percent yield", "depth": "procedural", "est_hours": 1.5, "description": "Comparing what you should get with what you actually get.", "prerequisites": ["limiting-reagent"] },
+        { "slug": "solution-concentration", "name": "Solution concentration and molarity", "depth": "fluency", "est_hours": 2, "description": "Preparing solutions; dilution calculations.", "prerequisites": ["mole-concept"] },
+        { "slug": "solution-stoichiometry", "name": "Solution stoichiometry and titration", "depth": "fluency", "est_hours": 2, "description": "Reactions in solution; titration calculations.", "prerequisites": ["solution-concentration", "reaction-stoichiometry"] },
+        { "slug": "reaction-types", "name": "Classifying reactions", "depth": "procedural", "est_hours": 1.5, "description": "Precipitation, acid–base and redox reactions.", "prerequisites": ["balancing-equations"] },
+        { "slug": "oxidation-numbers", "name": "Oxidation numbers and balancing redox equations", "depth": "fluency", "est_hours": 2.5, "description": "Assigning oxidation states; half-reaction method.", "prerequisites": ["reaction-types"] }
+      ]
+    },
+    {
+      "slug": "gases",
+      "name": "Gases",
+      "description": "Gas behaviour and the kinetic-molecular picture behind it.",
+      "subtopics": [
+        { "slug": "pressure-and-measurement", "name": "Pressure and its measurement", "depth": "procedural", "est_hours": 1, "description": "Units of pressure and how manometers/barometers work." },
+        { "slug": "simple-gas-laws", "name": "Boyle's, Charles's and Avogadro's laws", "depth": "procedural", "est_hours": 1.5, "description": "The pairwise relationships between P, V, T and n.", "prerequisites": ["pressure-and-measurement"] },
+        { "slug": "ideal-gas-law", "name": "The ideal gas law", "depth": "fluency", "est_hours": 2, "description": "PV = nRT and its rearrangements for density and molar mass.", "prerequisites": ["simple-gas-laws"] },
+        { "slug": "gas-stoichiometry", "name": "Gas stoichiometry", "depth": "fluency", "est_hours": 1.5, "description": "Reactions involving gas volumes at stated conditions.", "prerequisites": ["ideal-gas-law", "reaction-stoichiometry"] },
+        { "slug": "partial-pressures", "name": "Dalton's law of partial pressures", "depth": "procedural", "est_hours": 1.5, "description": "Mixtures of gases; mole fractions; collecting gas over water.", "prerequisites": ["ideal-gas-law"] },
+        { "slug": "kinetic-molecular-theory", "name": "Kinetic-molecular theory", "depth": "fluency", "est_hours": 2, "description": "How molecular motion explains the gas laws; speed distributions.", "prerequisites": ["ideal-gas-law"] },
+        { "slug": "effusion-diffusion", "name": "Effusion and diffusion (Graham's law)", "depth": "procedural", "est_hours": 1, "description": "Rate versus molar mass.", "prerequisites": ["kinetic-molecular-theory"] },
+        { "slug": "real-gases", "name": "Real gases and the van der Waals equation", "depth": "awareness", "est_hours": 1.5, "description": "Where ideality fails and how corrections work.", "prerequisites": ["ideal-gas-law"] }
+      ]
+    },
+    {
+      "slug": "thermochemistry",
+      "name": "Thermochemistry and Thermodynamics",
+      "description": "Energy in chemical change, and what makes a reaction spontaneous.",
+      "subtopics": [
+        { "slug": "energy-heat-work", "name": "Energy, heat and work", "depth": "procedural", "est_hours": 1.5, "description": "System vs surroundings; sign conventions." },
+        { "slug": "first-law", "name": "The first law of thermodynamics", "depth": "fluency", "est_hours": 1.5, "description": "Internal energy, ΔU = q + w.", "prerequisites": ["energy-heat-work"] },
+        { "slug": "enthalpy", "name": "Enthalpy and enthalpy change", "depth": "fluency", "est_hours": 2, "description": "Why ΔH is the useful quantity at constant pressure.", "prerequisites": ["first-law"] },
+        { "slug": "calorimetry", "name": "Calorimetry and specific heat", "depth": "fluency", "est_hours": 2, "description": "Measuring heat flow; constant-pressure and bomb calorimetry.", "prerequisites": ["enthalpy"] },
+        { "slug": "hess-law", "name": "Hess's law", "depth": "fluency", "est_hours": 2, "description": "Combining known reactions to get an unknown enthalpy change.", "prerequisites": ["enthalpy"] },
+        { "slug": "formation-enthalpies", "name": "Standard enthalpies of formation", "depth": "fluency", "est_hours": 1.5, "description": "Computing ΔH°rxn from tabulated formation enthalpies.", "prerequisites": ["hess-law"] },
+        { "slug": "entropy", "name": "Entropy and the second law", "depth": "fluency", "est_hours": 2, "description": "Disorder, spontaneity, and the sign of ΔS.", "prerequisites": ["first-law"] },
+        { "slug": "gibbs-free-energy", "name": "Gibbs free energy and spontaneity", "depth": "fluency", "est_hours": 2.5, "description": "ΔG = ΔH − TΔS and the temperature dependence of spontaneity.", "prerequisites": ["entropy", "enthalpy"] },
+        { "slug": "gibbs-and-equilibrium", "name": "Free energy and the equilibrium constant", "depth": "proof", "est_hours": 2, "description": "ΔG° = −RT ln K and what it means.", "prerequisites": ["gibbs-free-energy"] }
+      ]
+    },
+    {
+      "slug": "kinetics",
+      "name": "Chemical Kinetics",
+      "description": "How fast reactions go, and what controls the rate.",
+      "subtopics": [
+        { "slug": "reaction-rate", "name": "Reaction rate and how it's measured", "depth": "procedural", "est_hours": 1.5, "description": "Average and instantaneous rates; relating rates of species." },
+        { "slug": "rate-law", "name": "Rate laws and reaction order", "depth": "fluency", "est_hours": 2, "description": "Determining orders from initial-rate data.", "prerequisites": ["reaction-rate"] },
+        { "slug": "integrated-rate-laws", "name": "Integrated rate laws", "depth": "fluency", "est_hours": 2.5, "description": "Zero, first and second order; identifying order from a linear plot.", "prerequisites": ["rate-law"] },
+        { "slug": "half-life", "name": "Half-life", "depth": "procedural", "est_hours": 1.5, "description": "Half-life expressions for each order; radioactive decay.", "prerequisites": ["integrated-rate-laws"] },
+        { "slug": "collision-theory", "name": "Collision theory and activation energy", "depth": "fluency", "est_hours": 1.5, "description": "Why orientation and energy both matter.", "prerequisites": ["reaction-rate"] },
+        { "slug": "arrhenius", "name": "The Arrhenius equation", "depth": "fluency", "est_hours": 2, "description": "Temperature dependence; extracting Ea from a plot.", "prerequisites": ["collision-theory"] },
+        { "slug": "reaction-mechanisms", "name": "Reaction mechanisms and the rate-determining step", "depth": "fluency", "est_hours": 2, "description": "Elementary steps; checking a mechanism against the rate law.", "prerequisites": ["rate-law"] },
+        { "slug": "catalysis", "name": "Catalysis", "depth": "procedural", "est_hours": 1.5, "description": "How catalysts lower activation energy; homogeneous vs heterogeneous.", "prerequisites": ["arrhenius"] }
+      ]
+    },
+    {
+      "slug": "equilibrium",
+      "name": "Chemical Equilibrium",
+      "description": "Reversible reactions and how systems respond to change.",
+      "subtopics": [
+        { "slug": "dynamic-equilibrium", "name": "Dynamic equilibrium", "depth": "procedural", "est_hours": 1.5, "description": "Forward and reverse rates equal; what stays constant." },
+        { "slug": "equilibrium-constant", "name": "The equilibrium constant (Kc and Kp)", "depth": "fluency", "est_hours": 2, "description": "Writing K expressions; relating Kc and Kp.", "prerequisites": ["dynamic-equilibrium"] },
+        { "slug": "reaction-quotient", "name": "The reaction quotient Q", "depth": "fluency", "est_hours": 1.5, "description": "Predicting the direction of shift by comparing Q with K.", "prerequisites": ["equilibrium-constant"] },
+        { "slug": "ice-tables", "name": "ICE tables and equilibrium calculations", "depth": "fluency", "est_hours": 2.5, "description": "Solving for equilibrium concentrations.", "prerequisites": ["equilibrium-constant"] },
+        { "slug": "le-chatelier", "name": "Le Châtelier's principle", "depth": "fluency", "est_hours": 2, "description": "Response to concentration, pressure and temperature changes.", "prerequisites": ["reaction-quotient"] },
+        { "slug": "solubility-equilibria", "name": "Solubility equilibria and Ksp", "depth": "fluency", "est_hours": 2, "description": "Molar solubility, common-ion effect and precipitation prediction.", "prerequisites": ["ice-tables"] }
+      ]
+    },
+    {
+      "slug": "acids-bases",
+      "name": "Acids, Bases and Aqueous Equilibria",
+      "description": "Proton transfer, pH, and buffering.",
+      "subtopics": [
+        { "slug": "acid-base-definitions", "name": "Arrhenius, Brønsted–Lowry and Lewis definitions", "depth": "fluency", "est_hours": 1.5, "description": "Conjugate acid–base pairs; the three definitions compared." },
+        { "slug": "ph-scale", "name": "The pH scale and water autoionization", "depth": "fluency", "est_hours": 1.5, "description": "Kw, pH, pOH and their relationships.", "prerequisites": ["acid-base-definitions"] },
+        { "slug": "strong-weak-acids", "name": "Strong versus weak acids and bases", "depth": "fluency", "est_hours": 2, "description": "Ka, Kb and computing pH for each case.", "prerequisites": ["ph-scale", "ice-tables"] },
+        { "slug": "polyprotic-acids", "name": "Polyprotic acids", "depth": "procedural", "est_hours": 1.5, "description": "Successive dissociations and which one dominates.", "prerequisites": ["strong-weak-acids"] },
+        { "slug": "salt-hydrolysis", "name": "Acid–base properties of salts", "depth": "procedural", "est_hours": 1.5, "description": "Predicting whether a salt solution is acidic, basic or neutral.", "prerequisites": ["strong-weak-acids"] },
+        { "slug": "buffers", "name": "Buffers and the Henderson–Hasselbalch equation", "depth": "fluency", "est_hours": 2.5, "description": "How buffers resist pH change; buffer capacity.", "prerequisites": ["strong-weak-acids"] },
+        { "slug": "titration-curves", "name": "Titration curves and indicators", "depth": "fluency", "est_hours": 2, "description": "Equivalence points for strong and weak systems; choosing an indicator.", "prerequisites": ["buffers"] }
+      ]
+    },
+    {
+      "slug": "electrochem-materials",
+      "name": "Electrochemistry and Engineering Materials",
+      "description": "Redox in service, plus the chemistry of the materials engineers use.",
+      "subtopics": [
+        { "slug": "galvanic-cells", "name": "Galvanic (voltaic) cells", "depth": "fluency", "est_hours": 2, "description": "Cell construction, notation, anode and cathode.", "prerequisites": ["oxidation-numbers"] },
+        { "slug": "standard-potentials", "name": "Standard reduction potentials and cell EMF", "depth": "fluency", "est_hours": 2, "description": "Computing E°cell and predicting spontaneity.", "prerequisites": ["galvanic-cells"] },
+        { "slug": "nernst-equation", "name": "The Nernst equation", "depth": "procedural", "est_hours": 1.5, "description": "Cell potential away from standard conditions.", "prerequisites": ["standard-potentials"] },
+        { "slug": "electrolysis", "name": "Electrolysis and Faraday's laws", "depth": "fluency", "est_hours": 2, "description": "Driving non-spontaneous reactions; electroplating calculations.", "prerequisites": ["standard-potentials"] },
+        { "slug": "batteries-fuel-cells", "name": "Batteries and fuel cells", "depth": "awareness", "est_hours": 1, "description": "Practical electrochemical energy storage.", "prerequisites": ["galvanic-cells"] },
+        { "slug": "corrosion", "name": "Corrosion and its prevention", "depth": "fluency", "est_hours": 1.5, "description": "Rusting as electrochemistry; cathodic protection and coatings.", "prerequisites": ["standard-potentials"] },
+        { "slug": "crystal-structures", "name": "Crystalline solids and unit cells", "depth": "procedural", "est_hours": 2, "description": "Simple, body-centred and face-centred cubic; packing efficiency.", "prerequisites": ["metallic-bonding"] },
+        { "slug": "solid-types", "name": "Types of solids and their properties", "depth": "procedural", "est_hours": 1.5, "description": "Ionic, metallic, covalent-network and molecular solids.", "prerequisites": ["crystal-structures"] },
+        { "slug": "polymers", "name": "Polymers", "depth": "awareness", "est_hours": 1.5, "description": "Addition and condensation polymerization; structure–property links.", "prerequisites": ["covalent-bonding"] },
+        { "slug": "semiconductors-doping", "name": "Semiconductors and doping", "depth": "awareness", "est_hours": 1.5, "description": "Band gaps; n-type and p-type doping.", "prerequisites": ["solid-types"] }
+      ]
+    }
+  ]
+}

@@ -60,6 +60,7 @@ const CURRICULUM_FILES = [
   "calculus-1.json",
   "linear-algebra.json",
   "physics-1.json",
+  "chemistry-1.json",
 ];
 
 async function seedPrograms() {

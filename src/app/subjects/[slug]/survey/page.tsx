@@ -13,15 +13,21 @@ import {
 } from "@/lib/db/schema";
 import { getStudentEnrollment } from "@/lib/enrollment";
 import { GRADE_SCALES } from "@/lib/grades";
-import { CaptureForm, GradeForm, type CaptureTopic } from "./ui";
+import { GradeForm } from "./ui";
 
 type CoverageAnswer = "yes_depth" | "yes_brief" | "no" | "unsure";
 
+interface SurveyTopic {
+  id: string;
+  position: number;
+  name: string;
+  subtopics: { id: string; name: string; answer: CoverageAnswer | null }[];
+}
+
 /**
- * The coverage survey. Grade first, then a single fast "highlighter" capture
- * page for the whole subject: pick an answer, tap the subtopics it applies to,
- * fill the rest in one tap. Available only for a finished subject; every mark
- * autosaves, so it's fully resumable.
+ * The coverage survey: grade first, then the swipe deck (the only capture
+ * mode). Available for a finished subject only. This route also renders the
+ * completion summary; every other step redirects into the deck.
  */
 export default async function SurveyPage({
   params,
@@ -69,7 +75,6 @@ export default async function SurveyPage({
       topicPosition: topics.position,
       subtopicId: subtopics.id,
       subtopicName: subtopics.name,
-      subtopicDescription: subtopics.description,
       answer: coverageResponses.answer,
     })
     .from(topics)
@@ -84,7 +89,7 @@ export default async function SurveyPage({
     .where(eq(topics.subjectId, subject.id))
     .orderBy(asc(topics.position), asc(subtopics.position));
 
-  const grouped = new Map<string, CaptureTopic>();
+  const grouped = new Map<string, SurveyTopic>();
   const order: string[] = [];
   const answered: CoverageAnswer[] = [];
   for (const row of rows) {
@@ -100,7 +105,6 @@ export default async function SurveyPage({
     grouped.get(row.topicId)!.subtopics.push({
       id: row.subtopicId,
       name: row.subtopicName,
-      description: row.subtopicDescription,
       answer: (row.answer as CoverageAnswer | null) ?? null,
     });
     if (row.answer) answered.push(row.answer as CoverageAnswer);
@@ -108,10 +112,11 @@ export default async function SurveyPage({
   const topicList = order.map((id) => grouped.get(id)!);
 
   const hasGrade = subjectEnrollment.gradeNormalized != null;
-  const anyAnswered = answered.length > 0;
-  // grade → pick a mode → capture (highlighter) or the swipe deck → done
-  const current =
-    step ?? (!hasGrade ? "grade" : anyAnswered ? "capture" : "choose");
+  // grade → the swipe deck → done. The deck is the only capture mode.
+  const current = step ?? (hasGrade ? "deck" : "grade");
+  if (current === "deck" || current === "capture" || current === "choose") {
+    redirect(`/subjects/${slug}/swipe`);
+  }
 
   // ---------- Completion summary ----------
   if (current === "done") {
@@ -150,7 +155,7 @@ export default async function SurveyPage({
 
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
-            href={`/subjects/${slug}/survey?step=capture`}
+            href={`/subjects/${slug}/swipe`}
             className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
           >
             Review my answers
@@ -181,7 +186,7 @@ export default async function SurveyPage({
         </h1>
         <GradeForm
           subjectSlug={slug}
-          nextHref={`/subjects/${slug}/survey?step=choose`}
+          nextHref={`/subjects/${slug}/swipe`}
           scales={Object.entries(GRADE_SCALES).map(([id, s]) =>
             s.kind === "numeric"
               ? {
@@ -206,76 +211,8 @@ export default async function SurveyPage({
     );
   }
 
-  // ---------- Mode chooser ----------
-  if (current === "choose") {
-    const total = topicList.reduce((n, t) => n + t.subtopics.length, 0);
-    return (
-      <main className="mx-auto max-w-lg px-6 py-12">
-        <Link
-          href={`/subjects/${slug}/track`}
-          className="text-sm text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline dark:hover:text-zinc-100"
-        >
-          ← {subject.name}
-        </Link>
-        <h1 className="mt-3 text-2xl font-bold tracking-tight">
-          How do you want to do this?
-        </h1>
-        <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-400">
-          {total} subtopics in {subject.name}. Both record the same thing —
-          pick whichever suits you. You can switch later.
-        </p>
-
-        <div className="mt-7 space-y-3">
-          <Link
-            href={`/subjects/${slug}/survey?step=capture`}
-            className="group block rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-cyan-600 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold group-hover:text-cyan-800 dark:group-hover:text-cyan-300">
-                🖍️ Quick pass
-              </h2>
-              <span className="shrink-0 rounded-full bg-cyan-50 px-2.5 py-0.5 text-xs font-bold text-cyan-800 dark:bg-cyan-950/60 dark:text-cyan-300">
-                ~2 min
-              </span>
-            </div>
-            <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-400">
-              Pick a highlighter, tap the exceptions, fill the rest in one go.
-              Fastest way to map the whole subject.
-            </p>
-          </Link>
-
-          <Link
-            href={`/subjects/${slug}/swipe`}
-            className="group block rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="text-lg font-bold group-hover:text-emerald-700 dark:group-hover:text-emerald-300">
-                🃏 Card by card
-              </h2>
-              <span className="shrink-0 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">
-                richer
-              </span>
-            </div>
-            <p className="mt-1.5 text-sm text-zinc-600 dark:text-zinc-400">
-              Swipe through one at a time. Rate how hard each was, how deep you
-              went, save the ones to revisit, and read notes from others on your
-              course.
-            </p>
-          </Link>
-        </div>
-      </main>
-    );
-  }
-
-  // ---------- Capture step (the highlighter) ----------
-  return (
-    <CaptureForm
-      subjectSlug={slug}
-      subjectName={subject.name}
-      topics={topicList}
-      gradeHref={`/subjects/${slug}/survey?step=grade`}
-    />
-  );
+  // Unreachable — the deck redirect above handles every other step.
+  redirect(`/subjects/${slug}/swipe`);
 }
 
 function Stat({

@@ -1,10 +1,11 @@
 import { notFound, redirect } from "next/navigation";
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import { currentStudentId } from "@/auth";
 import { db } from "@/lib/db/client";
 import {
   coverageResponses,
+  programs,
   students,
   subjectEnrollments,
   subjects,
@@ -12,6 +13,7 @@ import {
   subtopicStars,
   subtopics,
   topics,
+  universityPrograms,
 } from "@/lib/db/schema";
 import { getStudentEnrollment } from "@/lib/enrollment";
 import { SwipeDeck, type Card } from "./ui";
@@ -75,20 +77,29 @@ export default async function SwipePage({
       )
       .where(eq(topics.subjectId, subject.id))
       .orderBy(asc(topics.position), asc(subtopics.position)),
-    // Notes from students on the SAME university + course.
+    // Notes are hard-scoped to the student's OWN UNIVERSITY — never anyone
+    // else's. Each is tagged with the course it came from so the reader can
+    // narrow to just their own course in the UI.
     db
       .select({
         subtopicId: subtopicComments.subtopicId,
         body: subtopicComments.body,
         author: students.displayName,
+        course: programs.name,
+        sameCourse: sql<boolean>`${subtopicComments.universityProgramId} = ${enrollment.universityProgramId}`,
         createdAt: subtopicComments.createdAt,
       })
       .from(subtopicComments)
       .innerJoin(students, eq(subtopicComments.studentId, students.id))
+      .innerJoin(
+        universityPrograms,
+        eq(subtopicComments.universityProgramId, universityPrograms.id),
+      )
+      .innerJoin(programs, eq(universityPrograms.programId, programs.id))
       .where(
         eq(
-          subtopicComments.universityProgramId,
-          enrollment.universityProgramId,
+          universityPrograms.universityId,
+          sql`(select university_id from university_programs where id = ${enrollment.universityProgramId})`,
         ),
       )
       .orderBy(desc(subtopicComments.createdAt)),
@@ -98,10 +109,18 @@ export default async function SwipePage({
       .where(eq(subtopicStars.studentId, studentId)),
   ]);
 
-  const commentsBy = new Map<string, { author: string; body: string }[]>();
+  const commentsBy = new Map<
+    string,
+    { author: string; body: string; course: string; sameCourse: boolean }[]
+  >();
   for (const c of commentRows) {
     const list = commentsBy.get(c.subtopicId) ?? [];
-    list.push({ author: c.author, body: c.body });
+    list.push({
+      author: c.author,
+      body: c.body,
+      course: c.course,
+      sameCourse: Boolean(c.sameCourse),
+    });
     commentsBy.set(c.subtopicId, list);
   }
   const starred = new Set(starRows.map((s) => s.subtopicId));
@@ -118,12 +137,20 @@ export default async function SwipePage({
     comments: commentsBy.get(r.subtopicId) ?? [],
   }));
 
+  const [myProgram] = await db
+    .select({ name: programs.name })
+    .from(universityPrograms)
+    .innerJoin(programs, eq(universityPrograms.programId, programs.id))
+    .where(eq(universityPrograms.id, enrollment.universityProgramId))
+    .limit(1);
+
   return (
     <SwipeDeck
       subjectSlug={slug}
       subjectName={subject.name}
       cards={cards}
       answeredAtStart={cards.filter((c) => c.answered).length}
+      myCourse={myProgram?.name ?? "your course"}
     />
   );
 }
