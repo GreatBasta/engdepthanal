@@ -466,11 +466,13 @@ export function SwipeDeck({
       <style>{`
         @keyframes deckSheetIn{from{transform:translateY(102%)}to{transform:translateY(0)}}
         .deck-sheet-in{animation:deckSheetIn .3s cubic-bezier(.32,.72,0,1) both}
-        /* No opacity here: a translucent top card lets the one behind bleed
-           through, which looks like a rendering bug. Motion only. */
-        @keyframes deckCardIn{from{transform:translateY(18px) scale(.97)}
-          to{transform:translateY(0) scale(1)}}
-        .deck-card-in{animation:deckCardIn .32s cubic-bezier(.32,.72,0,1) both}
+        /* Each new top card fades up, so the card behind shows through for a
+           beat — that layered feel is deliberate.
+           OPACITY ONLY, and no fill-mode: a keyframe that touches transform
+           (especially with fill-mode both) permanently outranks the inline
+           transform, which silently freezes the card so it cannot be dragged. */
+        @keyframes deckCardIn{from{opacity:0}to{opacity:1}}
+        .deck-card-in{animation:deckCardIn .3s ease-out}
         @media (prefers-reduced-motion:reduce){
           .deck-sheet-in,.deck-card-in{animation:none}}
         .deck-lever{-webkit-appearance:none;appearance:none;height:26px;background:transparent;cursor:pointer}
@@ -509,9 +511,28 @@ function CardFace({
     star: null,
   });
   const drag = useRef({ on: false, sx: 0, sy: 0, dx: 0, dy: 0 });
+  /** The card sitting directly behind this one, so it can rise as we drag. */
+  const behind = useRef<HTMLElement | null>(null);
 
   // Peeking cards sit lower and narrower so the stack reads as a real deck.
   const rest = `translateY(${offset * 14}px) scale(${1 - offset * 0.05})`;
+
+  /**
+   * As the top card is pulled away, the next one lifts toward its resting
+   * place — so the deck feels alive and the card behind "bleeds in" under
+   * your finger rather than appearing all at once.
+   * `t` is 0 (untouched) → 1 (past the commit threshold).
+   */
+  function liftBehind(t: number, animate: boolean) {
+    const el = behind.current;
+    if (!el) return;
+    // Match React's own transition string exactly, so whatever we leave on the
+    // node still agrees with what React thinks it set.
+    el.style.transition = animate
+      ? "transform .3s cubic-bezier(.32,.72,0,1), opacity .3s"
+      : "none";
+    el.style.transform = `translateY(${14 * (1 - t)}px) scale(${0.95 + 0.05 * t})`;
+  }
 
   function setBadge(d: Dir, v: number) {
     const el = badges.current[d];
@@ -524,6 +545,10 @@ function CardFace({
   function down(e: React.PointerEvent) {
     if (!onSwipe) return;
     drag.current = { on: true, sx: e.clientX, sy: e.clientY, dx: 0, dy: 0 };
+    behind.current =
+      ref.current?.parentElement?.querySelector<HTMLElement>(
+        '[data-deck-offset="1"]',
+      ) ?? null;
     ref.current?.setPointerCapture(e.pointerId);
   }
   function move(e: React.PointerEvent) {
@@ -538,6 +563,7 @@ function CardFace({
     setBadge("no", hx && d.dx < 0 ? Math.min(1, -d.dx / THRESHOLD) : 0);
     setBadge("say", !hx && d.dy < 0 ? Math.min(1, -d.dy / THRESHOLD) : 0);
     setBadge("star", !hx && d.dy > 0 ? Math.min(1, d.dy / THRESHOLD) : 0);
+    liftBehind(Math.min(1, Math.hypot(d.dx, d.dy) / THRESHOLD), false);
   }
   function up() {
     const d = drag.current;
@@ -555,8 +581,10 @@ function CardFace({
     if (dir === "yes" || dir === "no") {
       ref.current.style.transform = `translate(${dir === "yes" ? 640 : -640}px, 70px) rotate(${dir === "yes" ? 30 : -30}deg)`;
       ref.current.style.opacity = "0";
+      liftBehind(1, true); // it's becoming the top card — let it settle there
     } else {
       ref.current.style.transform = rest;
+      liftBehind(0, true); // snapped back, so the deck relaxes too
     }
     clearBadges();
     if (dir) onSwipe?.(dir);
@@ -567,6 +595,7 @@ function CardFace({
   return (
     <div
       ref={ref}
+      data-deck-offset={offset}
       onPointerDown={down}
       onPointerMove={move}
       onPointerUp={up}
