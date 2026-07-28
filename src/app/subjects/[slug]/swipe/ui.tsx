@@ -11,6 +11,14 @@ import {
   undoCard,
 } from "./actions";
 
+export interface Note {
+  author: string;
+  body: string;
+  /** The course the note's author is on (always within your university). */
+  course: string;
+  sameCourse: boolean;
+}
+
 export interface Card {
   id: string;
   topic: string;
@@ -20,7 +28,7 @@ export interface Card {
   estHours: number | null;
   answered: boolean;
   starred: boolean;
-  comments: { author: string; body: string }[];
+  comments: Note[];
 }
 
 type Dir = "yes" | "no" | "say" | "star";
@@ -77,11 +85,14 @@ export function SwipeDeck({
   subjectName,
   cards,
   answeredAtStart,
+  myCourse,
 }: {
   subjectSlug: string;
   subjectName: string;
   cards: Card[];
   answeredAtStart: number;
+  /** The signed-in student's course, used to label their own notes. */
+  myCourse: string;
 }) {
   // Start on the first unanswered card so the deck resumes where you left off.
   const firstUnanswered = Math.max(
@@ -196,6 +207,13 @@ export function SwipeDeck({
 
   const pct = Math.round((done / cards.length) * 100);
 
+  // Where this card sits in the subject's topics — orientation across ~100 cards.
+  const topicNames = Array.from(new Set(cards.map((c) => c.topic)));
+  const topicIdx = card ? topicNames.indexOf(card.topic) + 1 : 0;
+  const topicLeft = card
+    ? cards.slice(i).filter((c) => c.topic === card.topic).length
+    : 0;
+
   if (!card) {
     return (
       <DeckDone
@@ -236,10 +254,21 @@ export function SwipeDeck({
           </button>
         </div>
 
+        {/* where you are in the subject */}
+        <div className="mt-3 flex items-center gap-2 text-[11px] text-zinc-500">
+          <span className="rounded-full bg-zinc-200/70 px-2 py-0.5 font-bold tabular-nums dark:bg-zinc-800">
+            Topic {topicIdx}/{topicNames.length}
+          </span>
+          <span className="truncate">{card.topic.replace(/^\d+\.\s*/, "")}</span>
+          <span className="ml-auto shrink-0 tabular-nums">
+            {topicLeft} left here
+          </span>
+        </div>
+
         {/* deck */}
         <div
           ref={topRef}
-          className="relative mt-6 h-[23rem] flex-none before:absolute before:-inset-x-6 before:-top-4 before:bottom-6 before:rounded-[2rem] before:bg-gradient-to-b before:from-cyan-500/10 before:to-transparent before:blur-2xl"
+          className="relative mt-3 h-[23rem] flex-none before:absolute before:-inset-x-6 before:-top-4 before:bottom-6 before:rounded-[2rem] before:bg-gradient-to-b before:from-cyan-500/10 before:to-transparent before:blur-2xl"
         >
           {cards
             .slice(i, i + 3)
@@ -424,7 +453,10 @@ export function SwipeDeck({
           onPosted={(body) =>
             setLocal((m) => ({
               ...m,
-              [card.id]: [{ author: "You", body }, ...commentsFor(card)],
+              [card.id]: [
+                { author: "You", body, course: myCourse, sameCourse: true },
+                ...commentsFor(card),
+              ],
             }))
           }
           onClose={() => setSheet(null)}
@@ -434,7 +466,13 @@ export function SwipeDeck({
       <style>{`
         @keyframes deckSheetIn{from{transform:translateY(102%)}to{transform:translateY(0)}}
         .deck-sheet-in{animation:deckSheetIn .3s cubic-bezier(.32,.72,0,1) both}
-        @media (prefers-reduced-motion:reduce){.deck-sheet-in{animation:none}}
+        /* No opacity here: a translucent top card lets the one behind bleed
+           through, which looks like a rendering bug. Motion only. */
+        @keyframes deckCardIn{from{transform:translateY(18px) scale(.97)}
+          to{transform:translateY(0) scale(1)}}
+        .deck-card-in{animation:deckCardIn .32s cubic-bezier(.32,.72,0,1) both}
+        @media (prefers-reduced-motion:reduce){
+          .deck-sheet-in,.deck-card-in{animation:none}}
         .deck-lever{-webkit-appearance:none;appearance:none;height:26px;background:transparent;cursor:pointer}
         .deck-lever::-webkit-slider-runnable-track{height:8px;border-radius:8px;
           background:linear-gradient(90deg,#10b981,#f59e0b 55%,#f43f5e)}
@@ -538,9 +576,12 @@ function CardFace({
         zIndex: 10 - offset,
         opacity: offset > 1 ? 0.55 : 1,
         touchAction: onSwipe ? "none" : undefined,
+        // Cards glide up the stack as the one above is answered. The drag
+        // handler overrides this while a finger is down.
+        transition: "transform .3s cubic-bezier(.32,.72,0,1), opacity .3s",
       }}
       className={`absolute inset-0 flex select-none flex-col overflow-hidden rounded-3xl border border-zinc-200 bg-white p-6 shadow-[0_18px_44px_-20px_rgba(24,34,52,.35)] dark:border-zinc-800 dark:bg-zinc-900 ${
-        onSwipe ? "cursor-grab active:cursor-grabbing" : ""
+        onSwipe ? "deck-card-in cursor-grab active:cursor-grabbing" : ""
       }`}
     >
       {/* hairline of colour at the top edge — ties the card to the app */}
@@ -754,12 +795,18 @@ function NoteSheet({
 }: {
   subjectSlug: string;
   card: Card;
-  comments: Card["comments"];
+  comments: Note[];
   onPosted: (body: string) => void;
   onClose: () => void;
 }) {
   const [body, setBody] = useState("");
+  const [scope, setScope] = useState<"course" | "uni">("course");
   const [pending, startTransition] = useTransition();
+
+  // Every note here is already from the student's own university; this only
+  // narrows further to their exact course.
+  const shown =
+    scope === "course" ? comments.filter((c) => c.sameCourse) : comments;
 
   return (
     <>
@@ -790,14 +837,39 @@ function NoteSheet({
         {pending ? "Posting…" : "Post note"}
       </button>
 
-      <SheetLabel>From others on your course</SheetLabel>
-      {comments.length === 0 ? (
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <p className="text-[10.5px] font-bold uppercase tracking-[0.09em] text-zinc-500">
+          From your university
+        </p>
+        {/* Notes never leave your university; this narrows to your own course. */}
+        <div className="flex rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-800">
+          {(["course", "uni"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setScope(s)}
+              aria-pressed={scope === s}
+              className={`rounded-md px-2.5 py-1 text-[11px] font-bold transition ${
+                scope === s
+                  ? "bg-white text-cyan-800 shadow-sm dark:bg-zinc-950 dark:text-cyan-300"
+                  : "text-zinc-500"
+              }`}
+            >
+              {s === "course" ? "My course" : "Whole uni"}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {shown.length === 0 ? (
         <p className="text-[13px] text-zinc-500">
-          No notes yet — yours would be the first.
+          {scope === "course" && comments.length > 0
+            ? "No notes from your course yet — try “Whole uni”."
+            : "No notes yet — yours would be the first."}
         </p>
       ) : (
         <ul>
-          {comments.map((c, n) => (
+          {shown.map((c, n) => (
             <li
               key={n}
               className="flex gap-3 border-t border-zinc-100 py-3 dark:border-zinc-800"
@@ -805,9 +877,19 @@ function NoteSheet({
               <span className="grid h-7 w-7 flex-none place-items-center rounded-full bg-zinc-100 text-[11px] font-bold text-zinc-500 dark:bg-zinc-800">
                 {c.author.charAt(0).toUpperCase()}
               </span>
-              <span>
+              <span className="min-w-0">
                 <span className="block text-[11px] text-zinc-500">
                   {c.author}
+                  <span className="mx-1.5 opacity-40">·</span>
+                  <span
+                    className={
+                      c.sameCourse
+                        ? "font-semibold text-cyan-700 dark:text-cyan-400"
+                        : ""
+                    }
+                  >
+                    {c.course}
+                  </span>
                 </span>
                 <span className="block text-[13px] leading-snug">{c.body}</span>
               </span>
