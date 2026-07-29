@@ -11,6 +11,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/lib/db/seed.ts",
     "db:setup": "drizzle-kit migrate && tsx src/lib/db/seed.ts",
+    "db:verify": "tsx src/lib/db/verify.ts",
     "aggregate": "tsx src/lib/aggregate-run.ts"
   },
   "dependencies": {

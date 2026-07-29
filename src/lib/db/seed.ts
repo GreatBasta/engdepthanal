@@ -1,13 +1,17 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { eq } from "drizzle-orm";
+import { asc, sql } from "drizzle-orm";
 
 import { closeDb, db } from "./client";
 import {
+  curriculumTemplates,
   programs,
   subjects,
   subtopicPrerequisites,
   subtopics,
+  templateSubtopicPrerequisites,
+  templateSubtopics,
+  templateTopics,
   topics,
 } from "./schema";
 
@@ -103,91 +107,185 @@ async function seedCurriculum(file: string) {
     })
     .returning({ id: subjects.id });
 
-  // Subtopic slug -> id across the whole subject, for prerequisite wiring.
-  const subtopicIds = new Map<string, string>();
-  // Deferred: prerequisites may point at subtopics in later topics.
-  const prereqEdges: { from: string; to: string }[] = [];
-  let subtopicCount = 0;
-
-  for (const [topicIndex, topicData] of data.topics.entries()) {
-    const [topic] = await db
-      .insert(topics)
-      .values({
+  const topicRows = await db
+    .insert(topics)
+    .values(
+      data.topics.map((topicData, topicIndex) => ({
         subjectId: subject.id,
         slug: topicData.slug,
         name: topicData.name,
         description: topicData.description,
         position: topicIndex + 1,
-      })
-      .onConflictDoUpdate({
-        target: [topics.subjectId, topics.slug],
-        set: {
-          name: topicData.name,
-          description: topicData.description,
-          position: topicIndex + 1,
-        },
-      })
-      .returning({ id: topics.id });
+      })),
+    )
+    .onConflictDoUpdate({
+      target: [topics.subjectId, topics.slug],
+      set: {
+        name: sql`excluded.name`,
+        description: sql`excluded.description`,
+        position: sql`excluded.position`,
+      },
+    })
+    .returning({ id: topics.id, slug: topics.slug });
 
-    for (const [subIndex, sub] of topicData.subtopics.entries()) {
-      const [row] = await db
-        .insert(subtopics)
-        .values({
-          topicId: topic.id,
-          slug: sub.slug,
-          name: sub.name,
-          description: sub.description,
-          depthLevel: sub.depth,
-          estHours: sub.est_hours?.toString(),
-          position: subIndex + 1,
-        })
-        .onConflictDoUpdate({
-          target: [subtopics.topicId, subtopics.slug],
-          set: {
-            name: sub.name,
-            description: sub.description,
-            depthLevel: sub.depth,
-            estHours: sub.est_hours?.toString(),
-            position: subIndex + 1,
-          },
-        })
-        .returning({ id: subtopics.id });
+  const topicIds = new Map(topicRows.map((topic) => [topic.slug, topic.id]));
+  const subtopicValues = data.topics.flatMap((topicData) => {
+    const topicId = topicIds.get(topicData.slug);
+    if (!topicId) {
+      throw new Error(`failed to resolve seeded topic ${topicData.slug}`);
+    }
+    return topicData.subtopics.map((subtopic, subIndex) => ({
+      topicId,
+      slug: subtopic.slug,
+      name: subtopic.name,
+      description: subtopic.description,
+      depthLevel: subtopic.depth,
+      estHours: subtopic.est_hours?.toString(),
+      position: subIndex + 1,
+    }));
+  });
 
-      subtopicIds.set(sub.slug, row.id);
-      subtopicCount++;
-      for (const prereq of sub.prerequisites ?? []) {
-        prereqEdges.push({ from: sub.slug, to: prereq });
-      }
+  const subtopicRows = await db
+    .insert(subtopics)
+    .values(subtopicValues)
+    .onConflictDoUpdate({
+      target: [subtopics.topicId, subtopics.slug],
+      set: {
+        name: sql`excluded.name`,
+        description: sql`excluded.description`,
+        depthLevel: sql`excluded.depth_level`,
+        estHours: sql`excluded.est_hours`,
+        position: sql`excluded.position`,
+      },
+    })
+    .returning({ id: subtopics.id, slug: subtopics.slug });
+
+  // Subtopic slugs are canonical IDs in the source JSON and are expected to
+  // be unique across each macro-subject.
+  const subtopicIds = new Map(
+    subtopicRows.map((subtopic) => [subtopic.slug, subtopic.id]),
+  );
+  const allSubtopics = await db
+    .select({ id: subtopics.id, slug: subtopics.slug })
+    .from(subtopics);
+  for (const subtopic of allSubtopics) {
+    if (!subtopicIds.has(subtopic.slug)) {
+      subtopicIds.set(subtopic.slug, subtopic.id);
     }
   }
 
-  let edgeCount = 0;
-  for (const edge of prereqEdges) {
+  const prereqEdges = data.topics.flatMap((topicData) =>
+    topicData.subtopics.flatMap((subtopic) =>
+      (subtopic.prerequisites ?? []).map((prerequisite) => ({
+        from: subtopic.slug,
+        to: prerequisite,
+      })),
+    ),
+  );
+  const resolvedEdges = prereqEdges.flatMap((edge) => {
     const subtopicId = subtopicIds.get(edge.from);
-    let prerequisiteId = subtopicIds.get(edge.to);
-    if (!prerequisiteId) {
-      // Cross-subject prerequisite: resolve against already-seeded subjects.
-      const [found] = await db
-        .select({ id: subtopics.id })
-        .from(subtopics)
-        .where(eq(subtopics.slug, edge.to))
-        .limit(1);
-      prerequisiteId = found?.id;
-    }
+    const prerequisiteId = subtopicIds.get(edge.to);
     if (!subtopicId || !prerequisiteId) {
       console.warn(`  ! unresolved prerequisite: ${edge.from} -> ${edge.to}`);
-      continue;
+      return [];
     }
+    return [{ subtopicId, prerequisiteId }];
+  });
+
+  if (resolvedEdges.length > 0) {
     await db
       .insert(subtopicPrerequisites)
-      .values({ subtopicId, prerequisiteId })
+      .values(resolvedEdges)
       .onConflictDoNothing();
-    edgeCount++;
   }
 
   console.log(
     `Seeded ${data.subject.name}: ${data.topics.length} topics, ` +
-      `${subtopicCount} subtopics, ${edgeCount} prerequisite edges`,
+      `${subtopicValues.length} subtopics, ${resolvedEdges.length} prerequisite edges`,
+  );
+}
+
+/**
+ * Snapshot the legacy canonical curriculum into immutable version-1 template
+ * rows. IDs are reused across table namespaces when possible so provenance is
+ * easy to audit. Conflicts are ignored intentionally: an existing template
+ * version must never be rewritten by a later seed run.
+ */
+async function seedCurriculumTemplates() {
+  const legacySubjects = await db
+    .select()
+    .from(subjects)
+    .orderBy(asc(subjects.position));
+
+  if (legacySubjects.length > 0) {
+    await db
+      .insert(curriculumTemplates)
+      .values(
+        legacySubjects.map((subject) => ({
+          id: subject.id,
+          templateKey: subject.slug,
+          version: 1,
+          name: subject.name,
+          description: subject.description,
+          year: subject.year,
+          sourceSubjectId: subject.id,
+        })),
+      )
+      .onConflictDoNothing();
+  }
+
+  const legacyTopics = await db.select().from(topics);
+  if (legacyTopics.length > 0) {
+    await db
+      .insert(templateTopics)
+      .values(
+        legacyTopics.map((topic) => ({
+          id: topic.id,
+          templateId: topic.subjectId,
+          stableKey: topic.slug,
+          slug: topic.slug,
+          name: topic.name,
+          description: topic.description,
+          position: topic.position,
+          sourceTopicId: topic.id,
+        })),
+      )
+      .onConflictDoNothing();
+  }
+
+  const legacySubtopics = await db.select().from(subtopics);
+  if (legacySubtopics.length > 0) {
+    await db
+      .insert(templateSubtopics)
+      .values(
+        legacySubtopics.map((subtopic) => ({
+          id: subtopic.id,
+          templateTopicId: subtopic.topicId,
+          stableKey: subtopic.slug,
+          slug: subtopic.slug,
+          name: subtopic.name,
+          description: subtopic.description,
+          depthLevel: subtopic.depthLevel,
+          estHours: subtopic.estHours,
+          position: subtopic.position,
+          sourceSubtopicId: subtopic.id,
+        })),
+      )
+      .onConflictDoNothing();
+  }
+
+  const legacyEdges = await db.select().from(subtopicPrerequisites);
+  if (legacyEdges.length > 0) {
+    await db
+      .insert(templateSubtopicPrerequisites)
+      .values(legacyEdges)
+      .onConflictDoNothing();
+  }
+
+  console.log(
+    `Seeded ${legacySubjects.length} immutable curriculum templates: ` +
+      `${legacyTopics.length} topics, ${legacySubtopics.length} subtopics, ` +
+      `${legacyEdges.length} prerequisite edges`,
   );
 }
 
@@ -196,6 +294,7 @@ async function main() {
   for (const file of CURRICULUM_FILES) {
     await seedCurriculum(file);
   }
+  await seedCurriculumTemplates();
 }
 
 async function run() {

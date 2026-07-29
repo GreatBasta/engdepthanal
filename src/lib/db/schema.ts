@@ -1,8 +1,11 @@
 import {
+  boolean,
   char,
   check,
+  date,
   index,
   integer,
+  jsonb,
   numeric,
   pgEnum,
   pgTable,
@@ -11,6 +14,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -84,6 +88,113 @@ export const verificationStatus = pgEnum("verification_status", [
   "verified",
   "rejected",
 ]);
+
+/** Visibility is enforced in every server-side course lookup. */
+export const courseVisibility = pgEnum("course_visibility", [
+  "public",
+  "unlisted",
+  "private",
+]);
+
+export const courseMemberRole = pgEnum("course_member_role", [
+  "owner",
+  "editor",
+  "contributor",
+  "viewer",
+]);
+
+/**
+ * Kept separate from authorization roles so future states such as
+ * `auditing` can be added without redesigning permissions.
+ */
+export const courseAttendance = pgEnum("course_attendance", [
+  "attended",
+  "not_attended",
+]);
+
+export const curriculumVersionStatus = pgEnum(
+  "curriculum_version_status",
+  ["draft", "published", "archived"],
+);
+
+export const courseCoverageState = pgEnum("course_coverage_state", [
+  "unknown",
+  "covered",
+  "not_covered",
+]);
+
+export const courseContentProvenance = pgEnum(
+  "course_content_provenance",
+  ["template", "course"],
+);
+
+export const courseInviteStatus = pgEnum("course_invite_status", [
+  "pending",
+  "accepted",
+  "revoked",
+  "expired",
+]);
+
+export const coursePostKind = pgEnum("course_post_kind", [
+  "discussion",
+  "resource",
+  "announcement",
+]);
+
+export const courseReactionKind = pgEnum("course_reaction_kind", [
+  "like",
+  "helpful",
+  "insightful",
+]);
+
+export const attachmentAccess = pgEnum("attachment_access", [
+  "public",
+  "course",
+]);
+
+export const contentTargetType = pgEnum("content_target_type", [
+  "post",
+  "reply",
+  "attachment",
+  "exam_experience",
+  "exam_question",
+  "question_occurrence",
+]);
+
+export const contentReportStatus = pgEnum("content_report_status", [
+  "open",
+  "reviewed",
+  "dismissed",
+  "actioned",
+]);
+
+export const moderationActionType = pgEnum("moderation_action_type", [
+  "hide",
+  "restore",
+  "lock",
+  "unlock",
+  "remove_member",
+  "resolve_report",
+]);
+
+export const examAssessmentType = pgEnum("exam_assessment_type", [
+  "written",
+  "oral",
+  "practical",
+  "project",
+  "mixed",
+]);
+
+export const examQuestionStatus = pgEnum("exam_question_status", [
+  "active",
+  "merged",
+  "hidden",
+]);
+
+export const examMergeRequestStatus = pgEnum(
+  "exam_merge_request_status",
+  ["open", "accepted", "rejected"],
+);
 
 // ---------------------------------------------------------------------------
 // Reference data: universities and programs
@@ -443,4 +554,741 @@ export const gradeScales = pgTable(
     normalized: numeric("normalized", { precision: 5, scale: 2 }).notNull(),
   },
   (t) => [primaryKey({ columns: [t.scale, t.rawValue] })],
+);
+
+// ---------------------------------------------------------------------------
+// Immutable curriculum templates
+// ---------------------------------------------------------------------------
+
+/**
+ * A row is one immutable template version. `templateKey` is the stable family
+ * identifier; publishing an editorial update creates version N+1 instead of
+ * mutating a version already cloned into a course.
+ */
+export const curriculumTemplates = pgTable(
+  "curriculum_templates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    templateKey: text("template_key").notNull(),
+    version: integer("version").notNull().default(1),
+    name: text("name").notNull(),
+    description: text("description"),
+    year: smallint("year").notNull().default(1),
+    sourceSubjectId: uuid("source_subject_id").references(() => subjects.id),
+    isActive: boolean("is_active").notNull().default(true),
+    createdBy: uuid("created_by").references(() => students.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique("uq_template_key_version").on(t.templateKey, t.version),
+    index("idx_templates_active").on(t.isActive, t.year),
+  ],
+);
+
+export const templateTopics = pgTable(
+  "template_topics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    templateId: uuid("template_id")
+      .notNull()
+      .references(() => curriculumTemplates.id),
+    stableKey: text("stable_key").notNull(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    position: integer("position").notNull(),
+    sourceTopicId: uuid("source_topic_id").references(() => topics.id),
+  },
+  (t) => [
+    unique("uq_template_topic_key").on(t.templateId, t.stableKey),
+    unique("uq_template_topic_slug").on(t.templateId, t.slug),
+    index("idx_template_topics_order").on(t.templateId, t.position),
+  ],
+);
+
+export const templateSubtopics = pgTable(
+  "template_subtopics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    templateTopicId: uuid("template_topic_id")
+      .notNull()
+      .references(() => templateTopics.id),
+    stableKey: text("stable_key").notNull(),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    depthLevel: depthLevel("depth_level").notNull(),
+    estHours: numeric("est_hours", { precision: 4, scale: 1 }),
+    position: integer("position").notNull(),
+    sourceSubtopicId: uuid("source_subtopic_id").references(
+      () => subtopics.id,
+    ),
+  },
+  (t) => [
+    unique("uq_template_subtopic_key").on(t.templateTopicId, t.stableKey),
+    unique("uq_template_subtopic_slug").on(t.templateTopicId, t.slug),
+    index("idx_template_subtopics_order").on(t.templateTopicId, t.position),
+  ],
+);
+
+export const templateSubtopicPrerequisites = pgTable(
+  "template_subtopic_prerequisites",
+  {
+    subtopicId: uuid("subtopic_id")
+      .notNull()
+      .references(() => templateSubtopics.id),
+    prerequisiteId: uuid("prerequisite_id")
+      .notNull()
+      .references(() => templateSubtopics.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.subtopicId, t.prerequisiteId] }),
+    check(
+      "template_no_self_prereq",
+      sql`${t.subtopicId} <> ${t.prerequisiteId}`,
+    ),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Editable university course pages and versioned curriculum snapshots
+// ---------------------------------------------------------------------------
+
+export const coursePages = pgTable(
+  "course_pages",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    slug: text("slug").notNull().unique(),
+    universityProgramId: uuid("university_program_id")
+      .notNull()
+      .references(() => universityPrograms.id),
+    localName: text("local_name").notNull(),
+    courseCode: text("course_code"),
+    professorName: text("professor_name"),
+    academicYear: text("academic_year").notNull(),
+    cohortYear: smallint("cohort_year"),
+    semester: smallint("semester"),
+    description: text("description"),
+    visibility: courseVisibility("visibility").notNull().default("private"),
+    /** Normalized metadata used to surface likely duplicates, never auto-merge. */
+    duplicateKey: text("duplicate_key").notNull(),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => students.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("idx_course_pages_directory").on(
+      t.visibility,
+      t.universityProgramId,
+      t.academicYear,
+      t.semester,
+    ),
+    index("idx_course_pages_duplicate").on(
+      t.universityProgramId,
+      t.duplicateKey,
+    ),
+    check(
+      "course_semester_range",
+      sql`${t.semester} is null or (${t.semester} >= 1 and ${t.semester} <= 12)`,
+    ),
+  ],
+);
+
+/** Records every immutable source template included in the course snapshot. */
+export const coursePageTemplates = pgTable(
+  "course_page_templates",
+  {
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    templateId: uuid("template_id")
+      .notNull()
+      .references(() => curriculumTemplates.id),
+    position: integer("position").notNull(),
+    addedBy: uuid("added_by")
+      .notNull()
+      .references(() => students.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.coursePageId, t.templateId] }),
+    unique("uq_course_template_position").on(t.coursePageId, t.position),
+  ],
+);
+
+export const courseMembers = pgTable(
+  "course_members",
+  {
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id),
+    role: courseMemberRole("role").notNull().default("viewer"),
+    attendance: courseAttendance("attendance")
+      .notNull()
+      .default("not_attended"),
+    joinedAt: timestamp("joined_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.coursePageId, t.studentId] }),
+    index("idx_course_members_student").on(t.studentId, t.role),
+  ],
+);
+
+export const courseInvites = pgTable(
+  "course_invites",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    email: text("email").notNull(),
+    role: courseMemberRole("role").notNull().default("viewer"),
+    attendance: courseAttendance("attendance")
+      .notNull()
+      .default("not_attended"),
+    tokenHash: text("token_hash").notNull().unique(),
+    status: courseInviteStatus("status").notNull().default("pending"),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => students.id),
+    acceptedBy: uuid("accepted_by").references(() => students.id),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("idx_course_invites_email").on(t.email, t.status),
+    index("idx_course_invites_course").on(t.coursePageId, t.status),
+  ],
+);
+
+export const courseCurriculumVersions = pgTable(
+  "course_curriculum_versions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    version: integer("version").notNull(),
+    status: curriculumVersionStatus("status").notNull().default("draft"),
+    basedOnVersionId: uuid("based_on_version_id"),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => students.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    publishedAt: timestamp("published_at", { withTimezone: true }),
+  },
+  (t) => [
+    unique("uq_course_curriculum_version").on(t.coursePageId, t.version),
+    uniqueIndex("uq_course_one_draft")
+      .on(t.coursePageId)
+      .where(sql`${t.status} = 'draft'`),
+    uniqueIndex("uq_course_one_published")
+      .on(t.coursePageId)
+      .where(sql`${t.status} = 'published'`),
+  ],
+);
+
+export const courseTopics = pgTable(
+  "course_topics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    curriculumVersionId: uuid("curriculum_version_id")
+      .notNull()
+      .references(() => courseCurriculumVersions.id),
+    /** Stable across course revisions; the row id itself is revision-local. */
+    stableId: uuid("stable_id").notNull().defaultRandom(),
+    sourceTemplateTopicId: uuid("source_template_topic_id").references(
+      () => templateTopics.id,
+    ),
+    provenance: courseContentProvenance("provenance")
+      .notNull()
+      .default("course"),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    position: integer("position").notNull(),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+  },
+  (t) => [
+    unique("uq_course_topic_stable").on(t.curriculumVersionId, t.stableId),
+    unique("uq_course_topic_slug").on(t.curriculumVersionId, t.slug),
+    index("idx_course_topics_order").on(
+      t.curriculumVersionId,
+      t.position,
+    ),
+  ],
+);
+
+export const courseSubtopics = pgTable(
+  "course_subtopics",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    courseTopicId: uuid("course_topic_id")
+      .notNull()
+      .references(() => courseTopics.id),
+    stableId: uuid("stable_id").notNull().defaultRandom(),
+    sourceTemplateSubtopicId: uuid("source_template_subtopic_id").references(
+      () => templateSubtopics.id,
+    ),
+    provenance: courseContentProvenance("provenance")
+      .notNull()
+      .default("course"),
+    slug: text("slug").notNull(),
+    name: text("name").notNull(),
+    description: text("description"),
+    depthLevel: depthLevel("depth_level").notNull().default("procedural"),
+    estHours: numeric("est_hours", { precision: 4, scale: 1 }),
+    position: integer("position").notNull(),
+    coverage: courseCoverageState("coverage").notNull().default("unknown"),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+  },
+  (t) => [
+    unique("uq_course_subtopic_stable").on(t.courseTopicId, t.stableId),
+    unique("uq_course_subtopic_slug").on(t.courseTopicId, t.slug),
+    index("idx_course_subtopics_order").on(t.courseTopicId, t.position),
+  ],
+);
+
+export const courseSubtopicPrerequisites = pgTable(
+  "course_subtopic_prerequisites",
+  {
+    subtopicId: uuid("subtopic_id")
+      .notNull()
+      .references(() => courseSubtopics.id),
+    prerequisiteId: uuid("prerequisite_id")
+      .notNull()
+      .references(() => courseSubtopics.id),
+  },
+  (t) => [
+    primaryKey({ columns: [t.subtopicId, t.prerequisiteId] }),
+    check(
+      "course_no_self_prereq",
+      sql`${t.subtopicId} <> ${t.prerequisiteId}`,
+    ),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Course community, uploads, reporting, and moderation
+// ---------------------------------------------------------------------------
+
+export const coursePosts = pgTable(
+  "course_posts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => students.id),
+    kind: coursePostKind("kind").notNull().default("discussion"),
+    title: text("title"),
+    body: text("body").notNull(),
+    pinnedAt: timestamp("pinned_at", { withTimezone: true }),
+    lockedAt: timestamp("locked_at", { withTimezone: true }),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_course_posts_feed").on(
+      t.coursePageId,
+      t.pinnedAt,
+      t.createdAt,
+    ),
+  ],
+);
+
+export const courseReplies = pgTable(
+  "course_replies",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => coursePosts.id),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => students.id),
+    parentReplyId: uuid("parent_reply_id"),
+    body: text("body").notNull(),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("idx_course_replies_post").on(t.postId, t.createdAt)],
+);
+
+export const coursePostReactions = pgTable(
+  "course_post_reactions",
+  {
+    postId: uuid("post_id")
+      .notNull()
+      .references(() => coursePosts.id),
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id),
+    kind: courseReactionKind("kind").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.postId, t.studentId, t.kind] })],
+);
+
+export const courseReplyReactions = pgTable(
+  "course_reply_reactions",
+  {
+    replyId: uuid("reply_id")
+      .notNull()
+      .references(() => courseReplies.id),
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id),
+    kind: courseReactionKind("kind").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.replyId, t.studentId, t.kind] })],
+);
+
+/**
+ * Binary data lives in Vercel Blob. Only metadata and the opaque private Blob
+ * URL are stored in Postgres; downloads always pass through an authorized
+ * route instead of exposing credentials.
+ */
+export const courseAttachments = pgTable(
+  "course_attachments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    uploaderId: uuid("uploader_id")
+      .notNull()
+      .references(() => students.id),
+    parentType: contentTargetType("parent_type"),
+    parentId: uuid("parent_id"),
+    storageKey: text("storage_key").notNull().unique(),
+    blobUrl: text("blob_url").notNull().unique(),
+    fileName: text("file_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    sizeBytes: integer("size_bytes").notNull(),
+    sha256: text("sha256").notNull(),
+    access: attachmentAccess("access").notNull().default("course"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("idx_course_attachments_parent").on(t.parentType, t.parentId),
+    index("idx_course_attachments_course").on(t.coursePageId, t.createdAt),
+    check("attachment_size_positive", sql`${t.sizeBytes} > 0`),
+    check(
+      "attachment_parent_pair",
+      sql`(${t.parentType} is null) = (${t.parentId} is null)`,
+    ),
+  ],
+);
+
+export const contentReports = pgTable(
+  "content_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    reporterId: uuid("reporter_id")
+      .notNull()
+      .references(() => students.id),
+    targetType: contentTargetType("target_type").notNull(),
+    targetId: uuid("target_id").notNull(),
+    reason: text("reason").notNull(),
+    details: text("details"),
+    status: contentReportStatus("status").notNull().default("open"),
+    resolvedBy: uuid("resolved_by").references(() => students.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("idx_content_reports_queue").on(
+      t.coursePageId,
+      t.status,
+      t.createdAt,
+    ),
+    unique("uq_content_reporter_target").on(
+      t.reporterId,
+      t.targetType,
+      t.targetId,
+    ),
+  ],
+);
+
+export const moderationActions = pgTable(
+  "moderation_actions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    actorId: uuid("actor_id")
+      .notNull()
+      .references(() => students.id),
+    targetType: contentTargetType("target_type"),
+    targetId: uuid("target_id"),
+    action: moderationActionType("action").notNull(),
+    reason: text("reason").notNull(),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_moderation_course").on(t.coursePageId, t.createdAt),
+    check(
+      "moderation_target_pair",
+      sql`(${t.targetType} is null) = (${t.targetId} is null)`,
+    ),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Exam profile, experiences, materials, question bank, and merge workflow
+// ---------------------------------------------------------------------------
+
+export const courseExamProfiles = pgTable("course_exam_profiles", {
+  coursePageId: uuid("course_page_id")
+    .primaryKey()
+    .references(() => coursePages.id),
+  assessmentType: examAssessmentType("assessment_type"),
+  format: text("format"),
+  gradingScale: text("grading_scale"),
+  durationMinutes: integer("duration_minutes"),
+  openBook: boolean("open_book"),
+  calculatorAllowed: boolean("calculator_allowed"),
+  details: text("details"),
+  updatedBy: uuid("updated_by")
+    .notNull()
+    .references(() => students.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const examExperiences = pgTable(
+  "exam_experiences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => students.id),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    academicYear: text("academic_year"),
+    examDate: date("exam_date"),
+    grade: text("grade"),
+    anonymous: boolean("anonymous").notNull().default(false),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_exam_experiences_course").on(t.coursePageId, t.createdAt),
+  ],
+);
+
+export const examQuestions = pgTable(
+  "exam_questions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => students.id),
+    prompt: text("prompt").notNull(),
+    answerGuidance: text("answer_guidance"),
+    courseTopicStableId: uuid("course_topic_stable_id"),
+    courseSubtopicStableId: uuid("course_subtopic_stable_id"),
+    difficulty: smallint("difficulty"),
+    status: examQuestionStatus("status").notNull().default("active"),
+    mergedIntoId: uuid("merged_into_id"),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_exam_questions_course").on(t.coursePageId, t.status),
+    check(
+      "exam_question_difficulty_range",
+      sql`${t.difficulty} is null or (${t.difficulty} >= 1 and ${t.difficulty} <= 5)`,
+    ),
+    check(
+      "exam_question_merge_target",
+      sql`(${t.status} = 'merged') = (${t.mergedIntoId} is not null)`,
+    ),
+  ],
+);
+
+export const questionOccurrences = pgTable(
+  "question_occurrences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    questionId: uuid("question_id")
+      .notNull()
+      .references(() => examQuestions.id),
+    reportedBy: uuid("reported_by")
+      .notNull()
+      .references(() => students.id),
+    experienceId: uuid("experience_id").references(() => examExperiences.id),
+    sessionLabel: text("session_label").notNull(),
+    occurredOn: date("occurred_on"),
+    notes: text("notes"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique("uq_question_occurrence_report").on(
+      t.questionId,
+      t.reportedBy,
+      t.sessionLabel,
+    ),
+    index("idx_question_occurrences_question").on(t.questionId, t.occurredOn),
+  ],
+);
+
+export const examQuestionVotes = pgTable(
+  "exam_question_votes",
+  {
+    questionId: uuid("question_id")
+      .notNull()
+      .references(() => examQuestions.id),
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id),
+    value: smallint("value").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.questionId, t.studentId] }),
+    check("exam_vote_value", sql`${t.value} in (-1, 1)`),
+  ],
+);
+
+export const examMergeRequests = pgTable(
+  "exam_merge_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    sourceQuestionId: uuid("source_question_id")
+      .notNull()
+      .references(() => examQuestions.id),
+    targetQuestionId: uuid("target_question_id")
+      .notNull()
+      .references(() => examQuestions.id),
+    requestedBy: uuid("requested_by")
+      .notNull()
+      .references(() => students.id),
+    rationale: text("rationale").notNull(),
+    status: examMergeRequestStatus("status").notNull().default("open"),
+    reviewedBy: uuid("reviewed_by").references(() => students.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  },
+  (t) => [
+    unique("uq_exam_merge_pair").on(
+      t.sourceQuestionId,
+      t.targetQuestionId,
+      t.status,
+    ),
+    index("idx_exam_merge_queue").on(t.coursePageId, t.status),
+    check(
+      "exam_merge_distinct_questions",
+      sql`${t.sourceQuestionId} <> ${t.targetQuestionId}`,
+    ),
+  ],
+);
+
+export const courseExamMaterials = pgTable(
+  "course_exam_materials",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    attachmentId: uuid("attachment_id")
+      .notNull()
+      .references(() => courseAttachments.id)
+      .unique(),
+    title: text("title").notNull(),
+    description: text("description"),
+    createdBy: uuid("created_by")
+      .notNull()
+      .references(() => students.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("idx_exam_materials_course").on(t.coursePageId, t.createdAt)],
 );
