@@ -6,6 +6,7 @@ import { getCourseBySlugForViewer } from "@/lib/courses/data";
 
 import { updateCourseMemberAction } from "./actions";
 import { InviteMemberForm } from "./contributors-ui";
+import { CurriculumPanel } from "./curriculum-panel";
 
 const TABS = [
   ["overview", "Overview"],
@@ -22,7 +23,7 @@ export default async function CoursePage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; preview?: string }>;
 }) {
   const [{ slug }, query, studentId] = await Promise.all([
     params,
@@ -38,7 +39,6 @@ export default async function CoursePage({
   const published = detail.versions.find(
     (version) => version.status === "published",
   );
-  const draft = detail.versions.find((version) => version.status === "draft");
 
   return (
     <main className="min-h-screen pb-16">
@@ -111,21 +111,11 @@ export default async function CoursePage({
           <Overview detail={detail} publishedVersion={published?.version} />
         ) : null}
         {tab === "curriculum" ? (
-          <EmptyFeature
-            title={
-              draft && detail.permissions.canEdit
-                ? `Editable draft v${draft.version}`
-                : published
-                  ? `Published curriculum v${published.version}`
-                  : "Curriculum draft"
-            }
-            description={
-              draft && detail.permissions.canEdit
-                ? "Your cloned curriculum is ready. Editing, preview, and publishing controls are being added in this feature branch."
-                : published
-                  ? "The published curriculum will appear here."
-                  : "The owner has not published this curriculum yet."
-            }
+          <CurriculumPanel
+            coursePageId={detail.course.id}
+            courseSlug={detail.course.slug}
+            canEdit={detail.permissions.canEdit}
+            preview={query.preview}
           />
         ) : null}
         {tab === "community" ? (
