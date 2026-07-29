@@ -5,6 +5,7 @@ import { currentStudentId } from "@/auth";
 import { getCourseBySlugForViewer } from "@/lib/courses/data";
 
 import { updateCourseMemberAction } from "./actions";
+import { CommunityPanel } from "./community-panel";
 import { InviteMemberForm } from "./contributors-ui";
 import { CurriculumPanel } from "./curriculum-panel";
 
@@ -119,13 +120,12 @@ export default async function CoursePage({
           />
         ) : null}
         {tab === "community" ? (
-          <EmptyFeature
-            title="Course community"
-            description={
-              detail.permissions.canPost
-                ? "Discussions, replies, reactions, and protected resources will live here."
-                : "Course members with contributor access can post here."
-            }
+          <CommunityPanel
+            coursePageId={detail.course.id}
+            courseSlug={detail.course.slug}
+            canPost={detail.permissions.canPost}
+            canModerate={detail.permissions.canModerate}
+            canReport={studentId !== null}
           />
         ) : null}
         {tab === "exam" ? (
