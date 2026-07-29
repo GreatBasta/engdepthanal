@@ -24,3 +24,15 @@ function client() {
 }
 
 export const db = drizzle(client(), { schema });
+
+/**
+ * Close the cached client in finite-lived scripts such as the curriculum
+ * seed. Application code should keep using the cached client for the lifetime
+ * of the serverless instance.
+ */
+export async function closeDb() {
+  const pgClient = globalForDb.pgClient;
+  if (!pgClient) return;
+  await pgClient.end({ timeout: 5 });
+  delete globalForDb.pgClient;
+}

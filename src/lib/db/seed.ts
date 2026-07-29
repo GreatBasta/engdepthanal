@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { eq } from "drizzle-orm";
 
-import { db } from "./client";
+import { closeDb, db } from "./client";
 import {
   programs,
   subjects,
@@ -196,10 +196,22 @@ async function main() {
   for (const file of CURRICULUM_FILES) {
     await seedCurriculum(file);
   }
-  process.exit(0);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+async function run() {
+  try {
+    await main();
+  } catch (err) {
+    console.error(err);
+    process.exitCode = 1;
+  } finally {
+    try {
+      await closeDb();
+    } catch (err) {
+      console.error("Failed to close the database connection", err);
+      process.exitCode = 1;
+    }
+  }
+}
+
+void run();

@@ -45,14 +45,29 @@ Keep this string handy — it's your `DATABASE_URL`.
    (toggle "Override" on) to:
 
    ```
-   npm run db:setup && npm run build
+   npm run build
    ```
 
-   This creates the tables and loads the Calculus I curriculum into your Neon
-   database automatically on the first deploy. It's safe to leave in place —
-   `db:setup` is idempotent, so redeploys won't duplicate anything.
+   Database migrations and seed writes must not run in Vercel builds. Preview
+   builds can run concurrently and should never mutate the production
+   database.
 
-5. Click **Deploy**. Wait ~2 minutes.
+5. Initialize the database once from a trusted checkout after linking the
+   Vercel project and pulling its development variables:
+
+   ```bash
+   vercel link
+   vercel env pull .env.local --yes
+   node --env-file=.env.local ./node_modules/drizzle-kit/bin.cjs migrate
+   node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs src/lib/db/seed.ts
+   ```
+
+   Drizzle records applied migrations, and the seed upserts programs,
+   subjects, topics, and subtopics by their unique keys, so both commands are
+   safe to repeat deliberately. They are kept outside the deployment build so
+   previews cannot race or modify production data.
+
+6. Click **Deploy**. Wait ~2 minutes.
 
 When it finishes, Vercel gives you a URL like
 `https://engdepthanal.vercel.app` — **that's the link you send your friends.**
@@ -83,16 +98,18 @@ now works because the database is live and seeded.
 - **Supabase** works anywhere Neon does — just use its **pooled** connection
   string (port 6543) as `DATABASE_URL`.
 
-## Initialising the database manually (optional)
+## Initialising the database manually
 
-If you'd rather not put `db:setup` in the build command, you can load the
-schema once from your own machine instead:
+Load the schema and curricula from a trusted checkout:
 
 ```bash
 git clone https://github.com/Sinadehesh/engdepthanal
 cd engdepthanal
 npm install
-DATABASE_URL="<your pooled Neon string>" npm run db:setup
+vercel link
+vercel env pull .env.local --yes
+node --env-file=.env.local ./node_modules/drizzle-kit/bin.cjs migrate
+node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs src/lib/db/seed.ts
 ```
 
-Then set Vercel's build command back to the default `npm run build`.
+Keep Vercel's build command set to `npm run build`.
