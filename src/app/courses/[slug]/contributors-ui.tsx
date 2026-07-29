@@ -75,9 +75,12 @@ export function InviteMemberForm({
         </p>
       ) : null}
       {state.inviteUrl ? (
-        <output className="mt-2 block overflow-x-auto rounded-lg border border-zinc-200 bg-white p-2 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900">
+        <a
+          href={state.inviteUrl}
+          className="mt-2 block overflow-x-auto rounded-lg border border-zinc-200 bg-white p-2 font-mono text-xs underline dark:border-zinc-700 dark:bg-zinc-900"
+        >
           {state.inviteUrl}
-        </output>
+        </a>
       ) : null}
     </form>
   );

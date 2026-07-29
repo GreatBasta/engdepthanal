@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import {
   getCourseCommunity,
   getOpenCourseReports,
@@ -377,7 +375,7 @@ function AttachmentList({
     <ul className="mt-3 flex flex-wrap gap-2">
       {attachments.map((attachment) => (
         <li key={attachment.id} className="flex flex-wrap items-center gap-1">
-          <Link
+          <a
             href={`/api/courses/${coursePageId}/attachments/${attachment.id}`}
             className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium hover:border-indigo-300 hover:text-indigo-700 dark:border-zinc-700 dark:hover:text-indigo-300"
           >
@@ -389,7 +387,7 @@ function AttachmentList({
             {attachment.access === "course" ? (
               <span aria-label="Members only">🔒</span>
             ) : null}
-          </Link>
+          </a>
           {canReport ? (
             <ReportForm
               targetType="attachment"

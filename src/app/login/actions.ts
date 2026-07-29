@@ -27,7 +27,12 @@ const signInSchema = z.object({
 /** Where a fresh login lands. Only same-app paths are honored. */
 function safeNext(formData: FormData): string {
   const next = formData.get("next");
-  return typeof next === "string" && next.startsWith("/") ? next : "/dashboard";
+  return typeof next === "string" &&
+    next.startsWith("/") &&
+    !next.startsWith("//") &&
+    !next.includes("\\")
+    ? next
+    : "/dashboard";
 }
 
 export async function signUpAction(

@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { getCourseExam } from "@/lib/courses/exam";
 import { EXAM_TIER_THRESHOLDS } from "@/lib/courses/exam-ranking";
 
@@ -792,7 +790,7 @@ function ExamAttachmentList({
     <ul className="mt-3 flex flex-wrap gap-2">
       {attachments.map((attachment) => (
         <li key={attachment.id}>
-          <Link
+          <a
             href={`/api/courses/${coursePageId}/attachments/${attachment.id}`}
             className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 px-3 py-2 text-xs font-medium hover:border-indigo-300 dark:border-zinc-700"
           >
@@ -801,7 +799,7 @@ function ExamAttachmentList({
               {formatBytes(attachment.sizeBytes)}
             </span>
             {attachment.access === "course" ? " 🔒" : ""}
-          </Link>
+          </a>
         </li>
       ))}
     </ul>
@@ -873,4 +871,3 @@ function formatBytes(bytes: number) {
 
 const inputClass =
   "rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-950";
-

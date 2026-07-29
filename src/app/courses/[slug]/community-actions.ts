@@ -8,6 +8,10 @@ import { z } from "zod";
 
 import { currentStudentId } from "@/auth";
 import {
+  safeAttachmentName,
+  validateAttachmentMetadata,
+} from "@/lib/courses/attachment-policy";
+import {
   canModerateCourse,
   canPostToCourse,
   canViewCourse,
@@ -435,20 +439,6 @@ const attachmentSchema = courseIdentitySchema.extend({
   access: z.enum(["public", "course"]),
 });
 
-const MAX_ATTACHMENT_BYTES = 4 * 1024 * 1024;
-const ACCEPTED_FILES = new Map<string, ReadonlySet<string>>([
-  ["application/pdf", new Set(["pdf"])],
-  ["image/jpeg", new Set(["jpg", "jpeg"])],
-  ["image/png", new Set(["png"])],
-  ["image/webp", new Set(["webp"])],
-  ["text/plain", new Set(["txt"])],
-  ["text/markdown", new Set(["md", "markdown"])],
-  [
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    new Set(["docx"]),
-  ],
-]);
-
 export async function uploadCourseAttachmentAction(
   _previous: AttachmentState,
   formData: FormData,
@@ -480,20 +470,10 @@ export async function uploadCourseAttachmentAction(
   ) {
     return { error: "The attachment target is unavailable.", message: null };
   }
-  if (file.size <= 0 || file.size > MAX_ATTACHMENT_BYTES) {
-    return {
-      error: "Attachments must be between 1 byte and 4 MB.",
-      message: null,
-    };
-  }
-
   const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
-  const allowedExtensions = ACCEPTED_FILES.get(file.type);
-  if (!allowedExtensions?.has(extension)) {
-    return {
-      error: "Use PDF, DOCX, TXT, Markdown, JPEG, PNG, or WebP files.",
-      message: null,
-    };
+  const metadataError = validateAttachmentMetadata(file);
+  if (metadataError) {
+    return { error: metadataError, message: null };
   }
   if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.VERCEL_OIDC_TOKEN) {
     return {
@@ -543,12 +523,7 @@ export async function uploadCourseAttachmentAction(
     };
   }
 
-  const safeName =
-    file.name
-      .normalize("NFKC")
-      .replace(/[^\p{L}\p{N}._ -]+/gu, "-")
-      .replace(/\s+/g, "-")
-      .slice(-180) || `attachment.${extension}`;
+  const safeName = safeAttachmentName(file.name, extension);
   const storageKey = `courses/${parsed.data.coursePageId}/${randomUUID()}-${safeName}`;
   let blob: Awaited<ReturnType<typeof put>> | null = null;
   try {

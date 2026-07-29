@@ -319,23 +319,6 @@ function Contributors({
   );
 }
 
-function EmptyFeature({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <section className="rounded-2xl border border-dashed border-zinc-300 bg-white/60 p-10 text-center dark:border-zinc-700 dark:bg-zinc-900/60">
-      <h2 className="text-xl font-semibold">{title}</h2>
-      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-        {description}
-      </p>
-    </section>
-  );
-}
-
 function Metadata({ label, value }: { label: string; value: string }) {
   return (
     <div>
