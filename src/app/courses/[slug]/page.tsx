@@ -4,7 +4,10 @@ import { notFound } from "next/navigation";
 import { currentStudentId } from "@/auth";
 import { getCourseBySlugForViewer } from "@/lib/courses/data";
 
-import { updateCourseMemberAction } from "./actions";
+import {
+  updateCourseMemberAction,
+  updateCourseSettingsAction,
+} from "./actions";
 import { CommunityPanel } from "./community-panel";
 import { InviteMemberForm } from "./contributors-ui";
 import { CurriculumPanel } from "./curriculum-panel";
@@ -210,15 +213,129 @@ function Overview({
         </section>
 
         {detail.permissions.canEdit ? (
-          <Link
-            href={`/courses/${detail.course.slug}?tab=curriculum`}
-            className="flex w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-500"
-          >
-            Edit curriculum
-          </Link>
+          <>
+            <Link
+              href={`/courses/${detail.course.slug}?tab=curriculum`}
+              className="flex w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-500"
+            >
+              Edit curriculum
+            </Link>
+            <CourseSettings detail={detail} />
+          </>
         ) : null}
       </aside>
     </div>
+  );
+}
+
+function CourseSettings({
+  detail,
+}: {
+  detail: NonNullable<Awaited<ReturnType<typeof getCourseBySlugForViewer>>>;
+}) {
+  const inputClass =
+    "mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950";
+
+  return (
+    <details className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <summary className="cursor-pointer font-semibold">Course settings</summary>
+      <form action={updateCourseSettingsAction} className="mt-5 space-y-4">
+        <input type="hidden" name="coursePageId" value={detail.course.id} />
+        <input type="hidden" name="courseSlug" value={detail.course.slug} />
+        <label className="block text-sm font-medium">
+          Local course name
+          <input
+            name="localName"
+            required
+            minLength={2}
+            maxLength={180}
+            defaultValue={detail.course.localName}
+            className={inputClass}
+          />
+        </label>
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block text-sm font-medium">
+            Course code
+            <input
+              name="courseCode"
+              maxLength={40}
+              defaultValue={detail.course.courseCode ?? ""}
+              className={inputClass}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Professor
+            <input
+              name="professorName"
+              maxLength={120}
+              defaultValue={detail.course.professorName ?? ""}
+              className={inputClass}
+            />
+          </label>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          <label className="block text-sm font-medium">
+            Academic year
+            <input
+              name="academicYear"
+              required
+              defaultValue={detail.course.academicYear}
+              className={inputClass}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Cohort
+            <input
+              name="cohortYear"
+              type="number"
+              min={2000}
+              max={2100}
+              defaultValue={detail.course.cohortYear ?? ""}
+              className={inputClass}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Semester
+            <input
+              name="semester"
+              type="number"
+              min={1}
+              max={12}
+              defaultValue={detail.course.semester ?? ""}
+              className={inputClass}
+            />
+          </label>
+        </div>
+        <label className="block text-sm font-medium">
+          Description
+          <textarea
+            name="description"
+            rows={4}
+            maxLength={2_000}
+            defaultValue={detail.course.description ?? ""}
+            className={inputClass}
+          />
+        </label>
+        <label className="block text-sm font-medium">
+          Visibility
+          <select
+            name="visibility"
+            defaultValue={detail.course.visibility}
+            className={inputClass}
+          >
+            <option value="private">Private</option>
+            <option value="unlisted">Unlisted</option>
+            <option value="public">Public</option>
+          </select>
+        </label>
+        <button
+          type="submit"
+          className="w-full rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
+        >
+          Save course settings
+        </button>
+      </form>
+    </details>
   );
 }
 

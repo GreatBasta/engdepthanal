@@ -7,7 +7,9 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { currentStudentId } from "@/auth";
+import { courseDuplicateKey } from "@/lib/courses/core";
 import {
+  canEditCourse,
   canManageMembers,
   loadCoursePermissionContext,
 } from "@/lib/courses/permissions";
@@ -45,8 +47,79 @@ const inviteSchema = z.object({
   attendance,
 });
 
+const optionalText = (max: number) =>
+  z.preprocess(
+    (value) => (typeof value === "string" && value.trim() ? value : undefined),
+    z.string().trim().max(max).optional(),
+  );
+
+const optionalInteger = (minimum: number, maximum: number) =>
+  z.preprocess(
+    (value) => (value === "" || value == null ? undefined : value),
+    z.coerce.number().int().min(minimum).max(maximum).optional(),
+  );
+
+const updateCourseSchema = z.object({
+  coursePageId: z.string().uuid(),
+  courseSlug: z.string().min(1).max(120),
+  localName: z.string().trim().min(2).max(180),
+  courseCode: optionalText(40),
+  professorName: optionalText(120),
+  academicYear: z
+    .string()
+    .trim()
+    .regex(/^\d{4}(?:\s*[/–-]\s*\d{2,4})?$/, "Use a year such as 2026/27"),
+  cohortYear: optionalInteger(2000, 2100),
+  semester: optionalInteger(1, 12),
+  description: optionalText(2_000),
+  visibility: z.enum(["public", "unlisted", "private"]),
+});
+
 function tokenHash(token: string) {
   return createHash("sha256").update(token).digest("hex");
+}
+
+export async function updateCourseSettingsAction(formData: FormData) {
+  const parsed = updateCourseSchema.safeParse({
+    coursePageId: formData.get("coursePageId"),
+    courseSlug: formData.get("courseSlug"),
+    localName: formData.get("localName"),
+    courseCode: formData.get("courseCode"),
+    professorName: formData.get("professorName"),
+    academicYear: formData.get("academicYear"),
+    cohortYear: formData.get("cohortYear"),
+    semester: formData.get("semester"),
+    description: formData.get("description"),
+    visibility: formData.get("visibility"),
+  });
+  if (!parsed.success) return;
+
+  const studentId = await currentStudentId();
+  if (!studentId) redirect("/login");
+  const context = await loadCoursePermissionContext(
+    parsed.data.coursePageId,
+    studentId,
+  );
+  if (!context || !canEditCourse(context)) return;
+
+  const { coursePageId, courseSlug, ...course } = parsed.data;
+  await db
+    .update(coursePages)
+    .set({
+      ...course,
+      courseCode: course.courseCode ?? null,
+      professorName: course.professorName ?? null,
+      cohortYear: course.cohortYear ?? null,
+      semester: course.semester ?? null,
+      description: course.description ?? null,
+      duplicateKey: courseDuplicateKey(course),
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(coursePages.id, coursePageId), eq(coursePages.slug, courseSlug)),
+    );
+  revalidatePath(`/courses/${courseSlug}`);
+  revalidatePath("/courses");
 }
 
 async function requireMemberManager(coursePageId: string) {
@@ -294,4 +367,3 @@ export async function acceptCourseInviteAction(formData: FormData) {
 
   redirect(`/courses/${invite.slug}?tab=contributors`);
 }
-
