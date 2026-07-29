@@ -17,7 +17,7 @@ export function AttachmentForm({
 }: {
   coursePageId: string;
   courseSlug: string;
-  parentType: "post" | "reply";
+  parentType: "post" | "reply" | "exam_experience" | "exam_question";
   parentId: string;
 }) {
   const [state, action, pending] = useActionState(
@@ -76,4 +76,3 @@ export function AttachmentForm({
     </form>
   );
 }
-

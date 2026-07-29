@@ -8,6 +8,7 @@ import { updateCourseMemberAction } from "./actions";
 import { CommunityPanel } from "./community-panel";
 import { InviteMemberForm } from "./contributors-ui";
 import { CurriculumPanel } from "./curriculum-panel";
+import { ExamPanel } from "./exam-panel";
 
 const TABS = [
   ["overview", "Overview"],
@@ -129,9 +130,12 @@ export default async function CoursePage({
           />
         ) : null}
         {tab === "exam" ? (
-          <EmptyFeature
-            title="Exam intelligence"
-            description="Exam format, experiences, materials, recurring questions, and evidence-based tiers will live here."
+          <ExamPanel
+            coursePageId={detail.course.id}
+            courseSlug={detail.course.slug}
+            canPost={detail.permissions.canPost}
+            canEdit={detail.permissions.canEdit}
+            canModerate={detail.permissions.canModerate}
           />
         ) : null}
         {tab === "contributors" ? (

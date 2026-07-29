@@ -21,6 +21,8 @@ import {
   coursePosts,
   courseReplies,
   courseReplyReactions,
+  examExperiences,
+  examQuestions,
   moderationActions,
 } from "@/lib/db/schema";
 
@@ -423,7 +425,12 @@ export async function resolveCourseReportAction(formData: FormData) {
 }
 
 const attachmentSchema = courseIdentitySchema.extend({
-  parentType: z.enum(["post", "reply"]),
+  parentType: z.enum([
+    "post",
+    "reply",
+    "exam_experience",
+    "exam_question",
+  ]),
   parentId: z.string().uuid(),
   access: z.enum(["public", "course"]),
 });
@@ -584,7 +591,12 @@ export async function uploadCourseAttachmentAction(
 
 async function targetBelongsToCourse(
   coursePageId: string,
-  targetType: "post" | "reply" | "attachment",
+  targetType:
+    | "post"
+    | "reply"
+    | "attachment"
+    | "exam_experience"
+    | "exam_question",
   targetId: string,
 ) {
   if (targetType === "post") {
@@ -609,6 +621,32 @@ async function targetBelongsToCourse(
         and(
           eq(courseReplies.id, targetId),
           eq(coursePosts.coursePageId, coursePageId),
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
+  }
+  if (targetType === "exam_experience") {
+    const [row] = await db
+      .select({ id: examExperiences.id })
+      .from(examExperiences)
+      .where(
+        and(
+          eq(examExperiences.id, targetId),
+          eq(examExperiences.coursePageId, coursePageId),
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
+  }
+  if (targetType === "exam_question") {
+    const [row] = await db
+      .select({ id: examQuestions.id })
+      .from(examQuestions)
+      .where(
+        and(
+          eq(examQuestions.id, targetId),
+          eq(examQuestions.coursePageId, coursePageId),
         ),
       )
       .limit(1);
