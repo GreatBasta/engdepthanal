@@ -1,16 +1,17 @@
 import { count, sql } from "drizzle-orm";
 import type { AnyPgTable } from "drizzle-orm/pg-core";
 
+import catalogJson from "../../../curriculum/catalog.json";
+import { validateCurriculumCatalog } from "../curriculum/schema";
 import { closeDb, db } from "./client";
 import {
+  courseResources,
+  courseSubtopicProgress,
   curriculumTemplates,
-  subjects,
-  subtopicPrerequisites,
-  subtopics,
+  students,
   templateSubtopicPrerequisites,
   templateSubtopics,
   templateTopics,
-  topics,
 } from "./schema";
 
 async function tableCount(table: AnyPgTable): Promise<number> {
@@ -18,50 +19,123 @@ async function tableCount(table: AnyPgTable): Promise<number> {
   return Number(row.value);
 }
 
+async function scalar(query: ReturnType<typeof sql>): Promise<number> {
+  const result = await db.execute(query);
+  return Number(result[0]?.value ?? 0);
+}
+
 async function verify() {
+  const validation = validateCurriculumCatalog(catalogJson);
+  if (!validation.catalog || validation.issues.length) {
+    throw new Error(
+      validation.issues
+        .map((issue) => `${issue.path}: ${issue.message}`)
+        .join("\n") || "Canonical curriculum catalog is invalid",
+    );
+  }
+  const catalog = validation.catalog;
+  const expectedTopics = catalog.templates.reduce(
+    (total, template) => total + template.topics.length,
+    0,
+  );
+  const expectedSubtopics = catalog.templates.reduce(
+    (total, template) =>
+      total +
+      template.topics.reduce(
+        (topicTotal, topic) => topicTotal + topic.subtopics.length,
+        0,
+      ),
+    0,
+  );
+
   const [
     migrationResult,
-    subjectCount,
     templateCount,
-    topicCount,
     templateTopicCount,
-    subtopicCount,
     templateSubtopicCount,
-    edgeCount,
     templateEdgeCount,
+    studentCount,
+    progressCount,
+    resourceCount,
+    duplicateTemplateKeys,
+    duplicateStableIds,
+    orphanProgress,
+    orphanResources,
   ] = await Promise.all([
     db.execute(
       sql`select count(*)::integer as count from drizzle.__drizzle_migrations`,
     ),
-    tableCount(subjects),
     tableCount(curriculumTemplates),
-    tableCount(topics),
     tableCount(templateTopics),
-    tableCount(subtopics),
     tableCount(templateSubtopics),
-    tableCount(subtopicPrerequisites),
     tableCount(templateSubtopicPrerequisites),
+    tableCount(students),
+    tableCount(courseSubtopicProgress),
+    tableCount(courseResources),
+    scalar(sql`
+      select count(*) as value from (
+        select template_key from curriculum_templates
+        group by template_key having count(*) > 1
+      ) duplicates
+    `),
+    scalar(sql`
+      select count(*) as value from (
+        select stable_id from (
+          select stable_id from template_topics
+          union all
+          select stable_id from template_subtopics
+        ) ids group by stable_id having count(*) > 1
+      ) duplicates
+    `),
+    scalar(sql`
+      select count(*) as value
+      from course_subtopic_progress p
+      left join course_pages c on c.id = p.course_page_id
+      left join students s on s.id = p.student_id
+      where c.id is null or s.id is null
+    `),
+    scalar(sql`
+      select count(*) as value
+      from course_resources r
+      left join course_pages c on c.id = r.course_page_id
+      left join students s on s.id = r.author_id
+      where c.id is null or s.id is null
+    `),
   ]);
 
-  const checks = [
-    ["templates", subjectCount, templateCount],
-    ["template topics", topicCount, templateTopicCount],
-    ["template subtopics", subtopicCount, templateSubtopicCount],
-    ["template prerequisite edges", edgeCount, templateEdgeCount],
-  ] as const;
+  const failures = [
+    templateCount < catalog.templates.length &&
+      `canonical templates: expected at least ${catalog.templates.length}, found ${templateCount}`,
+    templateTopicCount < expectedTopics &&
+      `template topics: expected at least ${expectedTopics}, found ${templateTopicCount}`,
+    templateSubtopicCount < expectedSubtopics &&
+      `template subtopics: expected at least ${expectedSubtopics}, found ${templateSubtopicCount}`,
+    duplicateTemplateKeys > 0 &&
+      `duplicate template keys: ${duplicateTemplateKeys}`,
+    duplicateStableIds > 0 && `duplicate stable IDs: ${duplicateStableIds}`,
+    orphanProgress > 0 && `orphan progress rows: ${orphanProgress}`,
+    orphanResources > 0 && `orphan resource rows: ${orphanResources}`,
+  ].filter(Boolean);
 
-  for (const [label, legacy, snapshot] of checks) {
-    if (legacy !== snapshot) {
-      throw new Error(`${label}: expected ${legacy}, found ${snapshot}`);
-    }
-  }
+  if (failures.length) throw new Error(failures.join("\n"));
 
   console.log({
     migrations: Number(migrationResult[0]?.count ?? 0),
-    templates: templateCount,
-    topics: templateTopicCount,
-    subtopics: templateSubtopicCount,
-    prerequisiteEdges: templateEdgeCount,
+    canonicalCatalog: {
+      templates: catalog.templates.length,
+      topics: expectedTopics,
+      subtopics: expectedSubtopics,
+    },
+    database: {
+      templates: templateCount,
+      topics: templateTopicCount,
+      subtopics: templateSubtopicCount,
+      prerequisiteEdges: templateEdgeCount,
+      students: studentCount,
+      progress: progressCount,
+      resources: resourceCount,
+    },
+    integrity: "ok",
   });
 }
 

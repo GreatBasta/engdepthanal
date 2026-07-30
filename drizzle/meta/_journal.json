@@ -29,6 +29,20 @@
       "when": 1785339554711,
       "tag": "0003_outgoing_dakota_north",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785418570216,
+      "tag": "0004_flippant_red_skull",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785419205129,
+      "tag": "0005_overrated_bullseye",
+      "breakpoints": true
     }
   ]
 }

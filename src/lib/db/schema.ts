@@ -123,6 +123,13 @@ export const courseCoverageState = pgEnum("course_coverage_state", [
   "not_covered",
 ]);
 
+export const courseProgressState = pgEnum("course_progress_state", [
+  "not_started",
+  "learning",
+  "completed",
+  "saved",
+]);
+
 export const courseContentProvenance = pgEnum(
   "course_content_provenance",
   ["template", "course"],
@@ -147,6 +154,25 @@ export const courseReactionKind = pgEnum("course_reaction_kind", [
   "insightful",
 ]);
 
+export const courseResourceType = pgEnum("course_resource_type", [
+  "text_note",
+  "link",
+  "image",
+  "pdf",
+  "short_comment",
+  "study_tip",
+  "correction",
+  "personal_notes",
+  "permitted_material",
+]);
+
+export const courseResourceContext = pgEnum("course_resource_context", [
+  "course",
+  "topic",
+  "subtopic",
+  "exam",
+]);
+
 export const attachmentAccess = pgEnum("attachment_access", [
   "public",
   "course",
@@ -155,6 +181,8 @@ export const attachmentAccess = pgEnum("attachment_access", [
 export const contentTargetType = pgEnum("content_target_type", [
   "post",
   "reply",
+  "course_resource",
+  "resource_comment",
   "attachment",
   "exam_experience",
   "exam_question",
@@ -348,10 +376,28 @@ export const students = pgTable("students", {
   email: text("email").notNull().unique(),
   displayName: text("display_name").notNull(),
   passwordHash: text("password_hash"), // null when OAuth-only
+  adminRole: boolean("admin_role").notNull().default(false),
+  emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
+
+/** Short-lived hashed rate-limit buckets; never stores raw email or IP. */
+export const rateLimitBuckets = pgTable(
+  "rate_limit_buckets",
+  {
+    action: text("action").notNull(),
+    keyHash: text("key_hash").notNull(),
+    windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+    attempts: integer("attempts").notNull().default(1),
+  },
+  (t) => [
+    primaryKey({ columns: [t.action, t.keyHash, t.windowStart] }),
+    index("idx_rate_limit_window").on(t.windowStart),
+  ],
+);
 
 /** Student × university × program × intake year. Unlocks the first-year DB. */
 export const enrollments = pgTable(
@@ -573,6 +619,29 @@ export const curriculumTemplates = pgTable(
     version: integer("version").notNull().default(1),
     name: text("name").notNull(),
     description: text("description"),
+    category: text("category").notNull().default("engineering-core"),
+    disciplineTags: jsonb("discipline_tags")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    recommendedDegreePrograms: jsonb("recommended_degree_programs")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    typicalYear: smallint("typical_year").notNull().default(1),
+    typicalSemester: smallint("typical_semester").notNull().default(1),
+    sourceReferences: jsonb("source_references")
+      .$type<
+        Array<{
+          title: string;
+          organization: string;
+          url: string;
+          accessedAt: string;
+          note?: string;
+        }>
+      >()
+      .notNull()
+      .default([]),
     year: smallint("year").notNull().default(1),
     sourceSubjectId: uuid("source_subject_id").references(() => subjects.id),
     isActive: boolean("is_active").notNull().default(true),
@@ -621,6 +690,7 @@ export const templateSubtopics = pgTable(
     description: text("description"),
     depthLevel: depthLevel("depth_level").notNull(),
     estHours: numeric("est_hours", { precision: 4, scale: 1 }),
+    optional: boolean("optional").notNull().default(false),
     position: integer("position").notNull(),
     sourceSubtopicId: uuid("source_subtopic_id").references(
       () => subtopics.id,
@@ -895,6 +965,34 @@ export const courseSubtopicPrerequisites = pgTable(
   ],
 );
 
+/** Private, per-member progress. Course coverage remains editorial data. */
+export const courseSubtopicProgress = pgTable(
+  "course_subtopic_progress",
+  {
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    courseSubtopicStableId: uuid("course_subtopic_stable_id").notNull(),
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id),
+    state: courseProgressState("state").notNull().default("not_started"),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({
+      columns: [
+        t.coursePageId,
+        t.courseSubtopicStableId,
+        t.studentId,
+      ],
+    }),
+    index("idx_course_progress_student").on(t.studentId, t.coursePageId),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Course community, uploads, reporting, and moderation
 // ---------------------------------------------------------------------------
@@ -986,6 +1084,97 @@ export const courseReplyReactions = pgTable(
       .defaultNow(),
   },
   (t) => [primaryKey({ columns: [t.replyId, t.studentId, t.kind] })],
+);
+
+/** Contextual resources replace the generic public community feed. */
+export const courseResources = pgTable(
+  "course_resources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => students.id),
+    context: courseResourceContext("context").notNull().default("course"),
+    courseTopicStableId: uuid("course_topic_stable_id"),
+    courseSubtopicStableId: uuid("course_subtopic_stable_id"),
+    type: courseResourceType("type").notNull(),
+    title: text("title"),
+    body: text("body"),
+    linkUrl: text("link_url"),
+    permissionConfirmed: boolean("permission_confirmed")
+      .notNull()
+      .default(false),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_course_resources_feed").on(
+      t.coursePageId,
+      t.context,
+      t.createdAt,
+    ),
+    index("idx_course_resources_subtopic").on(
+      t.coursePageId,
+      t.courseSubtopicStableId,
+      t.createdAt,
+    ),
+    check(
+      "resource_context_target",
+      sql`
+        (${t.context} = 'course' and ${t.courseTopicStableId} is null and ${t.courseSubtopicStableId} is null)
+        or (${t.context} = 'topic' and ${t.courseTopicStableId} is not null and ${t.courseSubtopicStableId} is null)
+        or (${t.context} = 'subtopic' and ${t.courseSubtopicStableId} is not null)
+        or (${t.context} = 'exam' and ${t.courseTopicStableId} is null and ${t.courseSubtopicStableId} is null)
+      `,
+    ),
+  ],
+);
+
+export const courseResourceComments = pgTable(
+  "course_resource_comments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    resourceId: uuid("resource_id")
+      .notNull()
+      .references(() => courseResources.id),
+    authorId: uuid("author_id")
+      .notNull()
+      .references(() => students.id),
+    body: text("body").notNull(),
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index("idx_resource_comments").on(t.resourceId, t.createdAt)],
+);
+
+export const courseResourceReactions = pgTable(
+  "course_resource_reactions",
+  {
+    resourceId: uuid("resource_id")
+      .notNull()
+      .references(() => courseResources.id),
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id),
+    kind: courseReactionKind("kind").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.resourceId, t.studentId, t.kind] }),
+  ],
 );
 
 /**
@@ -1106,6 +1295,9 @@ export const courseExamProfiles = pgTable("course_exam_profiles", {
   openBook: boolean("open_book"),
   calculatorAllowed: boolean("calculator_allowed"),
   details: text("details"),
+  lastVerifiedAcademicYear: text("last_verified_academic_year"),
+  verificationCount: integer("verification_count").notNull().default(0),
+  studentReported: boolean("student_reported").notNull().default(true),
   updatedBy: uuid("updated_by")
     .notNull()
     .references(() => students.id),
@@ -1157,6 +1349,7 @@ export const examQuestions = pgTable(
     answerGuidance: text("answer_guidance"),
     courseTopicStableId: uuid("course_topic_stable_id"),
     courseSubtopicStableId: uuid("course_subtopic_stable_id"),
+    questionType: text("question_type"),
     difficulty: smallint("difficulty"),
     status: examQuestionStatus("status").notNull().default("active"),
     mergedIntoId: uuid("merged_into_id"),
@@ -1195,6 +1388,7 @@ export const questionOccurrences = pgTable(
     sessionLabel: text("session_label").notNull(),
     occurredOn: date("occurred_on"),
     notes: text("notes"),
+    professorName: text("professor_name"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1283,6 +1477,9 @@ export const courseExamMaterials = pgTable(
       .unique(),
     title: text("title").notNull(),
     description: text("description"),
+    permissionConfirmed: boolean("permission_confirmed")
+      .notNull()
+      .default(false),
     createdBy: uuid("created_by")
       .notNull()
       .references(() => students.id),

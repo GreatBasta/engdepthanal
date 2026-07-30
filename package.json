@@ -6,11 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit",
+    "curriculum:generate": "node scripts/generate-curriculum-catalog.mjs",
+    "curriculum:validate": "node --import tsx scripts/validate-curriculum.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx src/lib/db/seed.ts",
+    "db:seed:demo": "tsx src/lib/db/seed-demo.ts",
     "db:setup": "drizzle-kit migrate && tsx src/lib/db/seed.ts",
     "db:verify": "tsx src/lib/db/verify.ts",
     "aggregate": "tsx src/lib/aggregate-run.ts"
@@ -26,6 +30,7 @@
     "zod": "^3.25.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "@tailwindcss/postcss": "^4.1.0",
     "@types/node": "^22.15.0",
     "@types/react": "^19.1.0",

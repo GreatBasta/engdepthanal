@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { createHash } from "node:crypto";
 import { asc, sql } from "drizzle-orm";
 
+import {
+  type CurriculumCatalog,
+  validateCurriculumCatalog,
+} from "../curriculum/schema";
 import { closeDb, db } from "./client";
 import {
   curriculumTemplates,
@@ -289,12 +294,138 @@ async function seedCurriculumTemplates() {
   );
 }
 
+function deterministicUuid(value: string): string {
+  const bytes = createHash("sha256").update(value).digest().subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return [
+    hex.slice(0, 8),
+    hex.slice(8, 12),
+    hex.slice(12, 16),
+    hex.slice(16, 20),
+    hex.slice(20),
+  ].join("-");
+}
+
+async function seedCatalog() {
+  const raw: unknown = JSON.parse(
+    readFileSync(join(process.cwd(), "curriculum", "catalog.json"), "utf8"),
+  );
+  const validated = validateCurriculumCatalog(raw);
+  if (!validated.catalog || validated.issues.length > 0) {
+    throw new Error(
+      `Invalid curriculum catalog: ${validated.issues
+        .map((issue) => `${issue.path}: ${issue.message}`)
+        .join("; ")}`,
+    );
+  }
+
+  const catalog: CurriculumCatalog = validated.catalog;
+  for (const template of catalog.templates) {
+    const templateId = deterministicUuid(
+      `curriculum-template:${template.templateKey}:v${template.version}`,
+    );
+    const [existingTemplate] = await db
+      .select({ id: curriculumTemplates.id })
+      .from(curriculumTemplates)
+      .where(
+        sql`${curriculumTemplates.templateKey} = ${template.templateKey}
+          and ${curriculumTemplates.version} = ${template.version}`,
+      )
+      .limit(1);
+
+    const resolvedTemplateId = existingTemplate?.id ?? templateId;
+    if (!existingTemplate) {
+      await db.insert(curriculumTemplates).values({
+        id: templateId,
+        templateKey: template.templateKey,
+        version: template.version,
+        name: template.name,
+        description: template.description,
+        category: template.category,
+        disciplineTags: template.disciplineTags,
+        recommendedDegreePrograms: template.recommendedDegreePrograms,
+        typicalYear: template.typicalYear,
+        typicalSemester: template.typicalSemester,
+        year: template.typicalYear,
+        sourceReferences: template.sourceReferences,
+      });
+    }
+
+    const topicRows = template.topics.map((topic) => ({
+      id: deterministicUuid(topic.stableId),
+      templateId: resolvedTemplateId,
+      stableKey: topic.stableId,
+      slug: topic.slug,
+      name: topic.name,
+      description: topic.description,
+      position: topic.position,
+    }));
+    if (topicRows.length > 0) {
+      await db.insert(templateTopics).values(topicRows).onConflictDoNothing();
+    }
+
+    const subtopicRows = template.topics.flatMap((topic) =>
+      topic.subtopics.map((subtopic) => ({
+        id: deterministicUuid(subtopic.stableId),
+        templateTopicId: deterministicUuid(topic.stableId),
+        stableKey: subtopic.stableId,
+        slug: subtopic.slug,
+        name: subtopic.name,
+        description: subtopic.description,
+        depthLevel: subtopic.depthLevel,
+        estHours: subtopic.estimatedHours.toString(),
+        optional: subtopic.optional,
+        position: subtopic.position,
+      })),
+    );
+    if (subtopicRows.length > 0) {
+      await db
+        .insert(templateSubtopics)
+        .values(subtopicRows)
+        .onConflictDoNothing();
+    }
+
+    const prerequisiteRows = template.topics.flatMap((topic) =>
+      topic.subtopics.flatMap((subtopic) =>
+        subtopic.prerequisiteStableIds.map((prerequisiteStableId) => ({
+          subtopicId: deterministicUuid(subtopic.stableId),
+          prerequisiteId: deterministicUuid(prerequisiteStableId),
+        })),
+      ),
+    );
+    if (prerequisiteRows.length > 0) {
+      await db
+        .insert(templateSubtopicPrerequisites)
+        .values(prerequisiteRows)
+        .onConflictDoNothing();
+    }
+  }
+
+  const totals = catalog.templates.reduce(
+    (result, template) => {
+      result.topics += template.topics.length;
+      result.subtopics += template.topics.reduce(
+        (count, topic) => count + topic.subtopics.length,
+        0,
+      );
+      return result;
+    },
+    { topics: 0, subtopics: 0 },
+  );
+  console.log(
+    `Seeded ${catalog.templates.length} immutable catalog templates: ` +
+      `${totals.topics} topics, ${totals.subtopics} subtopics`,
+  );
+}
+
 async function main() {
   await seedPrograms();
   for (const file of CURRICULUM_FILES) {
     await seedCurriculum(file);
   }
-  await seedCurriculumTemplates();
+  await seedCatalog();
 }
 
 async function run() {
