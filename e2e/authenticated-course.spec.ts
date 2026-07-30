@@ -61,9 +61,9 @@ test("signup to private course, resource upload, moderation, and denial", async 
   await page.getByRole("checkbox", { name: /Linear Algebra/ }).check();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("radio", { name: /Private/ }).check();
-  await page
-    .getByRole("button", { name: "Create course" })
-    .click({ noWaitAfter: true });
+  await page.locator("form").evaluate((form: HTMLFormElement) => {
+    form.requestSubmit();
+  });
   await page.waitForURL(/\/courses\/.+\?tab=curriculum/);
 
   const courseUrl = page.url();
@@ -82,7 +82,9 @@ test("signup to private course, resource upload, moderation, and denial", async 
   const title = `Preview upload ${runId}`;
   const composer = page.getByRole("heading", { name: "Add a resource" }).locator("..");
   await composer.getByLabel("Title").fill(title);
-  await composer.getByLabel("Note").fill("Preview-only upload permission test.");
+  await composer
+    .getByLabel("Note", { exact: true })
+    .fill("Preview-only upload permission test.");
   await composer
     .getByRole("button", { name: "Publish resource" })
     .click();
@@ -96,7 +98,9 @@ test("signup to private course, resource upload, moderation, and denial", async 
     mimeType: "text/markdown",
     buffer: Buffer.from("# Preview-only attachment\n"),
   });
-  await resource.getByRole("button", { name: "Attach" }).click();
+  await resource
+    .getByRole("button", { name: "Attach", exact: true })
+    .click();
   await expect(resource.getByText("Attachment uploaded.")).toBeVisible();
   await expect(resource.getByRole("link", { name: new RegExp(`preview-${runId}`) })).toBeVisible();
 
@@ -128,11 +132,15 @@ test("signup to private course, resource upload, moderation, and denial", async 
     .click();
   await expect(page.getByRole("heading", { name: "Hidden attachments" })).toHaveCount(0);
 
-  const exportResponse = await page.request.get(
+  const exportResult = await page.evaluate(
+    async (url) => {
+      const response = await fetch(url);
+      return { status: response.status, payload: await response.json() };
+    },
     new URL("/api/account/export", courseUrl).toString(),
   );
-  expect(exportResponse.status()).toBe(200);
-  expect(await exportResponse.json()).toMatchObject({
+  expect(exportResult.status).toBe(200);
+  expect(exportResult.payload).toMatchObject({
     profile: { email },
   });
 
