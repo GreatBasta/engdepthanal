@@ -122,6 +122,43 @@ export async function updateCourseSettingsAction(formData: FormData) {
   revalidatePath("/courses");
 }
 
+export async function joinCourseAction(formData: FormData) {
+  const parsed = z
+    .object({
+      coursePageId: z.string().uuid(),
+      courseSlug: z.string().min(1).max(120),
+      attendance,
+    })
+    .safeParse({
+      coursePageId: formData.get("coursePageId"),
+      courseSlug: formData.get("courseSlug"),
+      attendance: formData.get("attendance"),
+    });
+  if (!parsed.success) return;
+  const studentId = await currentStudentId();
+  if (!studentId) {
+    redirect(`/login?next=/courses/${parsed.data.courseSlug}`);
+  }
+  const [course] = await db
+    .select({ visibility: coursePages.visibility })
+    .from(coursePages)
+    .where(eq(coursePages.id, parsed.data.coursePageId))
+    .limit(1);
+  if (!course || course.visibility === "private") return;
+
+  await db
+    .insert(courseMembers)
+    .values({
+      coursePageId: parsed.data.coursePageId,
+      studentId,
+      role: "viewer",
+      attendance: parsed.data.attendance,
+    })
+    .onConflictDoNothing();
+  revalidatePath(`/courses/${parsed.data.courseSlug}`);
+  redirect(`/courses/${parsed.data.courseSlug}?tab=curriculum`);
+}
+
 async function requireMemberManager(coursePageId: string) {
   const studentId = await currentStudentId();
   if (!studentId) redirect("/login");
@@ -365,5 +402,5 @@ export async function acceptCourseInviteAction(formData: FormData) {
       );
   });
 
-  redirect(`/courses/${invite.slug}?tab=contributors`);
+  redirect(`/courses/${invite.slug}/settings/members`);
 }

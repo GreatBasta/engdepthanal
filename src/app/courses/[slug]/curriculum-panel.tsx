@@ -1,9 +1,13 @@
 import Link from "next/link";
+import { and, eq } from "drizzle-orm";
 
+import { currentStudentId } from "@/auth";
 import {
   getCourseCurriculum,
   type CurriculumView,
 } from "@/lib/courses/curriculum";
+import { db } from "@/lib/db/client";
+import { courseSubtopicProgress } from "@/lib/db/schema";
 
 import {
   addCourseSubtopicAction,
@@ -17,21 +21,43 @@ import {
   updateCourseSubtopicAction,
   updateCourseTopicAction,
 } from "./curriculum-actions";
+import { setCourseProgressAction } from "./progress-actions";
 
 export async function CurriculumPanel({
   coursePageId,
   courseSlug,
   canEdit,
+  canTrack = false,
   preview,
 }: {
   coursePageId: string;
   courseSlug: string;
   canEdit: boolean;
-  preview: string | undefined;
+  canTrack?: boolean;
+  preview?: string;
 }) {
   const view: CurriculumView =
     canEdit && preview !== "published" ? "draft" : "published";
   const curriculum = await getCourseCurriculum(coursePageId, view);
+  const studentId = canTrack ? await currentStudentId() : null;
+  const progressRows =
+    studentId && curriculum
+      ? await db
+          .select({
+            stableId: courseSubtopicProgress.courseSubtopicStableId,
+            state: courseSubtopicProgress.state,
+          })
+          .from(courseSubtopicProgress)
+          .where(
+            and(
+              eq(courseSubtopicProgress.coursePageId, coursePageId),
+              eq(courseSubtopicProgress.studentId, studentId),
+            ),
+          )
+      : [];
+  const progressByStableId = new Map(
+    progressRows.map((row) => [row.stableId, row.state]),
+  );
 
   if (!curriculum) {
     return (
@@ -268,10 +294,38 @@ export async function CurriculumPanel({
                                 courseSlug={courseSlug}
                               />
                             ) : (
-                              <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-                                {subtopic.description ||
-                                  "No description provided."}
-                              </p>
+                              <>
+                                <p className="text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                                  {subtopic.description ||
+                                    "No description provided."}
+                                </p>
+                                {canTrack ? (
+                                  <form
+                                    action={setCourseProgressAction}
+                                    className="mt-4 flex flex-wrap items-end gap-2 border-t border-slate-200 pt-4"
+                                  >
+                                    <input type="hidden" name="coursePageId" value={coursePageId} />
+                                    <input type="hidden" name="courseSlug" value={courseSlug} />
+                                    <input type="hidden" name="subtopicStableId" value={subtopic.stableId} />
+                                    <label className="text-xs font-semibold">
+                                      My private progress
+                                      <select
+                                        name="state"
+                                        defaultValue={progressByStableId.get(subtopic.stableId) ?? "not_started"}
+                                        className="mt-1 min-h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm"
+                                      >
+                                        <option value="not_started">Not started</option>
+                                        <option value="learning">Learning</option>
+                                        <option value="completed">Completed</option>
+                                        <option value="saved">Saved</option>
+                                      </select>
+                                    </label>
+                                    <button className="min-h-11 rounded-xl border border-slate-300 px-3 text-xs font-semibold">
+                                      Save
+                                    </button>
+                                  </form>
+                                ) : null}
+                              </>
                             )}
                           </div>
                         </details>
@@ -682,4 +736,3 @@ const smallInputClass =
   "rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-900";
 const iconButtonClass =
   "rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800";
-

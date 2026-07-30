@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { asc, countDistinct, eq } from "drizzle-orm";
 
 import { currentStudentId } from "@/auth";
 import { db } from "@/lib/db/client";
@@ -10,6 +10,8 @@ import {
   programs,
   universities,
   universityPrograms,
+  templateSubtopics,
+  templateTopics,
 } from "@/lib/db/schema";
 
 import { CreateCourseForm } from "./ui";
@@ -27,9 +29,22 @@ export default async function NewCoursePage() {
           description: curriculumTemplates.description,
           version: curriculumTemplates.version,
           year: curriculumTemplates.year,
+          category: curriculumTemplates.category,
+          disciplineTags: curriculumTemplates.disciplineTags,
+          topicCount: countDistinct(templateTopics.id),
+          subtopicCount: countDistinct(templateSubtopics.id),
         })
         .from(curriculumTemplates)
+        .leftJoin(
+          templateTopics,
+          eq(templateTopics.templateId, curriculumTemplates.id),
+        )
+        .leftJoin(
+          templateSubtopics,
+          eq(templateSubtopics.templateTopicId, templateTopics.id),
+        )
         .where(eq(curriculumTemplates.isActive, true))
+        .groupBy(curriculumTemplates.id)
         .orderBy(
           asc(curriculumTemplates.year),
           asc(curriculumTemplates.name),

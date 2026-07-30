@@ -1,34 +1,67 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
+import { eq } from "drizzle-orm";
 
 import { currentStudentId } from "@/auth";
 import { getCourseBySlugForViewer } from "@/lib/courses/data";
+import { db } from "@/lib/db/client";
+import { coursePages } from "@/lib/db/schema";
 
 import {
+  joinCourseAction,
   updateCourseMemberAction,
   updateCourseSettingsAction,
 } from "./actions";
-import { CommunityPanel } from "./community-panel";
 import { InviteMemberForm } from "./contributors-ui";
 import { CurriculumPanel } from "./curriculum-panel";
 import { ExamPanel } from "./exam-panel";
+import { ResourcesPanel } from "./resources-panel";
 
 const TABS = [
   ["overview", "Overview"],
   ["curriculum", "Curriculum"],
-  ["community", "Community"],
+  ["resources", "Resources"],
   ["exam", "Exam"],
-  ["contributors", "Contributors"],
 ] as const;
 
 type CourseTab = (typeof TABS)[number][0];
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const [course] = await db
+    .select({
+      name: coursePages.localName,
+      description: coursePages.description,
+      visibility: coursePages.visibility,
+    })
+    .from(coursePages)
+    .where(eq(coursePages.slug, slug))
+    .limit(1);
+  if (!course) return { title: "Course not found", robots: { index: false } };
+  const indexable = course.visibility === "public";
+  return {
+    title: indexable ? course.name : "Shared course",
+    description: indexable
+      ? course.description ?? "Student-contributed university course page."
+      : "A non-public student-contributed course page.",
+    alternates: {
+      canonical: indexable ? `/courses/${slug}` : undefined,
+    },
+    robots: { index: indexable, follow: indexable },
+  };
+}
 
 export default async function CoursePage({
   params,
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tab?: string; preview?: string }>;
+  searchParams: Promise<{ tab?: string; preview?: string; page?: string }>;
 }) {
   const [{ slug }, query, studentId] = await Promise.all([
     params,
@@ -120,16 +153,16 @@ export default async function CoursePage({
             coursePageId={detail.course.id}
             courseSlug={detail.course.slug}
             canEdit={detail.permissions.canEdit}
+            canTrack={detail.permissions.role !== null}
             preview={query.preview}
           />
         ) : null}
-        {tab === "community" ? (
-          <CommunityPanel
+        {tab === "resources" ? (
+          <ResourcesPanel
             coursePageId={detail.course.id}
             courseSlug={detail.course.slug}
             canPost={detail.permissions.canPost}
-            canModerate={detail.permissions.canModerate}
-            canReport={studentId !== null}
+            page={Number(query.page) || 1}
           />
         ) : null}
         {tab === "exam" ? (
@@ -139,14 +172,6 @@ export default async function CoursePage({
             canPost={detail.permissions.canPost}
             canEdit={detail.permissions.canEdit}
             canModerate={detail.permissions.canModerate}
-          />
-        ) : null}
-        {tab === "contributors" ? (
-          <Contributors
-            members={detail.members}
-            canManage={detail.permissions.canManageMembers}
-            coursePageId={detail.course.id}
-            courseSlug={detail.course.slug}
           />
         ) : null}
       </div>
@@ -196,6 +221,28 @@ function Overview({
       </section>
 
       <aside className="space-y-4">
+        {!detail.permissions.role ? (
+          <form
+            action={joinCourseAction}
+            className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5"
+          >
+            <input type="hidden" name="coursePageId" value={detail.course.id} />
+            <input type="hidden" name="courseSlug" value={detail.course.slug} />
+            <label className="block text-sm font-semibold text-indigo-950">
+              Attendance
+              <select
+                name="attendance"
+                className="mt-1 min-h-11 w-full rounded-xl border border-indigo-200 bg-white px-3"
+              >
+                <option value="not_attended">Not attended</option>
+                <option value="attended">Attended</option>
+              </select>
+            </label>
+            <button className="mt-3 min-h-11 w-full rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white">
+              Join course
+            </button>
+          </form>
+        ) : null}
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="font-semibold">Source templates</h2>
           <ul className="mt-3 space-y-2 text-sm">
@@ -215,12 +262,17 @@ function Overview({
         {detail.permissions.canEdit ? (
           <>
             <Link
-              href={`/courses/${detail.course.slug}?tab=curriculum`}
+              href={`/courses/${detail.course.slug}/settings/curriculum`}
               className="flex w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-500"
             >
               Edit curriculum
             </Link>
-            <CourseSettings detail={detail} />
+            <Link
+              href={`/courses/${detail.course.slug}/settings`}
+              className="flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold"
+            >
+              Course settings
+            </Link>
           </>
         ) : null}
       </aside>

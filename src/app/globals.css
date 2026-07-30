@@ -7,7 +7,7 @@
 }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 html {
@@ -27,4 +27,33 @@ body {
     transparent
   );
   background-attachment: fixed;
+}
+
+* {
+  min-width: 0;
+}
+
+:focus-visible {
+  outline: 3px solid oklch(0.55 0.2 275);
+  outline-offset: 3px;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+summary {
+  touch-action: manipulation;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
