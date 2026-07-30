@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   MAX_ATTACHMENT_BYTES,
   safeAttachmentName,
+  validateAttachmentBytes,
   validateAttachmentMetadata,
 } from "../src/lib/courses/attachment-policy";
 
@@ -44,3 +45,19 @@ test("removes path and markup characters from stored filenames", () => {
   assert.equal(safe.endsWith(".pdf"), true);
 });
 
+test("checks file signatures instead of trusting browser MIME alone", () => {
+  assert.equal(
+    validateAttachmentBytes(
+      new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]),
+      "application/pdf",
+    ),
+    null,
+  );
+  assert.match(
+    validateAttachmentBytes(
+      new Uint8Array([0x4d, 0x5a, 0x90, 0x00]),
+      "application/pdf",
+    ) ?? "",
+    /do not match/,
+  );
+});

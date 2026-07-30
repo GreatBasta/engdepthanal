@@ -1,5 +1,4 @@
 import { getCourseExam } from "@/lib/courses/exam";
-import { EXAM_TIER_THRESHOLDS } from "@/lib/courses/exam-ranking";
 
 import { AttachmentForm } from "./attachment-form";
 import {
@@ -351,22 +350,12 @@ export async function ExamPanel({
         </section>
 
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-lg font-semibold">Tier method</h2>
+          <h2 className="text-lg font-semibold">Confidence-aware ranking</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-            Score = reports × 3 + distinct sessions × 2 + net votes. At least
-            two occurrence reports are required before a tier appears.
+            With limited evidence we show report, session and contributor
+            counts plus “Not enough data”. S–D tiers appear only after at least
+            10 approved reports, 3 sessions and 5 unique contributors.
           </p>
-          <dl className="mt-4 grid grid-cols-5 gap-2 text-center text-xs">
-            {EXAM_TIER_THRESHOLDS.map(([tier, threshold]) => (
-              <div
-                key={tier}
-                className="rounded-lg bg-zinc-100 p-2 dark:bg-zinc-800"
-              >
-                <dt className="font-bold">{tier}</dt>
-                <dd className="mt-1 text-zinc-500">{threshold}</dd>
-              </div>
-            ))}
-          </dl>
 
           {canPost ? (
             <form
@@ -478,11 +467,11 @@ export async function ExamPanel({
                       {question.evidence.distinctSessions} sessions
                     </span>
                     <span className="rounded-full bg-zinc-100 px-2.5 py-1 dark:bg-zinc-800">
-                      {question.evidence.netVotes >= 0 ? "+" : ""}
-                      {question.evidence.netVotes} votes
+                      {question.evidence.distinctContributors} contributors
                     </span>
                     <span className="rounded-full bg-zinc-100 px-2.5 py-1 dark:bg-zinc-800">
-                      score {question.rank.score}
+                      {question.evidence.netVotes >= 0 ? "+" : ""}
+                      {question.evidence.netVotes} votes
                     </span>
                   </div>
 

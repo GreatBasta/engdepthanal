@@ -100,6 +100,9 @@ export async function getCourseExam(
             questionId: questionOccurrences.questionId,
             occurrences: count(),
             distinctSessions: countDistinct(questionOccurrences.sessionLabel),
+            distinctContributors: countDistinct(
+              questionOccurrences.reportedBy,
+            ),
           })
           .from(questionOccurrences)
           .where(inArray(questionOccurrences.questionId, questionIds))
@@ -183,10 +186,24 @@ export async function getCourseExam(
         voteAggregates.find((row) => row.questionId === question.id)
           ?.netVotes ?? 0,
       );
+      const distinctContributors = Number(
+        occurrenceAggregates.find((row) => row.questionId === question.id)
+          ?.distinctContributors ?? 0,
+      );
       return {
         ...question,
-        evidence: { occurrences, distinctSessions, netVotes },
-        rank: rankExamQuestion({ occurrences, distinctSessions, netVotes }),
+        evidence: {
+          occurrences,
+          distinctSessions,
+          distinctContributors,
+          netVotes,
+        },
+        rank: rankExamQuestion({
+          occurrences,
+          distinctSessions,
+          distinctContributors,
+          netVotes,
+        }),
         occurrences: occurrenceRows.filter(
           (row) => row.questionId === question.id,
         ),
@@ -200,4 +217,3 @@ export async function getCourseExam(
     mergeRequests: mergeRows,
   };
 }
-

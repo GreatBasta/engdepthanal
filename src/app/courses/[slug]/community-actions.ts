@@ -9,6 +9,7 @@ import { z } from "zod";
 import { currentStudentId } from "@/auth";
 import {
   safeAttachmentName,
+  validateAttachmentBytes,
   validateAttachmentMetadata,
 } from "@/lib/courses/attachment-policy";
 import {
@@ -23,6 +24,7 @@ import {
   courseAttachments,
   coursePostReactions,
   coursePosts,
+  courseResources,
   courseReplies,
   courseReplyReactions,
   examExperiences,
@@ -58,14 +60,23 @@ const reactionSchema = courseIdentitySchema.extend({
 });
 
 const reportSchema = courseIdentitySchema.extend({
-  targetType: z.enum(["post", "reply", "attachment"]),
+  targetType: z.enum(["post", "reply", "course_resource", "attachment"]),
   targetId: z.string().uuid(),
-  reason: z.enum(["spam", "harassment", "unsafe", "copyright", "other"]),
+  reason: z.enum([
+    "spam",
+    "harassment",
+    "personal_info",
+    "copyright",
+    "unauthorized_exam_material",
+    "incorrect_info",
+    "inappropriate",
+    "other",
+  ]),
   details: z.string().trim().max(2_000).optional(),
 });
 
 const moderationSchema = courseIdentitySchema.extend({
-  targetType: z.enum(["post", "reply", "attachment"]),
+  targetType: z.enum(["post", "reply", "course_resource", "attachment"]),
   targetId: z.string().uuid(),
   action: z.enum(["hide", "restore", "lock", "unlock"]),
   reason: z.string().trim().min(2).max(500),
@@ -345,6 +356,17 @@ export async function moderateCourseContentAction(formData: FormData) {
       .update(courseReplies)
       .set({ hiddenAt: parsed.data.action === "hide" ? now : null })
       .where(eq(courseReplies.id, parsed.data.targetId));
+  } else if (parsed.data.targetType === "course_resource") {
+    if (
+      parsed.data.action !== "hide" &&
+      parsed.data.action !== "restore"
+    ) {
+      return;
+    }
+    await db
+      .update(courseResources)
+      .set({ hiddenAt: parsed.data.action === "hide" ? now : null })
+      .where(eq(courseResources.id, parsed.data.targetId));
   } else {
     if (
       parsed.data.action !== "hide" &&
@@ -434,6 +456,7 @@ const attachmentSchema = courseIdentitySchema.extend({
     "reply",
     "exam_experience",
     "exam_question",
+    "course_resource",
   ]),
   parentId: z.string().uuid(),
   access: z.enum(["public", "course"]),
@@ -502,6 +525,13 @@ export async function uploadCourseAttachmentAction(
   }
 
   const bytes = await file.arrayBuffer();
+  const contentError = validateAttachmentBytes(
+    new Uint8Array(bytes),
+    file.type,
+  );
+  if (contentError) {
+    return { error: contentError, message: null };
+  }
   const sha256 = createHash("sha256")
     .update(Buffer.from(bytes))
     .digest("hex");
@@ -571,7 +601,8 @@ async function targetBelongsToCourse(
     | "reply"
     | "attachment"
     | "exam_experience"
-    | "exam_question",
+    | "exam_question"
+    | "course_resource",
   targetId: string,
 ) {
   if (targetType === "post") {
@@ -582,6 +613,19 @@ async function targetBelongsToCourse(
         and(
           eq(coursePosts.id, targetId),
           eq(coursePosts.coursePageId, coursePageId),
+        ),
+      )
+      .limit(1);
+    return Boolean(row);
+  }
+  if (targetType === "course_resource") {
+    const [row] = await db
+      .select({ id: courseResources.id })
+      .from(courseResources)
+      .where(
+        and(
+          eq(courseResources.id, targetId),
+          eq(courseResources.coursePageId, coursePageId),
         ),
       )
       .limit(1);

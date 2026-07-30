@@ -17,7 +17,12 @@ export function AttachmentForm({
 }: {
   coursePageId: string;
   courseSlug: string;
-  parentType: "post" | "reply" | "exam_experience" | "exam_question";
+  parentType:
+    | "post"
+    | "reply"
+    | "exam_experience"
+    | "exam_question"
+    | "course_resource";
   parentId: string;
 }) {
   const [state, action, pending] = useActionState(
@@ -39,7 +44,7 @@ export function AttachmentForm({
           type="file"
           name="file"
           required
-          accept=".pdf,.docx,.txt,.md,.markdown,.jpg,.jpeg,.png,.webp"
+          accept=".pdf,.txt,.md,.markdown,.jpg,.jpeg,.png,.webp"
           aria-label="Attachment file"
           className="min-w-0 text-xs file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-xs file:font-medium dark:file:bg-zinc-800"
         />
@@ -61,7 +66,7 @@ export function AttachmentForm({
         </button>
       </div>
       <p className="mt-2 text-[11px] text-zinc-500">
-        PDF, DOCX, text, Markdown, or image · 4 MB maximum.
+        PDF, text, Markdown, or image · 4 MB maximum.
       </p>
       {state.error ? (
         <p role="alert" className="mt-2 text-xs text-red-600">
