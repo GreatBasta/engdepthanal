@@ -19,7 +19,10 @@ import {
 } from "@/lib/db/schema";
 
 import { AttachmentForm } from "./attachment-form";
-import { reportCourseContentAction } from "./community-actions";
+import {
+  moderateCourseContentAction,
+  reportCourseContentAction,
+} from "./community-actions";
 import {
   createResourceAction,
   createResourceCommentAction,
@@ -41,12 +44,14 @@ export async function ResourcesPanel({
   coursePageId,
   courseSlug,
   canPost,
+  canModerate,
   page = 1,
   selectedSubtopic,
 }: {
   coursePageId: string;
   courseSlug: string;
   canPost: boolean;
+  canModerate: boolean;
   page?: number;
   selectedSubtopic?: string;
 }) {
@@ -257,14 +262,55 @@ export async function ResourcesPanel({
                       (attachment) => attachment.parentId === resource.id,
                     )
                     .map((attachment) => (
-                      <a
+                      <div
                         key={attachment.id}
-                        href={`/api/courses/${coursePageId}/attachments/${attachment.id}`}
-                        className="mt-3 flex min-h-11 max-w-full items-center break-all rounded-xl bg-slate-100 px-3 text-sm font-semibold text-indigo-700"
+                        className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center"
                       >
-                        {attachment.fileName} ·{" "}
-                        {Math.ceil(attachment.sizeBytes / 1024)} KB
-                      </a>
+                        <a
+                          href={`/api/courses/${coursePageId}/attachments/${attachment.id}`}
+                          className="flex min-h-11 min-w-0 flex-1 items-center break-all rounded-xl bg-slate-100 px-3 text-sm font-semibold text-indigo-700"
+                        >
+                          {attachment.fileName} ·{" "}
+                          {Math.ceil(attachment.sizeBytes / 1024)} KB
+                        </a>
+                        {canModerate ? (
+                          <form action={moderateCourseContentAction}>
+                            <input
+                              type="hidden"
+                              name="coursePageId"
+                              value={coursePageId}
+                            />
+                            <input
+                              type="hidden"
+                              name="courseSlug"
+                              value={courseSlug}
+                            />
+                            <input
+                              type="hidden"
+                              name="targetType"
+                              value="attachment"
+                            />
+                            <input
+                              type="hidden"
+                              name="targetId"
+                              value={attachment.id}
+                            />
+                            <input
+                              type="hidden"
+                              name="reason"
+                              value="Hidden by course editor"
+                            />
+                            <button
+                              type="submit"
+                              name="action"
+                              value="hide"
+                              className="min-h-11 rounded-xl border border-rose-200 px-3 text-xs font-semibold text-rose-700"
+                            >
+                              Hide attachment
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
                     ))}
 
                   <div

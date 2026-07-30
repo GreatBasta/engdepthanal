@@ -167,6 +167,7 @@ export default async function CoursePage({
             coursePageId={detail.course.id}
             courseSlug={detail.course.slug}
             canPost={detail.permissions.canPost}
+            canModerate={detail.permissions.canModerate}
             page={Number(query.page) || 1}
             selectedSubtopic={query.subtopic}
           />

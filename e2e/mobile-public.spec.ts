@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+import { grantPreviewAccess } from "./support";
+
+test.beforeEach(async ({ page }) => {
+  await grantPreviewAccess(page);
+});
+
 test("home is usable without horizontal overflow", async ({ page }) => {
   await page.goto("/");
   await expect(
@@ -51,4 +57,27 @@ test("dedicated admin login is unavailable", async ({ page }) => {
   await page.goto("/admin/login");
   await expect(page).toHaveURL(/\/login\?next=(%2F|\/)admin/);
   await expect(page.getByRole("heading", { name: "Course Atlas" })).toBeVisible();
+});
+
+test("health endpoint reports the isolated preview database", async ({
+  page,
+}) => {
+  const response = await page.goto("/api/health");
+  expect(response?.status()).toBe(200);
+  const payload = (await response?.json()) as {
+    status: string;
+    database: string;
+  };
+  expect(payload).toMatchObject({ status: "ok", database: "ok" });
+});
+
+test("invalid credentials fail without account enumeration", async ({
+  page,
+}) => {
+  await page.goto("/login");
+  const form = page.locator("form");
+  await form.getByLabel("Email").fill("missing-preview-user@example.invalid");
+  await form.getByLabel("Password").fill("WrongPassword123");
+  await form.getByRole("button", { name: "Sign in" }).click();
+  await expect(page.getByRole("alert")).toHaveText("Wrong email or password.");
 });
