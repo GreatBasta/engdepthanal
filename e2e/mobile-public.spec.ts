@@ -85,3 +85,30 @@ test("invalid credentials fail without account enumeration", async ({
   await form.getByRole("button", { name: "Sign in" }).click();
   await expect(page.getByText("Wrong email or password.", { exact: true })).toBeVisible();
 });
+
+test("writing fields remain readable with a dark system preference", async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/login");
+
+  const email = page.getByLabel("Email");
+  await email.fill("readable@example.com");
+
+  const colors = await email.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      background: style.backgroundColor,
+      text: style.color,
+      caret: style.caretColor,
+      scheme: style.colorScheme,
+    };
+  });
+
+  expect(colors).toMatchObject({
+    background: "rgb(255, 255, 255)",
+    scheme: "light",
+  });
+  expect(colors.text).toBe(colors.caret);
+  expect(colors.text).not.toBe(colors.background);
+});
