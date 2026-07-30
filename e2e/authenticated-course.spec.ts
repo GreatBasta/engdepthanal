@@ -102,7 +102,23 @@ test("signup to private course, resource upload, moderation, and denial", async 
     .getByRole("button", { name: "Attach", exact: true })
     .click();
   await expect(resource.getByText("Attachment uploaded.")).toBeVisible();
-  await expect(resource.getByRole("link", { name: new RegExp(`preview-${runId}`) })).toBeVisible();
+  const attachmentLink = resource.getByRole("link", {
+    name: new RegExp(`preview-${runId}`),
+  });
+  await expect(attachmentLink).toBeVisible();
+  const attachmentHref = await attachmentLink.getAttribute("href");
+  expect(attachmentHref).toBeTruthy();
+
+  const anonymousContext = await browser.newContext();
+  const anonymousPage = await anonymousContext.newPage();
+  await grantPreviewAccess(anonymousPage);
+  const deniedCourse = await anonymousPage.goto(courseUrl);
+  expect(deniedCourse?.status()).toBe(404);
+  const deniedAttachment = await anonymousPage.goto(
+    new URL(attachmentHref!, courseUrl).toString(),
+  );
+  expect(deniedAttachment?.status()).toBe(404);
+  await anonymousContext.close();
 
   await resource.getByRole("button", { name: "Hide attachment" }).click();
   await expect(
@@ -144,10 +160,4 @@ test("signup to private course, resource upload, moderation, and denial", async 
     profile: { email },
   });
 
-  const anonymousContext = await browser.newContext();
-  const anonymousPage = await anonymousContext.newPage();
-  await grantPreviewAccess(anonymousPage);
-  const denied = await anonymousPage.goto(courseUrl);
-  expect(denied?.status()).toBe(404);
-  await anonymousContext.close();
 });

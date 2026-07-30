@@ -1,23 +1,24 @@
 # Publishable mobile v1 release report
 
 Status date: 2026-07-30  
-Release status: blocked; draft work only, no merge or production promotion
+Release status: verified Preview candidate; draft PR remains intentionally
+unmerged and production has not been promoted
 
 ## Delivery
 
 | Item | Value |
 |---|---|
-| Branch | `release/publishable-mobile-v1` (local) |
+| Branch | `release/publishable-mobile-v1` |
 | Base | `main` at `967884a` |
-| Head | `b96933e` before this report update |
-| PR | Not created: GitHub App returns 403 for branch/blob writes |
-| Preview | Not deployed: no isolated preview DB/Blob credentials; deploying against production data would be unsafe |
+| Application head verified | `ed700c5` |
+| PR | [GreatBasta/engdepthanal#18](https://github.com/GreatBasta/engdepthanal/pull/18) (draft) |
+| Preview | `https://engdepthanal-marzobar-3689-ste11.vercel.app` |
 | Production | Not changed |
 | Vercel team/project | `ste11` / `engdepthanal` |
 | Project ID | `prj_YtFAzAXZzgFyipPSJAfBgeXDW8PQ` |
 | Existing production aliases | `engdepthanal-coral.vercel.app`, `engdepthanal-ste11.vercel.app` |
 
-Local logical commits:
+Published logical commits:
 
 1. `6c1cec4` — canonical catalog and additive schema
 2. `05a0bea` — unified mobile course/curriculum workflows
@@ -26,11 +27,21 @@ Local logical commits:
 5. `abb55e5` — release documentation and mobile E2E configuration
 6. `ec66cb9` — contextual resource discussion and exam duplicate suggestions
 7. `b96933e` — student-reported exam evidence and permitted materials
+8. `2cdaa9b` — private attachment lifecycle and mobile upload handling
+9. `d3a5dc6` / `69f6053` — bounded release tooling and deployment archive
+10. `775137d` / `0b245d7` — private-course and Blob lifecycle E2E
+11. `df95822` — persistent multi-template wizard selection
+12. `ed700c5` — application icon metadata
 
 ## Migrations and data
 
-New additive migrations:
+The complete additive migration chain was applied to an isolated Preview
+database:
 
+- `drizzle/0000_nifty_stardust.sql`
+- `drizzle/0001_finished_guard_trigger.sql`
+- `drizzle/0002_mute_dreadnoughts.sql`
+- `drizzle/0003_outgoing_dakota_north.sql`
 - `drizzle/0004_flippant_red_skull.sql`
 - `drizzle/0005_overrated_bullseye.sql`
 
@@ -47,10 +58,17 @@ migrations contain no `DROP`, truncation, delete, seed, or binary payload.
 Template seed IDs are deterministic and inserts are conflict-safe.
 
 No migration, seed, cleanup, archive, or deletion was run against production.
-Production inspection was limited to repository schema/configuration and Vercel
-build/runtime metadata. A restored test database, backup proof, migration
-rehearsal, second-seed count comparison, and existing-user/course verification
-remain mandatory.
+The canonical seed ran twice on the isolated Preview database with identical
+results: 10 programs, 47 templates, 306 topics, 1,173 subtopics, and 713
+prerequisites, with no duplicate template versions or orphan topics.
+
+E2E cleanup used a Preview-only database. PostgreSQL cascade behavior also
+removed the canonical templates because `curriculum_templates.created_by`
+references students; the deterministic canonical seed was immediately restored
+and reverified. The final Preview state contains the full canonical catalog and
+zero test students, courses, universities, or attachments. Production was never
+connected to this cleanup. A restored production-backup rehearsal and rollback
+proof remain mandatory before production migration.
 
 ## Routes
 
@@ -163,12 +181,14 @@ Documented variables:
 - `NEXT_PUBLIC_APP_URL`
 - `NEXT_PUBLIC_CONTACT_EMAIL`
 
-Missing release authorization/configuration:
+Preview-only configuration provisioned:
 
-- GitHub App permission to create the release branch and PR (the connector
-  reports `push: true`, but Git reference creation still returns HTTP 403)
-- isolated preview/test PostgreSQL credentials
-- isolated private Blob test store credentials/OIDC
+- isolated Neon store `engdepthanal-preview-v1`
+- isolated private Blob store `engdepthanal-preview-attachments` in FRA1
+- rotated Preview `AUTH_SECRET`
+
+Still missing for production release:
+
 - monitored contact email
 - authorized mail provider if password reset/email verification is enabled
 
@@ -176,62 +196,62 @@ No secret, database URL, token, `.vercel` metadata, or PII export is committed.
 
 ## Verification evidence
 
-Passed locally:
+Passed locally and/or against the protected Vercel Preview:
 
 - `npm ci`
 - `npm run curriculum:validate` — 47/306/1,173
 - `npm run typecheck` — zero errors
 - `npm test` — 16 passed, 0 failed
-- `AUTH_SECRET=local-build-only-secret npm run build` — success, 23 static
-  pages generated, build command unchanged and no DB/seed/migration invocation
+- `npm run build` — success, 24 static pages/assets; build command unchanged
+  and no DB/seed/migration invocation
 - `git diff --check`
+- Drizzle Preview rehearsal — all 6 migrations applied
+- canonical seed idempotency — two runs, identical totals and zero duplicates
+- Playwright public/device matrix — 28 passed, 6 intentional
+  device-specific skips
+- Playwright authenticated Pixel 7 journey — signup, onboarding, private
+  course, combined templates, curriculum publish, contextual resource,
+  private Markdown attachment, anonymous course/attachment denial,
+  hide/restore/permanent Blob removal, and account export
+- final iPhone SE smoke — home, horizontal overflow, and `/api/health`
+- final deployment runtime logs — no `error` or `fatal` entries
+- Lighthouse mobile — Performance 89, Accessibility 100, Best Practices 100,
+  SEO 63
 
 Unit/integration coverage includes curriculum validation/cycles, attachment
 MIME/extension/signatures, course normalization/slugs, visibility permissions,
 role capabilities, private attachment metadata, low/high-confidence exam
 ranking, and deterministic recurring-question duplicate suggestions.
 
-Not passed:
+The Lighthouse SEO score is intentionally reduced by Vercel's protected Preview
+`noindex` response; the application's robots audit passes. Accessibility 100 is
+automated evidence, not a substitute for a complete manual keyboard,
+focus-order, and screen-reader audit.
 
-- Playwright: configured for iPhone SE, modern iPhone, Pixel 7, 768 px tablet,
-  and desktop, but the environment cannot download a browser executable from
-  Playwright CDN.
-- Authenticated E2E and private denial: requires isolated DB/Blob.
-- Drizzle migration rehearsal, seed idempotency against PostgreSQL, and
-  production-safe seed on a restored test database.
-- Lighthouse: not run; no score claimed.
-- Full WCAG audit: semantic labels, focus styles, reduced motion, error live
-  regions, and 44 px mobile nav targets were implemented, but no automated or
-  manual blocker-free audit is claimed.
-- Preview route/log verification: no safe preview deployment exists.
-
-Production logs inspected before changes showed five grouped
-`CredentialsSignin` errors on `/login` over seven days. Login now verifies
-credentials before Auth.js sign-in and returns generic friendly errors, but this
-must be confirmed in preview logs.
+`npm audit` still reports 10 transitive findings (4 moderate, 4 high, 2
+critical). No breaking dependency upgrade was applied without a separate
+compatibility pass.
 
 ## Known limits and next release
 
-The branch is not publishable yet. Required before merge:
+The Preview candidate is suitable for review, but these safeguards remain
+before merge or production promotion:
 
-1. authorize GitHub writes, publish the existing logical commits, and open a
-   draft PR;
-2. provision isolated preview DB/Blob, rehearse both migrations and idempotent
-   seed, then deploy preview;
-3. complete authenticated E2E for onboarding, create/combine templates,
-   coverage/progress, join/roles, contextual uploads, exam/report/moderation,
-   account deletion/export, admin, and private/unlisted denial;
-4. finish mobile image compression/upload progress and complete a focused
-   keyboard/focus-trap audit of the subtopic resource panel;
-5. add/execute DB-backed tests for cloning/source immutability, migration
-   preservation, duplicate reactions/occurrences, progress, moderation, and
-   seed idempotency;
-6. configure password reset/email verification only after an approved email
-   provider exists;
-7. run device overflow, keyboard/dialog, WCAG, Lighthouse, route, health, and
-   structured-log checks; fix every blocker;
-8. perform explicit placeholder review and cleanup only after backup and human
-   confirmation.
+1. take and restore-test a production backup, rehearse the additive migrations
+   against that restored copy, document rollback, and verify existing
+   users/courses;
+2. resolve or explicitly accept the 10 `npm audit` findings after compatibility
+   testing;
+3. complete manual keyboard/focus/screen-reader review and extend authenticated
+   write E2E beyond Pixel 7 to the remaining target devices;
+4. exercise join/roles, exam occurrence/report moderation, admin, and account
+   deletion against a production-like restored dataset;
+5. configure a monitored contact address and an approved mail provider before
+   enabling reset/verification;
+6. add required GitHub checks and branch protection because the draft PR
+   currently has no CI status checks;
+7. review production placeholders with an explicit export/backup before any
+   archive or delete action.
 
-Until those items pass, keep the PR draft, do not merge, do not apply production
-migrations, and do not promote a Vercel deployment.
+Keep PR #18 draft and do not merge, migrate production, or promote the Preview
+until these items are closed.
