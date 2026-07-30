@@ -9,7 +9,7 @@ Release status: blocked; draft work only, no merge or production promotion
 |---|---|
 | Branch | `release/publishable-mobile-v1` (local) |
 | Base | `main` at `967884a` |
-| Head | `abb55e5` before this report |
+| Head | `b96933e` before this report update |
 | PR | Not created: GitHub App returns 403 for branch/blob writes |
 | Preview | Not deployed: no isolated preview DB/Blob credentials; deploying against production data would be unsafe |
 | Production | Not changed |
@@ -24,6 +24,8 @@ Local logical commits:
 3. `7ea4b31` — contextual resources and confidence-aware exams
 4. `e4580b0` — auth/admin/legal/observability hardening
 5. `abb55e5` — release documentation and mobile E2E configuration
+6. `ec66cb9` — contextual resource discussion and exam duplicate suggestions
+7. `b96933e` — student-reported exam evidence and permitted materials
 
 ## Migrations and data
 
@@ -163,7 +165,8 @@ Documented variables:
 
 Missing release authorization/configuration:
 
-- GitHub App permission to create the release branch and PR
+- GitHub App permission to create the release branch and PR (the connector
+  reports `push: true`, but Git reference creation still returns HTTP 403)
 - isolated preview/test PostgreSQL credentials
 - isolated private Blob test store credentials/OIDC
 - monitored contact email
@@ -178,15 +181,15 @@ Passed locally:
 - `npm ci`
 - `npm run curriculum:validate` — 47/306/1,173
 - `npm run typecheck` — zero errors
-- `npm test` — 13 passed, 0 failed
+- `npm test` — 16 passed, 0 failed
 - `AUTH_SECRET=local-build-only-secret npm run build` — success, 23 static
   pages generated, build command unchanged and no DB/seed/migration invocation
 - `git diff --check`
 
 Unit/integration coverage includes curriculum validation/cycles, attachment
 MIME/extension/signatures, course normalization/slugs, visibility permissions,
-role capabilities, private attachment metadata, and low/high-confidence exam
-ranking.
+role capabilities, private attachment metadata, low/high-confidence exam
+ranking, and deterministic recurring-question duplicate suggestions.
 
 Not passed:
 
@@ -218,9 +221,8 @@ The branch is not publishable yet. Required before merge:
 3. complete authenticated E2E for onboarding, create/combine templates,
    coverage/progress, join/roles, contextual uploads, exam/report/moderation,
    account deletion/export, admin, and private/unlisted denial;
-4. finish the subtopic resource bottom sheet, shallow resource comments/reactions,
-   mobile image compression/upload progress, and fuzzy exam-question duplicate
-   suggestions;
+4. finish mobile image compression/upload progress and complete a focused
+   keyboard/focus-trap audit of the subtopic resource panel;
 5. add/execute DB-backed tests for cloning/source immutability, migration
    preservation, duplicate reactions/occurrences, progress, moderation, and
    seed idempotency;
