@@ -61,7 +61,12 @@ export default async function CoursePage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ tab?: string; preview?: string; page?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    preview?: string;
+    page?: string;
+    subtopic?: string;
+  }>;
 }) {
   const [{ slug }, query, studentId] = await Promise.all([
     params,
@@ -163,6 +168,7 @@ export default async function CoursePage({
             courseSlug={detail.course.slug}
             canPost={detail.permissions.canPost}
             page={Number(query.page) || 1}
+            selectedSubtopic={query.subtopic}
           />
         ) : null}
         {tab === "exam" ? (

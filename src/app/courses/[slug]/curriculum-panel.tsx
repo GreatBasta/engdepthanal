@@ -299,6 +299,12 @@ export async function CurriculumPanel({
                                   {subtopic.description ||
                                     "No description provided."}
                                 </p>
+                                <Link
+                                  href={`/courses/${courseSlug}?tab=resources&subtopic=${subtopic.stableId}`}
+                                  className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-indigo-50 px-3 text-xs font-semibold text-indigo-700 hover:bg-indigo-100"
+                                >
+                                  Open resources &amp; discussion
+                                </Link>
                                 {canTrack ? (
                                   <form
                                     action={setCourseProgressAction}

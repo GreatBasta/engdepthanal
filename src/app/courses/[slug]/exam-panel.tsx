@@ -1,9 +1,10 @@
 import { getCourseExam } from "@/lib/courses/exam";
+import { getCourseCurriculum } from "@/lib/courses/curriculum";
 
 import { AttachmentForm } from "./attachment-form";
+import { ExamQuestionForm } from "./exam-question-form";
 import {
   createExamExperienceAction,
-  createExamQuestionAction,
   reportQuestionOccurrenceAction,
   requestQuestionMergeAction,
   reviewQuestionMergeAction,
@@ -25,7 +26,24 @@ export async function ExamPanel({
   canEdit: boolean;
   canModerate: boolean;
 }) {
-  const exam = await getCourseExam(coursePageId, canModerate);
+  const [exam, curriculum] = await Promise.all([
+    getCourseExam(coursePageId, canModerate),
+    getCourseCurriculum(coursePageId, "published"),
+  ]);
+  const topics = (curriculum?.topics ?? [])
+    .filter((topic) => topic.hiddenAt === null)
+    .map((topic) => ({ stableId: topic.stableId, name: topic.name }));
+  const subtopics = (curriculum?.topics ?? []).flatMap((topic) =>
+    topic.hiddenAt
+      ? []
+      : topic.subtopics
+          .filter((subtopic) => subtopic.hiddenAt === null)
+          .map((subtopic) => ({
+            stableId: subtopic.stableId,
+            name: subtopic.name,
+            topicName: topic.name,
+          })),
+  );
   const tierOrder = new Map<string | null, number>([
     ["S", 0],
     ["A", 1],
@@ -358,51 +376,12 @@ export async function ExamPanel({
           </p>
 
           {canPost ? (
-            <form
-              action={createExamQuestionAction}
-              className="mt-6 grid gap-2 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-950"
-            >
-              <CourseIdentity
-                coursePageId={coursePageId}
-                courseSlug={courseSlug}
-              />
-              <textarea
-                name="prompt"
-                required
-                maxLength={10_000}
-                rows={3}
-                placeholder="Exam question or recurring prompt"
-                aria-label="Question prompt"
-                className={inputClass}
-              />
-              <textarea
-                name="answerGuidance"
-                maxLength={10_000}
-                rows={2}
-                placeholder="Answer guidance (optional)"
-                aria-label="Answer guidance"
-                className={inputClass}
-              />
-              <select
-                name="difficulty"
-                defaultValue=""
-                aria-label="Difficulty"
-                className={inputClass}
-              >
-                <option value="">Difficulty unknown</option>
-                <option value="1">1 · Easy</option>
-                <option value="2">2</option>
-                <option value="3">3 · Medium</option>
-                <option value="4">4</option>
-                <option value="5">5 · Hard</option>
-              </select>
-              <button
-                type="submit"
-                className="justify-self-start rounded-lg bg-zinc-900 px-4 py-2 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
-              >
-                Add question
-              </button>
-            </form>
+            <ExamQuestionForm
+              coursePageId={coursePageId}
+              courseSlug={courseSlug}
+              topics={topics}
+              subtopics={subtopics}
+            />
           ) : null}
         </section>
       </div>
@@ -424,6 +403,7 @@ export async function ExamPanel({
           {questions.map((question) => (
             <li
               key={question.id}
+              id={`question-${question.id}`}
               className={`rounded-2xl border bg-white p-5 shadow-sm dark:bg-zinc-900 ${
                 question.hiddenAt
                   ? "border-dashed border-rose-300 opacity-70 dark:border-rose-900"
