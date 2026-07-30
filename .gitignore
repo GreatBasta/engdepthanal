@@ -7,3 +7,4 @@ next-env.d.ts
 .vercel/
 playwright-report/
 test-results/
+.tools/
