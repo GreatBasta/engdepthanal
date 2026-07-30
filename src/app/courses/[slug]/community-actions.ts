@@ -462,6 +462,11 @@ const attachmentSchema = courseIdentitySchema.extend({
   access: z.enum(["public", "course"]),
 });
 
+const permanentAttachmentDeleteSchema = courseIdentitySchema.extend({
+  attachmentId: z.string().uuid(),
+  confirmation: z.literal("delete"),
+});
+
 export async function uploadCourseAttachmentAction(
   _previous: AttachmentState,
   formData: FormData,
@@ -592,6 +597,79 @@ export async function uploadCourseAttachmentAction(
 
   revalidatePath(`/courses/${parsed.data.courseSlug}`);
   return { error: null, message: "Attachment uploaded." };
+}
+
+export async function permanentlyDeleteCourseAttachmentAction(
+  formData: FormData,
+) {
+  const parsed = permanentAttachmentDeleteSchema.safeParse({
+    coursePageId: formData.get("coursePageId"),
+    courseSlug: formData.get("courseSlug"),
+    attachmentId: formData.get("attachmentId"),
+    confirmation: formData.get("confirmation"),
+  });
+  if (!parsed.success) return;
+
+  const authorized = await authorizedContext(
+    parsed.data.coursePageId,
+    "moderate",
+  );
+  if (!authorized) return;
+  const [attachment] = await db
+    .select({
+      id: courseAttachments.id,
+      blobUrl: courseAttachments.blobUrl,
+      fileName: courseAttachments.fileName,
+      deletedAt: courseAttachments.deletedAt,
+    })
+    .from(courseAttachments)
+    .where(
+      and(
+        eq(courseAttachments.id, parsed.data.attachmentId),
+        eq(courseAttachments.coursePageId, parsed.data.coursePageId),
+      ),
+    )
+    .limit(1);
+  // Permanent removal is deliberately a second step after moderation hide.
+  if (!attachment?.deletedAt) return;
+  if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.VERCEL_OIDC_TOKEN) {
+    console.error("course attachment permanent delete storage unavailable", {
+      attachmentId: attachment.id,
+      coursePageId: parsed.data.coursePageId,
+    });
+    return;
+  }
+
+  try {
+    await del(attachment.blobUrl);
+    await db.transaction(async (tx) => {
+      await tx.insert(moderationActions).values({
+        coursePageId: parsed.data.coursePageId,
+        actorId: authorized.studentId,
+        targetType: "attachment",
+        targetId: attachment.id,
+        action: "hide",
+        reason: "Permanent attachment removal after moderation soft delete",
+        metadata: {
+          permanent: true,
+          blobDeleted: true,
+          fileName: attachment.fileName,
+        },
+      });
+      await tx
+        .delete(courseAttachments)
+        .where(eq(courseAttachments.id, attachment.id));
+    });
+  } catch (error) {
+    console.error("course attachment permanent delete failed", {
+      attachmentId: attachment.id,
+      coursePageId: parsed.data.coursePageId,
+      error,
+    });
+    return;
+  }
+  revalidatePath(`/courses/${parsed.data.courseSlug}`);
+  revalidatePath(`/courses/${parsed.data.courseSlug}/settings`);
 }
 
 async function targetBelongsToCourse(
