@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { count, eq } from "drizzle-orm";
 
+import { signOut } from "@/auth";
 import { currentAdmin } from "@/lib/admin";
-import { adminLogout } from "./login/actions";
 import { db } from "@/lib/db/client";
 import {
   curriculumSuggestions,
@@ -12,8 +12,8 @@ import {
 } from "@/lib/db/schema";
 
 /**
- * Admin review console (Phase 5). Requires an admin session (username +
- * password login, or an ADMIN_EMAILS student); otherwise redirects to login.
+ * Admin review console. Requires a normal account with a DB admin role or the
+ * temporary bootstrap allowlist; otherwise redirects to normal login.
  */
 export default async function AdminHome() {
   const admin = await currentAdmin();
@@ -50,7 +50,12 @@ export default async function AdminHome() {
             it feeds the platform.
           </p>
         </div>
-        <form action={adminLogout}>
+        <form
+          action={async () => {
+            "use server";
+            await signOut({ redirectTo: "/" });
+          }}
+        >
           <button
             type="submit"
             className="shrink-0 text-sm text-zinc-500 underline-offset-4 hover:text-zinc-900 hover:underline dark:hover:text-zinc-100"

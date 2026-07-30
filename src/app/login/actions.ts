@@ -8,6 +8,8 @@ import { signIn } from "@/auth";
 import { db } from "@/lib/db/client";
 import { students } from "@/lib/db/schema";
 import { hashPassword } from "@/lib/password";
+import { verifyPassword } from "@/lib/password";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 export interface AuthFormState {
   error: string | null;
@@ -16,7 +18,13 @@ export interface AuthFormState {
 const signUpSchema = z.object({
   displayName: z.string().trim().min(1, "Please enter your name").max(120),
   email: z.string().trim().toLowerCase().email("Please enter a valid email"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z
+    .string()
+    .min(10, "Password must be at least 10 characters")
+    .max(128)
+    .regex(/[a-z]/, "Add a lowercase letter")
+    .regex(/[A-Z]/, "Add an uppercase letter")
+    .regex(/[0-9]/, "Add a number"),
 });
 
 const signInSchema = z.object({
@@ -48,6 +56,16 @@ export async function signUpAction(
     return { error: parsed.error.issues[0].message };
   }
   const { displayName, email, password } = parsed.data;
+  if (
+    !(await consumeRateLimit({
+      action: "signup",
+      identifier: email,
+      limit: 5,
+      windowMinutes: 60,
+    }))
+  ) {
+    return { error: "Too many attempts. Try again later." };
+  }
 
   const [existing] = await db
     .select({ id: students.id })
@@ -55,7 +73,10 @@ export async function signUpAction(
     .where(eq(students.email, email))
     .limit(1);
   if (existing) {
-    return { error: "An account with this email already exists — sign in." };
+    return {
+      error:
+        "The account could not be created. Try signing in or use account recovery.",
+    };
   }
 
   await db.insert(students).values({
@@ -79,6 +100,29 @@ export async function signInAction(
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message };
+  }
+
+  if (
+    !(await consumeRateLimit({
+      action: "login",
+      identifier: parsed.data.email,
+      limit: 10,
+      windowMinutes: 15,
+    }))
+  ) {
+    return { error: "Too many attempts. Try again in a few minutes." };
+  }
+
+  const [student] = await db
+    .select({ passwordHash: students.passwordHash })
+    .from(students)
+    .where(eq(students.email, parsed.data.email))
+    .limit(1);
+  if (
+    !student?.passwordHash ||
+    !(await verifyPassword(parsed.data.password, student.passwordHash))
+  ) {
+    return { error: "Wrong email or password." };
   }
 
   try {
