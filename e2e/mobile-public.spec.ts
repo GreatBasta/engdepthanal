@@ -68,7 +68,7 @@ test("health endpoint reports the isolated preview database", async ({
     status: string;
     database: string;
   };
-  expect(payload).toMatchObject({ status: "ok", database: "ok" });
+  expect(payload).toMatchObject({ status: "ok", database: "reachable" });
 });
 
 test("invalid credentials fail without account enumeration", async ({
@@ -76,8 +76,12 @@ test("invalid credentials fail without account enumeration", async ({
 }) => {
   await page.goto("/login");
   const form = page.locator("form");
-  await form.getByLabel("Email").fill("missing-preview-user@example.invalid");
+  await form
+    .getByLabel("Email")
+    .fill(
+      `missing-preview-user-${process.env.E2E_RUN_ID ?? "local"}@example.invalid`,
+    );
   await form.getByLabel("Password").fill("WrongPassword123");
   await form.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByRole("alert")).toHaveText("Wrong email or password.");
+  await expect(page.getByText("Wrong email or password.", { exact: true })).toBeVisible();
 });

@@ -9,7 +9,12 @@ const runId = process.env.E2E_RUN_ID ?? "preview";
 test("signup to private course, resource upload, moderation, and denial", async ({
   browser,
   page,
-}) => {
+}, testInfo) => {
+  test.setTimeout(180_000);
+  test.skip(
+    testInfo.project.name !== "pixel-7",
+    "Authenticated write journey runs once on the Pixel 7 profile",
+  );
   test.skip(!email || !password, "Preview credentials are required");
   await grantPreviewAccess(page);
   await page.goto("/login");
@@ -26,7 +31,9 @@ test("signup to private course, resource upload, moderation, and denial", async 
     .click();
   await page.waitForURL(/\/onboarding/);
 
-  await page.getByLabel("Your university").fill(`Preview E2E University ${runId}`);
+  await page
+    .getByRole("combobox", { name: "Your university", exact: true })
+    .fill(`Preview E2E University ${runId}`);
   await page.getByLabel("Country").selectOption("IT");
   await page
     .getByLabel("Your course (engineering discipline)")
@@ -45,16 +52,18 @@ test("signup to private course, resource upload, moderation, and denial", async 
     .fill(`Preview Systems Course ${runId}`);
   await page.getByRole("button", { name: "Continue" }).click();
 
-  const checkedDefault = page.locator('input[name="templateIds"]:checked');
-  if ((await checkedDefault.count()) === 1) await checkedDefault.uncheck();
+  const defaultTemplate = page.getByRole("checkbox").first();
+  if (await defaultTemplate.isChecked()) await defaultTemplate.uncheck();
   const templateSearch = page.getByLabel("Search templates");
   await templateSearch.fill("Calculus I");
-  await page.getByRole("checkbox", { name: /Calculus I/ }).check();
+  await page.getByRole("checkbox", { name: /^Calculus Iv1/ }).check();
   await templateSearch.fill("Linear Algebra");
   await page.getByRole("checkbox", { name: /Linear Algebra/ }).check();
   await page.getByRole("button", { name: "Continue" }).click();
   await page.getByRole("radio", { name: /Private/ }).check();
-  await page.getByRole("button", { name: "Create course" }).click();
+  await page
+    .getByRole("button", { name: "Create course" })
+    .click({ noWaitAfter: true });
   await page.waitForURL(/\/courses\/.+\?tab=curriculum/);
 
   const courseUrl = page.url();

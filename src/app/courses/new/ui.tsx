@@ -48,6 +48,9 @@ export function CreateCourseForm({
   const [step, setStep] = useState(1);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>(
+    () => (templates[0] ? [templates[0].id] : []),
+  );
   const filtered = useMemo(
     () =>
       templates.filter(
@@ -63,6 +66,14 @@ export function CreateCourseForm({
 
   return (
     <form action={action} className="space-y-6">
+      {selectedTemplateIds.map((templateId) => (
+        <input
+          key={templateId}
+          type="hidden"
+          name="templateIds"
+          value={templateId}
+        />
+      ))}
       <ol aria-label="Course creation progress" className="grid grid-cols-3 gap-2">
         {["Course", "Templates", "Privacy"].map((label, index) => (
           <li
@@ -116,10 +127,24 @@ export function CreateCourseForm({
           </select>
         </div>
         <div className="mt-5 grid max-h-[34rem] gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
-          {filtered.map((template, index) => (
+          {filtered.map((template) => (
             <label key={template.id} className="cursor-pointer rounded-xl border border-slate-200 p-4 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50">
               <span className="flex items-start gap-3">
-                <input type="checkbox" name="templateIds" value={template.id} defaultChecked={index === 0 && !query && category === "all"} className="mt-1 accent-indigo-600" />
+                <input
+                  type="checkbox"
+                  value={template.id}
+                  checked={selectedTemplateIds.includes(template.id)}
+                  onChange={(event) =>
+                    setSelectedTemplateIds((current) =>
+                      event.target.checked
+                        ? current.includes(template.id)
+                          ? current
+                          : [...current, template.id]
+                        : current.filter((id) => id !== template.id),
+                    )
+                  }
+                  className="mt-1 accent-indigo-600"
+                />
                 <span>
                   <span className="font-bold">{template.name}</span>
                   <span className="ml-2 text-xs text-slate-500">v{template.version}</span>
