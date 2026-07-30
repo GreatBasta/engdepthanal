@@ -16,6 +16,7 @@ import { db } from "@/lib/db/client";
 import {
   courseAttachments,
   courseExamProfiles,
+  courseResources,
   examExperiences,
   examMergeRequests,
   examQuestions,
@@ -30,7 +31,8 @@ export async function getCourseExam(
   coursePageId: string,
   includeHidden: boolean,
 ) {
-  const [profileRows, experienceRows, questionRows] = await Promise.all([
+  const [profileRows, experienceRows, questionRows, materialRows] =
+    await Promise.all([
     db
       .select()
       .from(courseExamProfiles)
@@ -67,6 +69,7 @@ export async function getCourseExam(
         answerGuidance: examQuestions.answerGuidance,
         courseTopicStableId: examQuestions.courseTopicStableId,
         courseSubtopicStableId: examQuestions.courseSubtopicStableId,
+        questionType: examQuestions.questionType,
         difficulty: examQuestions.difficulty,
         status: examQuestions.status,
         mergedIntoId: examQuestions.mergedIntoId,
@@ -83,10 +86,33 @@ export async function getCourseExam(
         ),
       )
       .orderBy(desc(examQuestions.createdAt)),
-  ]);
+    db
+      .select({
+        id: courseResources.id,
+        title: courseResources.title,
+        body: courseResources.body,
+        linkUrl: courseResources.linkUrl,
+        createdAt: courseResources.createdAt,
+        authorName: students.displayName,
+      })
+      .from(courseResources)
+      .innerJoin(students, eq(courseResources.authorId, students.id))
+      .where(
+        and(
+          eq(courseResources.coursePageId, coursePageId),
+          eq(courseResources.context, "exam"),
+          eq(courseResources.type, "permitted_material"),
+          eq(courseResources.permissionConfirmed, true),
+          isNull(courseResources.hiddenAt),
+          isNull(courseResources.deletedAt),
+        ),
+      )
+      .orderBy(desc(courseResources.createdAt)),
+    ]);
 
   const questionIds = questionRows.map((question) => question.id);
   const experienceIds = experienceRows.map((experience) => experience.id);
+  const materialIds = materialRows.map((material) => material.id);
   const [
     occurrenceAggregates,
     voteAggregates,
@@ -126,13 +152,16 @@ export async function getCourseExam(
             sessionLabel: questionOccurrences.sessionLabel,
             occurredOn: questionOccurrences.occurredOn,
             notes: questionOccurrences.notes,
+            professorName: questionOccurrences.professorName,
             createdAt: questionOccurrences.createdAt,
           })
           .from(questionOccurrences)
           .where(inArray(questionOccurrences.questionId, questionIds))
           .orderBy(desc(questionOccurrences.createdAt))
       : Promise.resolve([]),
-    questionIds.length > 0 || experienceIds.length > 0
+    questionIds.length > 0 ||
+    experienceIds.length > 0 ||
+    materialIds.length > 0
       ? db
           .select({
             id: courseAttachments.id,
@@ -165,6 +194,14 @@ export async function getCourseExam(
 
   return {
     profile: profileRows[0] ?? null,
+    materials: materialRows.map((material) => ({
+      ...material,
+      attachments: attachmentRows.filter(
+        (attachment) =>
+          attachment.parentType === "course_resource" &&
+          attachment.parentId === material.id,
+      ),
+    })),
     experiences: experienceRows.map((experience) => ({
       ...experience,
       attachments: attachmentRows.filter(

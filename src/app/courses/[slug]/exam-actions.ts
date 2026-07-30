@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, eq, gte, isNull } from "drizzle-orm";
+import { and, count, eq, gte, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -58,6 +58,7 @@ export async function saveExamProfileAction(formData: FormData) {
         .optional(),
       format: z.string().trim().max(500).optional(),
       gradingScale: z.string().trim().max(120).optional(),
+      lastVerifiedAcademicYear: z.string().trim().max(20).optional(),
       durationMinutes: z.preprocess(
         (value) => (value === "" || value == null ? undefined : value),
         z.coerce.number().int().min(1).max(24 * 60).optional(),
@@ -70,6 +71,7 @@ export async function saveExamProfileAction(formData: FormData) {
       assessmentType: formData.get("assessmentType") || undefined,
       format: formData.get("format"),
       gradingScale: formData.get("gradingScale"),
+      lastVerifiedAcademicYear: formData.get("lastVerifiedAcademicYear"),
       durationMinutes: formData.get("durationMinutes"),
       details: formData.get("details"),
     });
@@ -88,15 +90,25 @@ export async function saveExamProfileAction(formData: FormData) {
     openBook: formData.get("openBook") === "yes",
     calculatorAllowed: formData.get("calculatorAllowed") === "yes",
     details: parsed.data.details || null,
+    lastVerifiedAcademicYear:
+      parsed.data.lastVerifiedAcademicYear || null,
+    studentReported: true,
     updatedBy: authorized.studentId,
     updatedAt: new Date(),
   };
   await db
     .insert(courseExamProfiles)
-    .values({ coursePageId: parsed.data.coursePageId, ...values })
+    .values({
+      coursePageId: parsed.data.coursePageId,
+      verificationCount: 1,
+      ...values,
+    })
     .onConflictDoUpdate({
       target: courseExamProfiles.coursePageId,
-      set: values,
+      set: {
+        ...values,
+        verificationCount: sql`${courseExamProfiles.verificationCount} + 1`,
+      },
     });
   revalidatePath(`/courses/${parsed.data.courseSlug}`);
 }
@@ -300,6 +312,7 @@ export async function reportQuestionOccurrenceAction(formData: FormData) {
         z.string().date().optional(),
       ),
       notes: z.string().trim().max(2_000).optional(),
+      professorName: z.string().trim().max(120).optional(),
     })
     .safeParse({
       coursePageId: formData.get("coursePageId"),
@@ -308,6 +321,7 @@ export async function reportQuestionOccurrenceAction(formData: FormData) {
       sessionLabel: formData.get("sessionLabel"),
       occurredOn: formData.get("occurredOn"),
       notes: formData.get("notes"),
+      professorName: formData.get("professorName"),
     });
   if (!parsed.success) return;
   const authorized = await examAuthorization(
@@ -323,6 +337,16 @@ export async function reportQuestionOccurrenceAction(formData: FormData) {
   ) {
     return;
   }
+  if (
+    !(await consumeRateLimit({
+      action: "exam-occurrence",
+      identifier: authorized.studentId,
+      limit: 40,
+      windowMinutes: 24 * 60,
+    }))
+  ) {
+    return;
+  }
 
   await db
     .insert(questionOccurrences)
@@ -332,6 +356,7 @@ export async function reportQuestionOccurrenceAction(formData: FormData) {
       sessionLabel: parsed.data.sessionLabel,
       occurredOn: parsed.data.occurredOn || null,
       notes: parsed.data.notes || null,
+      professorName: parsed.data.professorName || null,
     })
     .onConflictDoNothing();
   revalidatePath(`/courses/${parsed.data.courseSlug}`);

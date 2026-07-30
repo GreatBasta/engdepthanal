@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { getCourseExam } from "@/lib/courses/exam";
 import { getCourseCurriculum } from "@/lib/courses/curriculum";
 
@@ -131,6 +133,16 @@ export async function ExamPanel({
               />
             </label>
             <label className="text-xs font-medium">
+              Last verified academic year
+              <input
+                name="lastVerifiedAcademicYear"
+                defaultValue={exam.profile?.lastVerifiedAcademicYear ?? ""}
+                maxLength={20}
+                placeholder="e.g. 2025/26"
+                className={`${inputClass} mt-1 w-full`}
+              />
+            </label>
+            <label className="text-xs font-medium">
               Duration (minutes)
               <input
                 name="durationMinutes"
@@ -202,6 +214,12 @@ export async function ExamPanel({
               value={exam.profile.gradingScale || "Not specified"}
             />
             <Metadata
+              label="Last verified"
+              value={
+                exam.profile.lastVerifiedAcademicYear || "Not specified"
+              }
+            />
+            <Metadata
               label="Open book"
               value={
                 exam.profile.openBook == null
@@ -233,6 +251,75 @@ export async function ExamPanel({
         ) : (
           <p className="mt-4 text-sm text-zinc-500">
             No verified exam profile has been added yet.
+          </p>
+        )}
+        <p className="mt-4 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+          Student-reported and non-official
+          {exam.profile?.verificationCount
+            ? ` · ${exam.profile.verificationCount} editor verification${
+                exam.profile.verificationCount === 1 ? "" : "s"
+              }`
+            : ""}
+          . Confirm details with the university.
+        </p>
+      </section>
+
+      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Permitted exam materials</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Student-contributed materials appear here only after the
+              contributor confirms permission to share them.
+            </p>
+          </div>
+          {canPost ? (
+            <Link
+              href={`/courses/${courseSlug}?tab=resources`}
+              className="inline-flex min-h-11 items-center rounded-xl bg-indigo-50 px-3 text-sm font-semibold text-indigo-700"
+            >
+              Add in Resources
+            </Link>
+          ) : null}
+        </div>
+        {exam.materials.length ? (
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+            {exam.materials.map((material) => (
+              <li
+                key={material.id}
+                className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800"
+              >
+                <h3 className="font-semibold">
+                  {material.title || "Permitted material"}
+                </h3>
+                {material.body ? (
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                    {material.body}
+                  </p>
+                ) : null}
+                {material.linkUrl ? (
+                  <Link
+                    href={material.linkUrl}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="mt-2 inline-flex min-h-11 items-center break-all text-sm font-semibold text-indigo-700 underline"
+                  >
+                    Open material link
+                  </Link>
+                ) : null}
+                <ExamAttachmentList
+                  attachments={material.attachments}
+                  coursePageId={coursePageId}
+                />
+                <p className="mt-2 text-[11px] text-zinc-500">
+                  Permission confirmed by contributor · {material.authorName}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-4 rounded-xl border border-dashed border-zinc-300 p-5 text-sm text-zinc-500">
+            No permitted exam materials have been shared.
           </p>
         )}
       </section>
@@ -423,6 +510,9 @@ export async function ExamPanel({
                       </p>
                       <p className="mt-1 text-xs text-zinc-500">
                         Added by {question.creatorName}
+                        {question.questionType
+                          ? ` · ${question.questionType.replaceAll("_", " ")}`
+                          : ""}
                         {question.difficulty
                           ? ` · difficulty ${question.difficulty}/5`
                           : ""}
@@ -494,6 +584,9 @@ export async function ExamPanel({
                             {occurrence.occurredOn
                               ? ` · ${occurrence.occurredOn}`
                               : ""}
+                            {occurrence.professorName
+                              ? ` · Prof. ${occurrence.professorName}`
+                              : ""}
                             {occurrence.notes ? ` · ${occurrence.notes}` : ""}
                           </li>
                         ))}
@@ -535,6 +628,13 @@ export async function ExamPanel({
                           maxLength={2000}
                           placeholder="Optional occurrence notes"
                           aria-label="Occurrence notes"
+                          className={inputClass}
+                        />
+                        <input
+                          name="professorName"
+                          maxLength={120}
+                          placeholder="Professor (optional)"
+                          aria-label="Professor"
                           className={inputClass}
                         />
                         <button
