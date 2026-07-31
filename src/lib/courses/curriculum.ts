@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import {
@@ -121,14 +121,18 @@ export async function getCourseCurriculumOutline(
       description: courseTopics.description,
       position: courseTopics.position,
       hiddenAt: courseTopics.hiddenAt,
-      subtopicCount: sql<number>`(
-        select count(*)::int
-        from course_subtopics outline_subtopic
-        where outline_subtopic.course_topic_id = ${courseTopics.id}
-      )`,
+      subtopicCount: sql<number>`count(${courseSubtopics.id})::int`,
     })
     .from(courseTopics)
+    .leftJoin(
+      courseSubtopics,
+      and(
+        eq(courseSubtopics.courseTopicId, courseTopics.id),
+        view === "published" ? isNull(courseSubtopics.hiddenAt) : undefined,
+      ),
+    )
     .where(eq(courseTopics.curriculumVersionId, version.id))
+    .groupBy(courseTopics.id)
     .orderBy(asc(courseTopics.position));
 
   const selectedTopic = selectedTopicStableId

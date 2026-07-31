@@ -59,7 +59,7 @@ export function CreateCourseForm({
   const [category, setCategory] = useState("all");
   const deferredQuery = useDeferredValue(query);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>(
-    () => (templates[0] ? [templates[0].id] : []),
+    [],
   );
   const groupedTemplates = useMemo(
     () =>
@@ -290,7 +290,14 @@ export function CreateCourseForm({
           <button type="button" onClick={() => setStep((value) => value - 1)} className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-semibold">Back</button>
         )}
         {step < 3 ? (
-          <button type="button" onClick={() => setStep((value) => value + 1)} className="min-h-11 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white">Continue</button>
+          <button
+            type="button"
+            onClick={() => setStep((value) => value + 1)}
+            disabled={step === 2 && selectedTemplateIds.length === 0}
+            className="min-h-11 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Continue
+          </button>
         ) : (
           <button
             type="submit"

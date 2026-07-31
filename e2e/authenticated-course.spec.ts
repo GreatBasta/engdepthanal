@@ -81,6 +81,7 @@ test("signup to private course, resource upload, moderation, and denial", async 
     }),
   ).toBeVisible();
   await expect(page.getByText("Editable draft").first()).toBeVisible();
+  await expect(page.getByText(/[1-9]\d* subtopics/).first()).toBeVisible();
   await page.getByRole("button", { name: "Publish draft" }).click();
 
   const resourcesUrl = new URL(courseUrl);
@@ -171,7 +172,11 @@ test("signup to private course, resource upload, moderation, and denial", async 
   await expect(page.getByLabel("University and degree program")).toBeVisible();
   const editedCourseName = `${courseName} edited`;
   await page.getByLabel("Local course name").fill(editedCourseName);
-  await page.getByRole("button", { name: "Save settings" }).click();
+  await Promise.all([
+    page.waitForURL(/\/settings\?saved=1/),
+    page.getByRole("button", { name: "Save settings" }).click(),
+  ]);
+  await expect(page.getByText("Course settings saved.")).toBeVisible();
   await page.goto(courseUrl);
   await expect(
     page.getByRole("heading", { level: 1, name: editedCourseName }),

@@ -67,6 +67,7 @@ const optionalInteger = (minimum: number, maximum: number) =>
 const updateCourseSchema = z.object({
   coursePageId: z.string().uuid(),
   courseSlug: z.string().min(1).max(120),
+  returnTo: z.enum(["general", "privacy"]),
   universityProgramId: z.string().uuid(),
   localName: z.string().trim().min(2).max(180),
   courseCode: optionalText(40),
@@ -74,7 +75,7 @@ const updateCourseSchema = z.object({
   academicYear: z
     .string()
     .trim()
-    .regex(/^\d{4}(?:\s*[/–-]\s*\d{2,4})?$/, "Use a year such as 2026/27"),
+    .regex(/^\d{4}(?:\s*[/-]\s*\d{2,4})?$/, "Use a year such as 2026/27"),
   cohortYear: optionalInteger(2000, 2100),
   semester: optionalInteger(1, 12),
   description: optionalText(2_000),
@@ -89,6 +90,7 @@ export async function updateCourseSettingsAction(formData: FormData) {
   const parsed = updateCourseSchema.safeParse({
     coursePageId: formData.get("coursePageId"),
     courseSlug: formData.get("courseSlug"),
+    returnTo: formData.get("returnTo"),
     universityProgramId: formData.get("universityProgramId"),
     localName: formData.get("localName"),
     courseCode: formData.get("courseCode"),
@@ -109,7 +111,7 @@ export async function updateCourseSettingsAction(formData: FormData) {
   );
   if (!context || !canEditCourse(context)) return;
 
-  const { coursePageId, courseSlug, ...course } = parsed.data;
+  const { coursePageId, courseSlug, returnTo, ...course } = parsed.data;
   await db
     .update(coursePages)
     .set({
@@ -128,6 +130,11 @@ export async function updateCourseSettingsAction(formData: FormData) {
   revalidatePath(`/courses/${courseSlug}`);
   revalidatePath("/courses");
   revalidateTag("course-directory");
+  redirect(
+    returnTo === "privacy"
+      ? `/courses/${courseSlug}/settings/privacy?saved=1`
+      : `/courses/${courseSlug}/settings?saved=1`,
+  );
 }
 
 const lifecycleSchema = z.object({

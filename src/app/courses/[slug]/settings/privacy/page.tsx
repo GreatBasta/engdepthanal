@@ -7,16 +7,32 @@ import { updateCourseSettingsAction } from "../../actions";
 
 export default async function PrivacySettings({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ saved?: string }>;
 }) {
-  const [{ slug }, studentId] = await Promise.all([params, currentStudentId()]);
+  const [{ slug }, query, studentId] = await Promise.all([
+    params,
+    searchParams,
+    currentStudentId(),
+  ]);
   const detail = await getCourseBySlugForViewer(slug, studentId);
   if (!detail?.permissions.canEdit) notFound();
   return (
-    <form action={updateCourseSettingsAction} className="max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <div className="max-w-2xl space-y-4">
+    {query.saved === "1" ? (
+      <p
+        role="status"
+        className="rounded-xl bg-emerald-50 p-4 text-sm font-medium text-emerald-800"
+      >
+        Privacy settings saved.
+      </p>
+    ) : null}
+    <form action={updateCourseSettingsAction} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <input type="hidden" name="coursePageId" value={detail.course.id} />
       <input type="hidden" name="courseSlug" value={slug} />
+      <input type="hidden" name="returnTo" value="privacy" />
       <input
         type="hidden"
         name="universityProgramId"
@@ -52,5 +68,6 @@ export default async function PrivacySettings({
         Save privacy
       </button>
     </form>
+    </div>
   );
 }
