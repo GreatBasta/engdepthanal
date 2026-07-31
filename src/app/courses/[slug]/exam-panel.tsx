@@ -1,10 +1,12 @@
+import Link from "next/link";
+
 import { getCourseExam } from "@/lib/courses/exam";
-import { EXAM_TIER_THRESHOLDS } from "@/lib/courses/exam-ranking";
+import { getCourseCurriculumIndex } from "@/lib/courses/curriculum";
 
 import { AttachmentForm } from "./attachment-form";
+import { ExamQuestionForm } from "./exam-question-form";
 import {
   createExamExperienceAction,
-  createExamQuestionAction,
   reportQuestionOccurrenceAction,
   requestQuestionMergeAction,
   reviewQuestionMergeAction,
@@ -26,7 +28,24 @@ export async function ExamPanel({
   canEdit: boolean;
   canModerate: boolean;
 }) {
-  const exam = await getCourseExam(coursePageId, canModerate);
+  const [exam, curriculum] = await Promise.all([
+    getCourseExam(coursePageId, canModerate),
+    getCourseCurriculumIndex(coursePageId, "published"),
+  ]);
+  const topics = (curriculum?.topics ?? [])
+    .filter((topic) => topic.hiddenAt === null)
+    .map((topic) => ({ stableId: topic.stableId, name: topic.name }));
+  const subtopics = (curriculum?.topics ?? []).flatMap((topic) =>
+    topic.hiddenAt
+      ? []
+      : topic.subtopics
+          .filter((subtopic) => subtopic.hiddenAt === null)
+          .map((subtopic) => ({
+            stableId: subtopic.stableId,
+            name: subtopic.name,
+            topicName: topic.name,
+          })),
+  );
   const tierOrder = new Map<string | null, number>([
     ["S", 0],
     ["A", 1],
@@ -114,6 +133,16 @@ export async function ExamPanel({
               />
             </label>
             <label className="text-xs font-medium">
+              Last verified academic year
+              <input
+                name="lastVerifiedAcademicYear"
+                defaultValue={exam.profile?.lastVerifiedAcademicYear ?? ""}
+                maxLength={20}
+                placeholder="e.g. 2025/26"
+                className={`${inputClass} mt-1 w-full`}
+              />
+            </label>
+            <label className="text-xs font-medium">
               Duration (minutes)
               <input
                 name="durationMinutes"
@@ -185,6 +214,12 @@ export async function ExamPanel({
               value={exam.profile.gradingScale || "Not specified"}
             />
             <Metadata
+              label="Last verified"
+              value={
+                exam.profile.lastVerifiedAcademicYear || "Not specified"
+              }
+            />
+            <Metadata
               label="Open book"
               value={
                 exam.profile.openBook == null
@@ -216,6 +251,75 @@ export async function ExamPanel({
         ) : (
           <p className="mt-4 text-sm text-zinc-500">
             No verified exam profile has been added yet.
+          </p>
+        )}
+        <p className="mt-4 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+          Student-reported and non-official
+          {exam.profile?.verificationCount
+            ? ` · ${exam.profile.verificationCount} editor verification${
+                exam.profile.verificationCount === 1 ? "" : "s"
+              }`
+            : ""}
+          . Confirm details with the university.
+        </p>
+      </section>
+
+      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">Permitted exam materials</h2>
+            <p className="mt-1 text-sm text-zinc-500">
+              Student-contributed materials appear here only after the
+              contributor confirms permission to share them.
+            </p>
+          </div>
+          {canPost ? (
+            <Link
+              href={`/courses/${courseSlug}?tab=resources`}
+              className="inline-flex min-h-11 items-center rounded-xl bg-indigo-50 px-3 text-sm font-semibold text-indigo-700"
+            >
+              Add in Resources
+            </Link>
+          ) : null}
+        </div>
+        {exam.materials.length ? (
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2">
+            {exam.materials.map((material) => (
+              <li
+                key={material.id}
+                className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800"
+              >
+                <h3 className="font-semibold">
+                  {material.title || "Permitted material"}
+                </h3>
+                {material.body ? (
+                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-600 dark:text-zinc-400">
+                    {material.body}
+                  </p>
+                ) : null}
+                {material.linkUrl ? (
+                  <Link
+                    href={material.linkUrl}
+                    target="_blank"
+                    rel="noopener noreferrer nofollow"
+                    className="mt-2 inline-flex min-h-11 items-center break-all text-sm font-semibold text-indigo-700 underline"
+                  >
+                    Open material link
+                  </Link>
+                ) : null}
+                <ExamAttachmentList
+                  attachments={material.attachments}
+                  coursePageId={coursePageId}
+                />
+                <p className="mt-2 text-[11px] text-zinc-500">
+                  Permission confirmed by contributor · {material.authorName}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-4 rounded-xl border border-dashed border-zinc-300 p-5 text-sm text-zinc-500">
+            No permitted exam materials have been shared.
           </p>
         )}
       </section>
@@ -351,69 +455,20 @@ export async function ExamPanel({
         </section>
 
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-lg font-semibold">Tier method</h2>
+          <h2 className="text-lg font-semibold">Confidence-aware ranking</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-            Score = reports × 3 + distinct sessions × 2 + net votes. At least
-            two occurrence reports are required before a tier appears.
+            With limited evidence we show report, session and contributor
+            counts plus “Not enough data”. S–D tiers appear only after at least
+            10 approved reports, 3 sessions and 5 unique contributors.
           </p>
-          <dl className="mt-4 grid grid-cols-5 gap-2 text-center text-xs">
-            {EXAM_TIER_THRESHOLDS.map(([tier, threshold]) => (
-              <div
-                key={tier}
-                className="rounded-lg bg-zinc-100 p-2 dark:bg-zinc-800"
-              >
-                <dt className="font-bold">{tier}</dt>
-                <dd className="mt-1 text-zinc-500">{threshold}</dd>
-              </div>
-            ))}
-          </dl>
 
           {canPost ? (
-            <form
-              action={createExamQuestionAction}
-              className="mt-6 grid gap-2 rounded-xl bg-zinc-50 p-4 dark:bg-zinc-950"
-            >
-              <CourseIdentity
-                coursePageId={coursePageId}
-                courseSlug={courseSlug}
-              />
-              <textarea
-                name="prompt"
-                required
-                maxLength={10_000}
-                rows={3}
-                placeholder="Exam question or recurring prompt"
-                aria-label="Question prompt"
-                className={inputClass}
-              />
-              <textarea
-                name="answerGuidance"
-                maxLength={10_000}
-                rows={2}
-                placeholder="Answer guidance (optional)"
-                aria-label="Answer guidance"
-                className={inputClass}
-              />
-              <select
-                name="difficulty"
-                defaultValue=""
-                aria-label="Difficulty"
-                className={inputClass}
-              >
-                <option value="">Difficulty unknown</option>
-                <option value="1">1 · Easy</option>
-                <option value="2">2</option>
-                <option value="3">3 · Medium</option>
-                <option value="4">4</option>
-                <option value="5">5 · Hard</option>
-              </select>
-              <button
-                type="submit"
-                className="justify-self-start rounded-lg bg-zinc-900 px-4 py-2 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
-              >
-                Add question
-              </button>
-            </form>
+            <ExamQuestionForm
+              coursePageId={coursePageId}
+              courseSlug={courseSlug}
+              topics={topics}
+              subtopics={subtopics}
+            />
           ) : null}
         </section>
       </div>
@@ -435,6 +490,7 @@ export async function ExamPanel({
           {questions.map((question) => (
             <li
               key={question.id}
+              id={`question-${question.id}`}
               className={`rounded-2xl border bg-white p-5 shadow-sm dark:bg-zinc-900 ${
                 question.hiddenAt
                   ? "border-dashed border-rose-300 opacity-70 dark:border-rose-900"
@@ -454,6 +510,9 @@ export async function ExamPanel({
                       </p>
                       <p className="mt-1 text-xs text-zinc-500">
                         Added by {question.creatorName}
+                        {question.questionType
+                          ? ` · ${question.questionType.replaceAll("_", " ")}`
+                          : ""}
                         {question.difficulty
                           ? ` · difficulty ${question.difficulty}/5`
                           : ""}
@@ -478,11 +537,11 @@ export async function ExamPanel({
                       {question.evidence.distinctSessions} sessions
                     </span>
                     <span className="rounded-full bg-zinc-100 px-2.5 py-1 dark:bg-zinc-800">
-                      {question.evidence.netVotes >= 0 ? "+" : ""}
-                      {question.evidence.netVotes} votes
+                      {question.evidence.distinctContributors} contributors
                     </span>
                     <span className="rounded-full bg-zinc-100 px-2.5 py-1 dark:bg-zinc-800">
-                      score {question.rank.score}
+                      {question.evidence.netVotes >= 0 ? "+" : ""}
+                      {question.evidence.netVotes} votes
                     </span>
                   </div>
 
@@ -525,6 +584,9 @@ export async function ExamPanel({
                             {occurrence.occurredOn
                               ? ` · ${occurrence.occurredOn}`
                               : ""}
+                            {occurrence.professorName
+                              ? ` · Prof. ${occurrence.professorName}`
+                              : ""}
                             {occurrence.notes ? ` · ${occurrence.notes}` : ""}
                           </li>
                         ))}
@@ -566,6 +628,13 @@ export async function ExamPanel({
                           maxLength={2000}
                           placeholder="Optional occurrence notes"
                           aria-label="Occurrence notes"
+                          className={inputClass}
+                        />
+                        <input
+                          name="professorName"
+                          maxLength={120}
+                          placeholder="Professor (optional)"
+                          aria-label="Professor"
                           className={inputClass}
                         />
                         <button

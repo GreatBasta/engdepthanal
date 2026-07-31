@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import { courseMembers, coursePages } from "@/lib/db/schema";
@@ -8,20 +8,24 @@ import { courseMembers, coursePages } from "@/lib/db/schema";
 import {
   canAccessAttachment,
   canEditCourse,
+  canDeleteCourse,
   canManageMembers,
   canModerateCourse,
   canPostToCourse,
   canViewCourse,
+  isCourseOwner,
   type CoursePermissionContext,
 } from "./permission-rules";
 
 export {
   canAccessAttachment,
   canEditCourse,
+  canDeleteCourse,
   canManageMembers,
   canModerateCourse,
   canPostToCourse,
   canViewCourse,
+  isCourseOwner,
   type CourseAttendance,
   type CourseMemberRole,
   type CoursePermissionContext,
@@ -37,35 +41,33 @@ export async function loadCoursePermissionContext(
       id: coursePages.id,
       visibility: coursePages.visibility,
       archivedAt: coursePages.archivedAt,
+      role: courseMembers.role,
+      attendance: courseMembers.attendance,
     })
     .from(coursePages)
+    .leftJoin(
+      courseMembers,
+      studentId
+        ? and(
+            eq(courseMembers.coursePageId, coursePages.id),
+            eq(courseMembers.studentId, studentId),
+          )
+        : sql`false`,
+    )
     .where(eq(coursePages.id, coursePageId))
     .limit(1);
   if (!course) return null;
-
-  let membership: CoursePermissionContext["membership"] = null;
-  if (studentId) {
-    [membership] = await db
-      .select({
-        role: courseMembers.role,
-        attendance: courseMembers.attendance,
-      })
-      .from(courseMembers)
-      .where(
-        and(
-          eq(courseMembers.coursePageId, coursePageId),
-          eq(courseMembers.studentId, studentId),
-        ),
-      )
-      .limit(1);
-    membership ??= null;
-  }
 
   return {
     coursePageId: course.id,
     visibility: course.visibility,
     archived: course.archivedAt !== null,
     studentId,
-    membership,
+    membership: course.role
+      ? {
+          role: course.role,
+          attendance: course.attendance ?? "not_attended",
+        }
+      : null,
   };
 }

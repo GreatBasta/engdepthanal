@@ -3,6 +3,7 @@ export type ExamTier = "S" | "A" | "B" | "C" | "D" | null;
 export interface QuestionEvidence {
   occurrences: number;
   distinctSessions: number;
+  distinctContributors: number;
   netVotes: number;
 }
 
@@ -15,14 +16,20 @@ export interface QuestionRank {
 /**
  * Transparent, intentionally conservative ranking:
  * score = (occurrence reports × 3) + (distinct sessions × 2) + net votes.
- * Two independent reports are required before any tier is shown.
+ * A tier is shown only after 10 approved reports across at least 3 sessions
+ * and 5 contributors. Below that threshold the UI shows raw counts and
+ * "Not enough data".
  */
 export function rankExamQuestion(evidence: QuestionEvidence): QuestionRank {
   const score =
     evidence.occurrences * 3 +
     evidence.distinctSessions * 2 +
     evidence.netVotes;
-  if (evidence.occurrences < 2) {
+  if (
+    evidence.occurrences < 10 ||
+    evidence.distinctSessions < 3 ||
+    evidence.distinctContributors < 5
+  ) {
     return { tier: null, score, sufficient: false };
   }
   const tier: Exclude<ExamTier, null> =
@@ -45,4 +52,3 @@ export const EXAM_TIER_THRESHOLDS = [
   ["C", "6–10"],
   ["D", "5 or less"],
 ] as const;
-

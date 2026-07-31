@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
-
 import {
-  createCourseAction,
-  type CreateCourseState,
-} from "./actions";
+  useActionState,
+  useDeferredValue,
+  useMemo,
+  useState,
+} from "react";
+
+import { curriculumCategories } from "@/lib/curriculum/taxonomy";
+import { createCourseAction, type CreateCourseState } from "./actions";
 
 interface TemplateOption {
   id: string;
@@ -14,6 +17,11 @@ interface TemplateOption {
   description: string | null;
   version: number;
   year: number;
+  category: string;
+  disciplineTags: string[];
+  recommendedDegreePrograms: string[];
+  topicCount: number;
+  subtopicCount: number;
 }
 
 interface UniversityProgramOption {
@@ -25,6 +33,8 @@ interface UniversityProgramOption {
 }
 
 const initialState: CreateCourseState = { error: null, duplicates: [] };
+const inputClass =
+  "min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm shadow-sm placeholder:text-slate-400 focus:border-indigo-500";
 
 export function CreateCourseForm({
   templates,
@@ -33,6 +43,7 @@ export function CreateCourseForm({
   defaultCohortYear,
   defaultAcademicYear,
   defaultAttendance,
+  defaultProgramSlug,
 }: {
   templates: TemplateOption[];
   universityPrograms: UniversityProgramOption[];
@@ -40,281 +51,265 @@ export function CreateCourseForm({
   defaultCohortYear: number;
   defaultAcademicYear: string;
   defaultAttendance: "attended" | "not_attended";
+  defaultProgramSlug: string;
 }) {
-  const [state, action, pending] = useActionState(
-    createCourseAction,
-    initialState,
+  const [state, action, pending] = useActionState(createCourseAction, initialState);
+  const [step, setStep] = useState(1);
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("all");
+  const deferredQuery = useDeferredValue(query);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>(
+    [],
+  );
+  const groupedTemplates = useMemo(
+    () =>
+      curriculumCategories.flatMap((macroCategory) => {
+        if (category !== "all" && macroCategory.key !== category) return [];
+        const matches = templates
+          .filter(
+            (template) =>
+              template.category === macroCategory.key &&
+              `${template.name} ${template.description ?? ""} ${template.disciplineTags.join(" ")}`
+                .toLowerCase()
+                .includes(deferredQuery.toLowerCase()),
+          )
+          .toSorted((left, right) => {
+            const leftRecommended = left.recommendedDegreePrograms.includes(
+              defaultProgramSlug,
+            );
+            const rightRecommended = right.recommendedDegreePrograms.includes(
+              defaultProgramSlug,
+            );
+            return (
+              Number(rightRecommended) - Number(leftRecommended) ||
+              left.year - right.year ||
+              left.name.localeCompare(right.name)
+            );
+          });
+        return matches.length
+          ? [{ ...macroCategory, templates: matches }]
+          : [];
+      }),
+    [templates, deferredQuery, category, defaultProgramSlug],
+  );
+  const resultCount = groupedTemplates.reduce(
+    (total, group) => total + group.templates.length,
+    0,
   );
 
   return (
     <form action={action} className="space-y-6">
-      <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-7">
-        <h2 className="text-lg font-semibold">Course identity</h2>
-        <div className="mt-5 grid gap-5 sm:grid-cols-2">
-          <Field label="University and degree program" wide>
-            <select
-              name="universityProgramId"
-              defaultValue={defaultUniversityProgramId}
-              required
-              className={inputClass}
-            >
+      {selectedTemplateIds.map((templateId) => (
+        <input
+          key={templateId}
+          type="hidden"
+          name="templateIds"
+          value={templateId}
+        />
+      ))}
+      <ol aria-label="Course creation progress" className="grid grid-cols-3 gap-2">
+        {["Course", "Templates", "Privacy"].map((label, index) => (
+          <li
+            key={label}
+            aria-current={step === index + 1 ? "step" : undefined}
+            className={`rounded-xl px-3 py-2 text-center text-xs font-semibold ${
+              step === index + 1 ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-600"
+            }`}
+          >
+            {index + 1}. {label}
+          </li>
+        ))}
+      </ol>
+
+      <section className={step === 1 ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7" : "hidden"}>
+        <p className="text-sm font-semibold text-indigo-700">Step 1 of 3</p>
+        <h2 className="mt-1 text-xl font-bold">Which real course is this?</h2>
+        <div className="mt-5 grid gap-5">
+          <label className="text-sm font-semibold">
+            University and degree
+            <select name="universityProgramId" defaultValue={defaultUniversityProgramId} required className={`${inputClass} mt-1`}>
               {universityPrograms.map((option) => (
                 <option key={option.id} value={option.id}>
-                  {option.universityName} ·{" "}
-                  {option.localName || option.programName} (
-                  {option.countryCode})
+                  {option.universityName} · {option.localName || option.programName} ({option.countryCode})
                 </option>
               ))}
             </select>
-          </Field>
-          <Field label="Local course name">
-            <input
-              name="localName"
-              required
-              maxLength={180}
-              placeholder="e.g. Mathematical Analysis I"
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Course code">
-            <input
-              name="courseCode"
-              maxLength={40}
-              placeholder="e.g. MAT101"
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Professor">
-            <input
-              name="professorName"
-              maxLength={120}
-              placeholder="Optional"
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Academic year">
-            <input
-              name="academicYear"
-              required
-              defaultValue={defaultAcademicYear}
-              placeholder="2026/27"
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Cohort year">
-            <input
-              name="cohortYear"
-              type="number"
-              min={2000}
-              max={2100}
-              defaultValue={defaultCohortYear}
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Semester">
-            <input
-              name="semester"
-              type="number"
-              min={1}
-              max={12}
-              placeholder="1"
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Your attendance">
-            <select
-              name="attendance"
-              defaultValue={defaultAttendance}
-              className={inputClass}
-            >
-              <option value="attended">I attended this course</option>
-              <option value="not_attended">I have not attended it</option>
-            </select>
-          </Field>
-          <Field label="Description" wide>
-            <textarea
-              name="description"
-              rows={4}
-              maxLength={2000}
-              placeholder="What makes this local course distinct?"
-              className={inputClass}
-            />
-          </Field>
-          <Field label="Visibility" wide>
-            <div className="grid gap-3 sm:grid-cols-3">
-              {[
-                {
-                  value: "public",
-                  title: "Public",
-                  detail: "Listed in search and visible to everyone.",
-                },
-                {
-                  value: "unlisted",
-                  title: "Unlisted",
-                  detail: "Visible by link, omitted from search.",
-                },
-                {
-                  value: "private",
-                  title: "Private",
-                  detail: "Only members can open it.",
-                },
-              ].map((visibility) => (
-                <label
-                  key={visibility.value}
-                  className="cursor-pointer rounded-xl border border-zinc-200 p-3 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:border-zinc-700 dark:has-[:checked]:bg-indigo-950/40"
-                >
-                  <input
-                    type="radio"
-                    name="visibility"
-                    value={visibility.value}
-                    defaultChecked={visibility.value === "private"}
-                    className="mr-2 accent-indigo-600"
-                  />
-                  <span className="font-medium">{visibility.title}</span>
-                  <span className="mt-1 block text-xs text-zinc-500">
-                    {visibility.detail}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </Field>
+          </label>
+          <label className="text-sm font-semibold">
+            Local course name
+            <input name="localName" required minLength={2} maxLength={180} placeholder="e.g. Mathematical Analysis I" className={`${inputClass} mt-1`} />
+          </label>
         </div>
+        <input type="hidden" name="academicYear" value={defaultAcademicYear} />
+        <input type="hidden" name="cohortYear" value={defaultCohortYear} />
+        <input type="hidden" name="attendance" value={defaultAttendance} />
       </section>
 
-      <fieldset className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-7">
-        <legend className="px-1 text-lg font-semibold">
-          Curriculum templates
-        </legend>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Select every macro-subject this university course covers.
+      <fieldset className={step === 2 ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7" : "hidden"}>
+        <legend className="px-1 text-xl font-bold">Step 2 · Choose curriculum templates</legend>
+        <p className="mt-1 text-sm text-slate-600">
+          Pick one or more immutable foundations. The course receives an editable local snapshot.
         </p>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {templates.map((template, index) => (
-            <label
-              key={template.id}
-              className="cursor-pointer rounded-xl border border-zinc-200 p-4 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50 dark:border-zinc-700 dark:has-[:checked]:bg-indigo-950/40"
+        <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_14rem]">
+          <label className="sr-only" htmlFor="template-search">Search templates</label>
+          <input id="template-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search templates or disciplines" className={inputClass} />
+          <label className="sr-only" htmlFor="template-category">Category</label>
+          <select id="template-category" value={category} onChange={(event) => setCategory(event.target.value)} className={inputClass}>
+            <option value="all">All categories</option>
+            {curriculumCategories.map((item) => (
+              <option key={item.key} value={item.key}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="mt-4 text-xs font-medium text-slate-500" aria-live="polite">
+          {resultCount} matching {resultCount === 1 ? "template" : "templates"} ·{" "}
+          {selectedTemplateIds.length} selected
+        </p>
+        <div className="mt-3 max-h-[34rem] space-y-5 overflow-y-auto pr-1">
+          {groupedTemplates.map((group) => (
+            <section
+              key={group.key}
+              aria-labelledby={`category-${group.key}`}
+              className="render-lazy rounded-2xl border border-slate-200 bg-slate-50/70 p-3"
             >
-              <span className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  name="templateIds"
-                  value={template.id}
-                  defaultChecked={index === 0}
-                  className="mt-1 accent-indigo-600"
-                />
-                <span>
-                  <span className="font-semibold">{template.name}</span>
-                  <span className="ml-2 text-xs text-zinc-500">
-                    v{template.version}
-                  </span>
-                  {template.description ? (
-                    <span className="mt-1 line-clamp-2 block text-sm text-zinc-600 dark:text-zinc-400">
-                      {template.description}
-                    </span>
-                  ) : null}
-                </span>
+              <div className="px-1 pb-3">
+                <h3 id={`category-${group.key}`} className="font-bold text-slate-950">
+                  {group.label}
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-slate-600">
+                  {group.description}
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {group.templates.map((template) => {
+                  const recommended =
+                    template.recommendedDegreePrograms.includes(
+                      defaultProgramSlug,
+                    );
+                  return (
+                    <label
+                      key={template.id}
+                      className="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50"
+                    >
+                      <span className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          value={template.id}
+                          checked={selectedTemplateIds.includes(template.id)}
+                          onChange={(event) =>
+                            setSelectedTemplateIds((current) =>
+                              event.target.checked
+                                ? current.includes(template.id)
+                                  ? current
+                                  : [...current, template.id]
+                                : current.filter((id) => id !== template.id),
+                            )
+                          }
+                          className="mt-1 accent-indigo-600"
+                        />
+                        <span>
+                          <span className="font-bold">{template.name}</span>
+                          <span className="ml-2 text-xs text-slate-500">
+                            v{template.version}
+                          </span>
+                          {recommended ? (
+                            <span className="mt-1 block w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                              Recommended for your degree
+                            </span>
+                          ) : null}
+                          <span className="mt-2 line-clamp-2 block text-sm text-slate-600">
+                            {template.description}
+                          </span>
+                          <span className="mt-2 block text-xs text-slate-500">
+                            {template.topicCount} topics ·{" "}
+                            {template.subtopicCount} subtopics
+                          </span>
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+          {resultCount === 0 ? (
+            <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600">
+              No templates match this macro category and search.
+            </p>
+          ) : null}
+        </div>
+      </fieldset>
+
+      <section className={step === 3 ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7" : "hidden"}>
+        <p className="text-sm font-semibold text-indigo-700">Step 3 of 3</p>
+        <h2 className="mt-1 text-xl font-bold">Choose visibility and confirm</h2>
+        <div className="mt-5 grid gap-3">
+          {[
+            ["private", "Private", "Only members can open the course."],
+            ["unlisted", "Unlisted", "Anyone with the link can view; omitted from search."],
+            ["public", "Public", "Listed in Discover and visible to everyone."],
+          ].map(([value, title, detail]) => (
+            <label key={value} className="flex min-h-16 cursor-pointer gap-3 rounded-xl border border-slate-200 p-4 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50">
+              <input type="radio" name="visibility" value={value} defaultChecked={value === "private"} />
+              <span>
+                <span className="block font-bold">{title}</span>
+                <span className="block text-sm text-slate-600">{detail}</span>
               </span>
             </label>
           ))}
         </div>
-      </fieldset>
+        <p className="mt-5 rounded-xl bg-slate-100 p-4 text-sm leading-6 text-slate-600">
+          Code, professor, semester, description and cohort can be added later in course settings.
+        </p>
+      </section>
 
-      {state.duplicates.length > 0 ? (
-        <section
-          aria-live="polite"
-          className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100"
-        >
-          <h2 className="font-semibold">This course may already exist</h2>
-          <p className="mt-1 text-sm">
-            Review the likely matches before creating another page.
-          </p>
-          <ul className="mt-3 space-y-2 text-sm">
+      {state.duplicates.length ? (
+        <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950">
+          <h2 className="font-bold">Likely duplicate found</h2>
+          <ul className="mt-2 space-y-2 text-sm">
             {state.duplicates.map((duplicate) => (
               <li key={duplicate.slug}>
-                <Link
-                  href={`/courses/${duplicate.slug}`}
-                  target="_blank"
-                  className="font-medium underline"
-                >
+                <Link href={`/courses/${duplicate.slug}`} target="_blank" className="font-semibold underline">
                   {duplicate.localName}
-                  {duplicate.courseCode ? ` · ${duplicate.courseCode}` : ""}
                 </Link>{" "}
                 · {duplicate.academicYear}
-                {duplicate.semester ? ` · semester ${duplicate.semester}` : ""}
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-xs">
-            If this is genuinely a different course, you can create it anyway.
-          </p>
+          <p className="mt-2 text-xs">Review these matches. You may still create a genuinely different course.</p>
         </section>
       ) : null}
+      {state.error ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{state.error}</p> : null}
 
-      {state.error ? (
-        <p
-          role="alert"
-          className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-        >
-          {state.error}
-        </p>
-      ) : null}
-
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <Link
-          href="/dashboard"
-          className="inline-flex items-center justify-center rounded-xl border border-zinc-300 px-5 py-3 text-sm font-semibold hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-        >
-          Cancel
-        </Link>
-        <SubmitButton
-          confirmDuplicate={state.duplicates.length > 0}
-          pending={pending}
-        />
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+        {step === 1 ? (
+          <Link href="/my-courses" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold">Cancel</Link>
+        ) : (
+          <button type="button" onClick={() => setStep((value) => value - 1)} className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-semibold">Back</button>
+        )}
+        {step < 3 ? (
+          <button
+            type="button"
+            onClick={() => setStep((value) => value + 1)}
+            disabled={step === 2 && selectedTemplateIds.length === 0}
+            className="min-h-11 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Continue
+          </button>
+        ) : (
+          <button
+            type="submit"
+            name={state.duplicates.length ? "confirmDuplicate" : undefined}
+            value={state.duplicates.length ? "yes" : undefined}
+            disabled={pending}
+            className="min-h-11 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white disabled:opacity-60"
+          >
+            {pending ? "Creating course…" : state.duplicates.length ? "Create different course" : "Create course"}
+          </button>
+        )}
       </div>
     </form>
   );
 }
-
-function Field({
-  label,
-  wide = false,
-  children,
-}: {
-  label: string;
-  wide?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className={wide ? "sm:col-span-2" : undefined}>
-      <span className="mb-1.5 block text-sm font-medium">{label}</span>
-      {children}
-    </label>
-  );
-}
-
-function SubmitButton({
-  confirmDuplicate,
-  pending,
-}: {
-  confirmDuplicate: boolean;
-  pending: boolean;
-}) {
-  return (
-    <button
-      type="submit"
-      name={confirmDuplicate ? "confirmDuplicate" : undefined}
-      value={confirmDuplicate ? "yes" : undefined}
-      disabled={pending}
-      className="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 disabled:cursor-wait disabled:opacity-60"
-    >
-      {pending
-        ? "Creating snapshot…"
-        : confirmDuplicate
-          ? "Create different course"
-          : "Create editable course"}
-    </button>
-  );
-}
-
-const inputClass =
-  "w-full rounded-xl border border-zinc-300 bg-white px-3.5 py-2.5 text-sm shadow-sm outline-none transition placeholder:text-zinc-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-950";

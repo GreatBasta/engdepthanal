@@ -10,6 +10,7 @@ import * as schema from "./schema";
  */
 const globalForDb = globalThis as unknown as {
   pgClient?: ReturnType<typeof postgres>;
+  database?: ReturnType<typeof drizzle<typeof schema>>;
 };
 
 function client() {
@@ -23,7 +24,21 @@ function client() {
   return globalForDb.pgClient;
 }
 
-export const db = drizzle(client(), { schema });
+function database() {
+  globalForDb.database ??= drizzle(client(), { schema });
+  return globalForDb.database;
+}
+
+/**
+ * Lazily create the database client on the first query. Merely importing a
+ * route during `next build` must not require production credentials.
+ */
+export const db = new Proxy({} as ReturnType<typeof database>, {
+  get(_target, property) {
+    const target = database();
+    return Reflect.get(target, property, target);
+  },
+});
 
 /**
  * Close the cached client in finite-lived scripts such as the curriculum
@@ -35,4 +50,5 @@ export async function closeDb() {
   if (!pgClient) return;
   await pgClient.end({ timeout: 5 });
   delete globalForDb.pgClient;
+  delete globalForDb.database;
 }

@@ -1,73 +1,155 @@
-# engdepthanal — Engineering Depth Analysis
+# Course Atlas
 
-A learning-tracking platform for first-year engineering students. It shows a
-student exactly what they need to learn in each subject, tracks what they have
-covered, and — by aggregating survey data from students who have **finished**
-each subject — reveals what their own university does *not* teach them.
+Course Atlas is a mobile-first collaborative platform for real university
+course pages. Students can discover a local course, compare its syllabus with
+canonical engineering curriculum templates, track personal progress privately,
+and share contextual resources and student-reported exam information.
 
-Two sources of truth drive everything:
+The public curriculum coverage of a course and a member's private learning
+progress are separate data models. Canonical templates are immutable source
+material: creating a course clones one or more templates into an editable local
+snapshot, so later course edits never change the library.
 
-1. **Canonical curriculum** — the comprehensive, university-independent map of
-   everything a first-year engineering student should know, organized as
-   *Subject → Topic → Subtopic*, each subtopic tagged with a target **depth
-   level**. We start with Calculus I.
-2. **Observed coverage** — what universities *actually* teach, reconstructed
-   from surveys of finished students ("Have you studied: using derivatives to
-   solve real-world optimization?") plus their grade.
+Student contributions are non-official. Exam reports show raw evidence and
+recency; S–D tiers appear only after at least 10 approved reports, 3 sessions,
+and 5 unique contributors.
 
-The gap between the two, aggregated per university + course, is the depth
-analysis this project is named for.
+## Stack and architecture
 
-## Repository layout
+- Next.js App Router, React Server Components by default, Tailwind CSS
+- Auth.js credentials flow with JWT sessions
+- Drizzle ORM and PostgreSQL
+- Private Vercel Blob objects with authorized application download routes
+- Node test runner for unit/integration tests and Playwright for responsive E2E
 
-| Path | What |
+| Area | Source |
 |---|---|
-| [`STRUCTURE.md`](STRUCTURE.md) | Full design: product concept, user journeys, entity model, depth levels, survey design, data-quality rules, aggregation pipeline, app routes, phased build order |
-| [`src/lib/db/schema.ts`](src/lib/db/schema.ts) | The Drizzle schema (all 15 tables) — [`db/schema.sql`](db/schema.sql) is the original raw-SQL reference |
-| [`drizzle/`](drizzle/) | Generated migrations, incl. the finished-only survey guard trigger |
-| [`curriculum/calculus-1.json`](curriculum/calculus-1.json) | Comprehensive Calculus I taxonomy — 12 topics, 105 subtopics with depth levels, estimated hours, and a prerequisite graph |
-| [`src/lib/db/seed.ts`](src/lib/db/seed.ts) | Idempotent seed: engineering programs + curriculum JSON files |
-| [`src/app/`](src/app/) | Next.js app: login/signup, onboarding, dashboard, subject tree |
+| Database model | `src/lib/db/schema.ts` |
+| Additive migrations | `drizzle/` |
+| Canonical schema and validation | `src/lib/curriculum/schema.ts` |
+| Canonical catalog | `curriculum/catalog.json` |
+| Deterministic production seed | `src/lib/db/seed.ts` |
+| Optional local demo seed | `src/lib/db/seed-demo.ts` |
+| Course permissions and actions | `src/app/courses/[slug]/` |
+| Attachment policy and authorization | `src/lib/courses/attachment-policy.ts`, `src/app/api/courses/` |
+| Release and migration runbook | `docs/release-runbook.md` |
 
-Stack: Next.js (App Router) + Drizzle ORM + Postgres + next-auth
-(email + password, JWT sessions) + Tailwind v4. Built with Fable 5.
+## Product routes
 
-## Running locally
+Primary navigation is Home, My courses, Discover, and Profile. A course has
+only Overview, Curriculum, Resources, and Exam. Editing is under:
+
+- `/courses/[slug]/settings`
+- `/courses/[slug]/settings/members`
+- `/courses/[slug]/settings/curriculum`
+- `/courses/[slug]/settings/privacy`
+
+Legacy `/subjects` descendants are preserved outside primary navigation while
+records are mapped conservatively. Private and unlisted courses are excluded
+from public discovery; private data is never cacheable or indexed.
+
+## Canonical curriculum
+
+The catalog contains 47 reusable engineering templates. Each JSON record has:
+
+`templateKey`, `name`, `description`, `category`, `disciplineTags`,
+`recommendedDegreePrograms`, `typicalYear`, `typicalSemester`, `version`,
+`sourceReferences`, `topics`, `subtopics`, `stableId`, `slug`, `description`,
+`depthLevel`, `estimatedHours`, `prerequisiteStableIds`, `optional`, and
+`position`.
+
+Validate the committed catalog:
 
 ```bash
-cp .env.example .env        # set DATABASE_URL and AUTH_SECRET
-npm install
-npm run db:migrate          # apply migrations to your Postgres
-npm run db:seed             # programs + Calculus I curriculum (safe to re-run)
+npm run curriculum:validate
+```
+
+The validator checks the JSON schema, non-empty names, valid depths and hours,
+unique keys/stable IDs, scoped slug uniqueness, contiguous order, duplicate
+subtopics, valid source metadata, and existing acyclic prerequisites. Catalog
+generation and seeded UUIDs are deterministic.
+
+The source references point to public, authoritative curriculum pages including
+MIT OpenCourseWare, OpenStax, ACM/IEEE curriculum recommendations, and ABET
+criteria. Descriptions are original paraphrases; the seed contains no fictional
+reviews, exam questions, comments, or user contributions.
+
+## Local setup
+
+Requirements: Node.js 20+, npm, and a separate PostgreSQL database.
+
+```bash
+cp .env.example .env.local
+npm ci
+npm run curriculum:validate
+npm run db:migrate
+npm run db:seed
+npm run db:verify
 npm run dev
 ```
 
-`npm run aggregate` recomputes the coverage aggregates that power the gap
-analysis (the "nightly job"; also refreshed live as students submit surveys).
+`db:seed` is idempotent and limited to canonical production-safe reference
+data. `db:seed:demo` is explicitly local-only, never runs during a build, and
+currently inserts no fake social or exam content.
 
-## Deploying it online
+## Environment
 
-To put the MVP on the web (free) so others can use it, see
-[`DEPLOY.md`](DEPLOY.md) — a step-by-step guide using Neon (Postgres) +
-Vercel (the app). Sign-in fails until a database is connected and seeded;
-that guide fixes it.
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Runtime pooled PostgreSQL URL |
+| `DATABASE_URL_UNPOOLED` | Direct URL for Drizzle migrations |
+| `AUTH_SECRET` | Auth.js signing secret and rate-limit hashing |
+| `BLOB_READ_WRITE_TOKEN` | Private Blob access; Vercel OIDC may be used instead |
+| `ADMIN_EMAILS` | Temporary bootstrap allowlist; promote the account to `students.admin_role` |
+| `NEXT_PUBLIC_APP_URL` | Canonical deployed origin |
+| `NEXT_PUBLIC_CONTACT_EMAIL` | Monitored privacy, safety, and removal contact |
 
-Then sign up, name your university and course (added automatically if it's
-not in the database yet), say whether you're **starting** or **actively
-attending** first year, and the first-year database unlocks.
+Never commit `.env*`, `.vercel`, database exports, Blob tokens, email
+credentials, or user data. Email verification and password-reset messages must
+not be enabled until an authorized provider and monitored sender are configured.
 
-## Build status
+## Database and release safety
 
-Phases 1–4 are built and verified end-to-end:
+`npm run build` is and must remain the Vercel build command. It does not migrate,
+seed, or require a database connection while compiling. Apply migrations from a
+controlled release job using the direct database URL only after backup and a
+successful rehearsal against a restored, isolated database.
 
-- **Phase 1** — schema + migrations, Calculus I seed, auth, onboarding, the
-  read-only branch outlook per subject.
-- **Phase 2** — the interactive progress tracker and the finish gate.
-- **Phase 3** — grade capture and the chunked, resumable coverage survey
-  (finished subjects only).
-- **Phase 4** — the coverage-aggregation pipeline (weighted, sample-gated)
-  plus the gap-analysis page and coverage badges on the outlook.
+The new migrations are additive: they create tables, columns, indexes, foreign
+keys, and enum values without deleting legacy rows. Do not deploy application
+code that reads new columns before the migration is verified. See
+`docs/release-runbook.md` for backup, rehearsal, verification, rollback, preview,
+and production gates.
 
-**Next (see STRUCTURE.md §8):** Phase 5 — remaining first-year subjects
-(linear algebra, physics I, …), curriculum-suggestion review, and cohort /
-grade analytics.
+## Tests
+
+```bash
+npm run curriculum:validate
+npm run typecheck
+npm test
+AUTH_SECRET=local-build-only-secret npm run build
+npm run test:e2e
+```
+
+Playwright covers iPhone SE, a modern iPhone, Pixel 7, a 768 px tablet, and
+desktop. Full authenticated course, upload, private-denial, and migration tests
+require an isolated seeded E2E database and private Blob test store; they must
+never target production.
+
+## Administration and moderation
+
+There is no dedicated admin credential endpoint. An administrator signs in
+through the normal account flow and must have `students.admin_role = true`.
+`ADMIN_EMAILS` is only a first-admin bootstrap path.
+
+Reports use unified reasons (spam, harassment, personal information, copyright,
+unauthorized exam material, incorrect information, inappropriate, or other).
+Moderation is soft-delete-first with audit records. Permanent attachment
+deletion must remove both the database record and private Blob object.
+
+## Deployment
+
+The existing Vercel project is `engdepthanal` in team `ste11`. Branches deploy
+as previews in the same project. Never promote a preview until migrations,
+private/unlisted authorization, mobile E2E, accessibility, logs, and the release
+checklist are verified. Production promotion is a separate explicit operation.

@@ -1,6 +1,6 @@
 "use server";
 
-import { and, count, eq, gte } from "drizzle-orm";
+import { and, count, eq, gte, isNull, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
@@ -14,7 +14,10 @@ import {
 import { db } from "@/lib/db/client";
 import {
   courseAttachments,
+  courseCurriculumVersions,
   courseExamProfiles,
+  courseSubtopics,
+  courseTopics,
   examExperiences,
   examMergeRequests,
   examQuestions,
@@ -22,6 +25,8 @@ import {
   moderationActions,
   questionOccurrences,
 } from "@/lib/db/schema";
+import { findLikelyQuestionDuplicates } from "@/lib/courses/question-duplicates";
+import { consumeRateLimit } from "@/lib/rate-limit";
 
 const courseIdentitySchema = z.object({
   coursePageId: z.string().uuid(),
@@ -53,6 +58,7 @@ export async function saveExamProfileAction(formData: FormData) {
         .optional(),
       format: z.string().trim().max(500).optional(),
       gradingScale: z.string().trim().max(120).optional(),
+      lastVerifiedAcademicYear: z.string().trim().max(20).optional(),
       durationMinutes: z.preprocess(
         (value) => (value === "" || value == null ? undefined : value),
         z.coerce.number().int().min(1).max(24 * 60).optional(),
@@ -65,6 +71,7 @@ export async function saveExamProfileAction(formData: FormData) {
       assessmentType: formData.get("assessmentType") || undefined,
       format: formData.get("format"),
       gradingScale: formData.get("gradingScale"),
+      lastVerifiedAcademicYear: formData.get("lastVerifiedAcademicYear"),
       durationMinutes: formData.get("durationMinutes"),
       details: formData.get("details"),
     });
@@ -83,15 +90,25 @@ export async function saveExamProfileAction(formData: FormData) {
     openBook: formData.get("openBook") === "yes",
     calculatorAllowed: formData.get("calculatorAllowed") === "yes",
     details: parsed.data.details || null,
+    lastVerifiedAcademicYear:
+      parsed.data.lastVerifiedAcademicYear || null,
+    studentReported: true,
     updatedBy: authorized.studentId,
     updatedAt: new Date(),
   };
   await db
     .insert(courseExamProfiles)
-    .values({ coursePageId: parsed.data.coursePageId, ...values })
+    .values({
+      coursePageId: parsed.data.coursePageId,
+      verificationCount: 1,
+      ...values,
+    })
     .onConflictDoUpdate({
       target: courseExamProfiles.coursePageId,
-      set: values,
+      set: {
+        ...values,
+        verificationCount: sql`${courseExamProfiles.verificationCount} + 1`,
+      },
     });
   revalidatePath(`/courses/${parsed.data.courseSlug}`);
 }
@@ -152,11 +169,34 @@ export async function createExamExperienceAction(formData: FormData) {
   revalidatePath(`/courses/${parsed.data.courseSlug}`);
 }
 
-export async function createExamQuestionAction(formData: FormData) {
+export interface ExamQuestionFormState {
+  error: string | null;
+  message: string | null;
+  suggestions: Array<{ id: string; prompt: string; similarity: number }>;
+}
+
+export async function createExamQuestionAction(
+  _previous: ExamQuestionFormState,
+  formData: FormData,
+): Promise<ExamQuestionFormState> {
+  const contextTarget = String(formData.get("contextTarget") ?? "course");
+  const [context, contextStableId] = contextTarget.split(":", 2);
   const parsed = courseIdentitySchema
     .extend({
       prompt: z.string().trim().min(4).max(10_000),
       answerGuidance: z.string().trim().max(10_000).optional(),
+      questionType: z
+        .enum([
+          "calculation",
+          "conceptual",
+          "proof",
+          "oral_prompt",
+          "practical",
+          "project",
+        ])
+        .optional(),
+      topicStableId: z.string().uuid().optional(),
+      subtopicStableId: z.string().uuid().optional(),
       difficulty: z.preprocess(
         (value) => (value === "" || value == null ? undefined : value),
         z.coerce.number().int().min(1).max(5).optional(),
@@ -167,34 +207,99 @@ export async function createExamQuestionAction(formData: FormData) {
       courseSlug: formData.get("courseSlug"),
       prompt: formData.get("prompt"),
       answerGuidance: formData.get("answerGuidance"),
+      questionType: formData.get("questionType") || undefined,
+      topicStableId: context === "topic" ? contextStableId : undefined,
+      subtopicStableId: context === "subtopic" ? contextStableId : undefined,
       difficulty: formData.get("difficulty"),
     });
-  if (!parsed.success) return;
+  if (!parsed.success) {
+    return {
+      error: "Check the question fields and try again.",
+      message: null,
+      suggestions: [],
+    };
+  }
   const authorized = await examAuthorization(
     parsed.data.coursePageId,
     "post",
   );
-  if (!authorized) return;
+  if (!authorized) {
+    return {
+      error: "Join this course before contributing exam questions.",
+      message: null,
+      suggestions: [],
+    };
+  }
 
-  const [recent] = await db
-    .select({ value: count() })
+  if (
+    !(await examQuestionTargetExists(
+      parsed.data.coursePageId,
+      parsed.data.topicStableId,
+      parsed.data.subtopicStableId,
+    ))
+  ) {
+    return {
+      error: "The selected curriculum context is unavailable.",
+      message: null,
+      suggestions: [],
+    };
+  }
+
+  const candidates = await db
+    .select({ id: examQuestions.id, prompt: examQuestions.prompt })
     .from(examQuestions)
     .where(
       and(
-        eq(examQuestions.createdBy, authorized.studentId),
-        gte(examQuestions.createdAt, new Date(Date.now() - 60 * 60 * 1_000)),
+        eq(examQuestions.coursePageId, parsed.data.coursePageId),
+        eq(examQuestions.status, "active"),
+        isNull(examQuestions.hiddenAt),
       ),
-    );
-  if (Number(recent?.value ?? 0) >= 30) return;
+    )
+    .limit(250);
+  const suggestions = findLikelyQuestionDuplicates(
+    parsed.data.prompt,
+    candidates,
+  );
+  if (suggestions.length && formData.get("duplicateOverride") !== "yes") {
+    return {
+      error: null,
+      message:
+        "Similar questions already exist. Reuse one, or confirm that this is distinct.",
+      suggestions,
+    };
+  }
+
+  if (
+    !(await consumeRateLimit({
+      action: "exam-question",
+      identifier: authorized.studentId,
+      limit: 30,
+      windowMinutes: 60,
+    }))
+  ) {
+    return {
+      error: "Question limit reached. Try again later.",
+      message: null,
+      suggestions: [],
+    };
+  }
 
   await db.insert(examQuestions).values({
     coursePageId: parsed.data.coursePageId,
     createdBy: authorized.studentId,
     prompt: parsed.data.prompt,
     answerGuidance: parsed.data.answerGuidance || null,
+    questionType: parsed.data.questionType ?? null,
+    courseTopicStableId: parsed.data.topicStableId ?? null,
+    courseSubtopicStableId: parsed.data.subtopicStableId ?? null,
     difficulty: parsed.data.difficulty ?? null,
   });
   revalidatePath(`/courses/${parsed.data.courseSlug}`);
+  return {
+    error: null,
+    message: "Question added.",
+    suggestions: [],
+  };
 }
 
 export async function reportQuestionOccurrenceAction(formData: FormData) {
@@ -207,6 +312,7 @@ export async function reportQuestionOccurrenceAction(formData: FormData) {
         z.string().date().optional(),
       ),
       notes: z.string().trim().max(2_000).optional(),
+      professorName: z.string().trim().max(120).optional(),
     })
     .safeParse({
       coursePageId: formData.get("coursePageId"),
@@ -215,6 +321,7 @@ export async function reportQuestionOccurrenceAction(formData: FormData) {
       sessionLabel: formData.get("sessionLabel"),
       occurredOn: formData.get("occurredOn"),
       notes: formData.get("notes"),
+      professorName: formData.get("professorName"),
     });
   if (!parsed.success) return;
   const authorized = await examAuthorization(
@@ -230,6 +337,16 @@ export async function reportQuestionOccurrenceAction(formData: FormData) {
   ) {
     return;
   }
+  if (
+    !(await consumeRateLimit({
+      action: "exam-occurrence",
+      identifier: authorized.studentId,
+      limit: 40,
+      windowMinutes: 24 * 60,
+    }))
+  ) {
+    return;
+  }
 
   await db
     .insert(questionOccurrences)
@@ -239,6 +356,7 @@ export async function reportQuestionOccurrenceAction(formData: FormData) {
       sessionLabel: parsed.data.sessionLabel,
       occurredOn: parsed.data.occurredOn || null,
       notes: parsed.data.notes || null,
+      professorName: parsed.data.professorName || null,
     })
     .onConflictDoNothing();
   revalidatePath(`/courses/${parsed.data.courseSlug}`);
@@ -514,4 +632,51 @@ async function activeQuestionBelongsToCourse(
     )
     .limit(1);
   return Boolean(question);
+}
+
+async function examQuestionTargetExists(
+  coursePageId: string,
+  topicStableId?: string,
+  subtopicStableId?: string,
+) {
+  if (!topicStableId && !subtopicStableId) return true;
+  if (topicStableId && subtopicStableId) return false;
+  if (topicStableId) {
+    const [topic] = await db
+      .select({ id: courseTopics.id })
+      .from(courseTopics)
+      .innerJoin(
+        courseCurriculumVersions,
+        eq(courseTopics.curriculumVersionId, courseCurriculumVersions.id),
+      )
+      .where(
+        and(
+          eq(courseCurriculumVersions.coursePageId, coursePageId),
+          eq(courseCurriculumVersions.status, "published"),
+          eq(courseTopics.stableId, topicStableId),
+          isNull(courseTopics.hiddenAt),
+        ),
+      )
+      .limit(1);
+    return Boolean(topic);
+  }
+  const [subtopic] = await db
+    .select({ id: courseSubtopics.id })
+    .from(courseSubtopics)
+    .innerJoin(courseTopics, eq(courseSubtopics.courseTopicId, courseTopics.id))
+    .innerJoin(
+      courseCurriculumVersions,
+      eq(courseTopics.curriculumVersionId, courseCurriculumVersions.id),
+    )
+    .where(
+      and(
+        eq(courseCurriculumVersions.coursePageId, coursePageId),
+        eq(courseCurriculumVersions.status, "published"),
+        eq(courseSubtopics.stableId, subtopicStableId!),
+        isNull(courseTopics.hiddenAt),
+        isNull(courseSubtopics.hiddenAt),
+      ),
+    )
+    .limit(1);
+  return Boolean(subtopic);
 }

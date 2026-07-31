@@ -5,72 +5,63 @@ import { currentStudentId } from "@/auth";
 
 export default async function Home() {
   const studentId = await currentStudentId();
-  if (studentId) redirect("/dashboard");
+  if (studentId) redirect("/my-courses");
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col items-center justify-center gap-8 px-6 py-16 text-center">
-      <span className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 dark:border-indigo-900 dark:bg-indigo-950/60 dark:text-indigo-300">
-        First-year engineering · starting with Calculus &amp; Linear Algebra
-      </span>
-
-      <h1 className="text-5xl font-bold tracking-tight sm:text-6xl">
-        Know exactly what{" "}
-        <span className="bg-gradient-to-r from-indigo-500 to-fuchsia-500 bg-clip-text text-transparent">
-          to learn
+    <main className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl flex-col justify-center gap-10 px-4 py-12 sm:px-6 md:grid md:grid-cols-[1.1fr_0.9fr] md:items-center">
+      <section>
+        <span className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+          Real course pages · student-contributed · non-official
         </span>
-        .
-      </h1>
+        <h1 className="mt-6 text-4xl font-black tracking-tight sm:text-6xl">
+          Find your actual course.{" "}
+          <span className="bg-gradient-to-r from-indigo-600 to-violet-500 bg-clip-text text-transparent">
+            Learn with context.
+          </span>
+        </h1>
+        <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
+          Compare a real syllabus with reusable engineering foundations, track
+          your learning privately, share resources where they belong, and see
+          recurring exam patterns with transparent confidence.
+        </p>
+        <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+          <Link
+            href="/courses"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+          >
+            Find your course
+          </Link>
+          <Link
+            href="/login?next=/courses/new"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-800 hover:bg-slate-100"
+          >
+            Create a course page
+          </Link>
+        </div>
+      </section>
 
-      <p className="max-w-xl text-lg text-zinc-600 dark:text-zinc-400">
-        See every topic and subtopic you need for first year — and how deep to
-        go on each. Track what you&apos;ve covered, and discover what your
-        university <em>won&apos;t</em> teach you, from students who finished
-        before you.
-      </p>
-
-      <div className="flex flex-col items-center gap-3 sm:flex-row">
-        <Link
-          href="/login"
-          className="inline-flex items-center justify-center rounded-lg bg-indigo-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
-        >
-          Get started — it&apos;s free
-        </Link>
-        <Link
-          href="/courses"
-          className="text-sm font-medium text-zinc-600 underline-offset-4 hover:text-zinc-900 hover:underline dark:text-zinc-400 dark:hover:text-zinc-100"
-        >
-          Browse public courses
-        </Link>
-      </div>
-      <Link
-        href="/login"
-        className="-mt-4 text-xs text-zinc-500 underline-offset-4 hover:underline"
-      >
-        I already have an account
-      </Link>
-
-      <dl className="mt-6 grid w-full max-w-2xl grid-cols-1 gap-4 text-left sm:grid-cols-3">
+      <dl className="grid gap-3">
         {[
           {
-            t: "A clear map",
-            d: "Every subtopic, tagged with how deeply you need to learn it.",
+            title: "Curriculum coverage",
+            body: "Covered, not covered, or still unknown — distinct from your private progress.",
           },
           {
-            t: "Your progress",
-            d: "Tick off what you've covered as you go through the year.",
+            title: "Resources in context",
+            body: "Notes, links, images and permitted PDFs attached to the relevant topic.",
           },
           {
-            t: "The real gaps",
-            d: "See what your university skips — from those who finished it.",
+            title: "Recurring questions",
+            body: "Student reports show counts and recency; confidence labels prevent false certainty.",
           },
-        ].map((f) => (
+        ].map((feature) => (
           <div
-            key={f.t}
-            className="rounded-xl border border-zinc-200 bg-white/70 p-4 backdrop-blur dark:border-zinc-800 dark:bg-zinc-900/70"
+            key={feature.title}
+            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
           >
-            <dt className="text-sm font-semibold">{f.t}</dt>
-            <dd className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-              {f.d}
+            <dt className="font-bold">{feature.title}</dt>
+            <dd className="mt-1 text-sm leading-6 text-slate-600">
+              {feature.body}
             </dd>
           </div>
         ))}

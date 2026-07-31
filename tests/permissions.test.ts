@@ -3,11 +3,13 @@ import test from "node:test";
 
 import {
   canAccessAttachment,
+  canDeleteCourse,
   canEditCourse,
   canManageMembers,
   canModerateCourse,
   canPostToCourse,
   canViewCourse,
+  isCourseOwner,
   type CourseMemberRole,
   type CoursePermissionContext,
 } from "../src/lib/courses/permission-rules";
@@ -47,6 +49,11 @@ test("course role capabilities remain distinct", () => {
   assert.equal(canPostToCourse(contributor), true);
   assert.equal(canEditCourse(contributor), false);
   assert.equal(canPostToCourse(viewer), false);
+  assert.equal(isCourseOwner(owner), true);
+  assert.equal(isCourseOwner(editor), false);
+  assert.equal(canDeleteCourse(owner), false);
+  assert.equal(canDeleteCourse(context("private", "owner", true)), true);
+  assert.equal(canDeleteCourse(context("private", "editor", true)), false);
 });
 
 test("private attachment metadata still requires membership", () => {

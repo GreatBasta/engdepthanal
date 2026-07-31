@@ -84,13 +84,19 @@ export function AuthForms({ next }: { next: string }) {
             autoComplete={
               mode === "signin" ? "current-password" : "new-password"
             }
-            minLength={mode === "signup" ? 8 : undefined}
+            minLength={mode === "signup" ? 10 : undefined}
+            aria-describedby={mode === "signup" ? "password-help" : undefined}
             className={inputClass}
           />
+          {mode === "signup" && (
+            <span id="password-help" className="mt-1 block text-xs text-zinc-500">
+              At least 10 characters with uppercase, lowercase, and a number.
+            </span>
+          )}
         </label>
 
         {state.error && (
-          <p className="text-sm text-red-600 dark:text-red-400">
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400">
             {state.error}
           </p>
         )}

@@ -1,6 +1,7 @@
 "use server";
 
 import { and, count, eq, gte } from "drizzle-orm";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -38,7 +39,7 @@ const createCourseSchema = z.object({
   academicYear: z
     .string()
     .trim()
-    .regex(/^\d{4}(?:\s*[/–-]\s*\d{2,4})?$/, "Use a year such as 2026/27"),
+    .regex(/^\d{4}(?:\s*[/-]\s*\d{2,4})?$/, "Use a year such as 2026/27"),
   cohortYear: optionalInteger(2000, 2100),
   semester: optionalInteger(1, 12),
   description: optionalText(2_000),
@@ -120,5 +121,8 @@ export async function createCourseAction(
     };
   }
 
+  revalidatePath("/courses");
+  revalidatePath("/my-courses");
+  revalidateTag("course-directory");
   redirect(`/courses/${course.slug}?tab=curriculum`);
 }

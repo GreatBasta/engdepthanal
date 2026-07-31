@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { asc, countDistinct, eq } from "drizzle-orm";
 
 import { currentStudentId } from "@/auth";
 import { db } from "@/lib/db/client";
@@ -10,6 +10,8 @@ import {
   programs,
   universities,
   universityPrograms,
+  templateSubtopics,
+  templateTopics,
 } from "@/lib/db/schema";
 
 import { CreateCourseForm } from "./ui";
@@ -27,9 +29,24 @@ export default async function NewCoursePage() {
           description: curriculumTemplates.description,
           version: curriculumTemplates.version,
           year: curriculumTemplates.year,
+          category: curriculumTemplates.category,
+          disciplineTags: curriculumTemplates.disciplineTags,
+          recommendedDegreePrograms:
+            curriculumTemplates.recommendedDegreePrograms,
+          topicCount: countDistinct(templateTopics.id),
+          subtopicCount: countDistinct(templateSubtopics.id),
         })
         .from(curriculumTemplates)
+        .leftJoin(
+          templateTopics,
+          eq(templateTopics.templateId, curriculumTemplates.id),
+        )
+        .leftJoin(
+          templateSubtopics,
+          eq(templateSubtopics.templateTopicId, templateTopics.id),
+        )
         .where(eq(curriculumTemplates.isActive, true))
+        .groupBy(curriculumTemplates.id)
         .orderBy(
           asc(curriculumTemplates.year),
           asc(curriculumTemplates.name),
@@ -54,8 +71,14 @@ export default async function NewCoursePage() {
           universityProgramId: enrollments.universityProgramId,
           intakeYear: enrollments.intakeYear,
           phase: enrollments.phase,
+          programSlug: programs.slug,
         })
         .from(enrollments)
+        .innerJoin(
+          universityPrograms,
+          eq(enrollments.universityProgramId, universityPrograms.id),
+        )
+        .innerJoin(programs, eq(universityPrograms.programId, programs.id))
         .where(eq(enrollments.studentId, studentId))
         .limit(1),
     ]);
@@ -94,6 +117,7 @@ export default async function NewCoursePage() {
         defaultAttendance={
           enrollment.phase === "attending" ? "attended" : "not_attended"
         }
+        defaultProgramSlug={enrollment.programSlug}
       />
     </main>
   );
