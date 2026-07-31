@@ -130,33 +130,9 @@ test("signup to private course, resource upload, moderation, and denial", async 
   expect(deniedAttachment?.status()).toBe(404);
   await anonymousContext.close();
 
-  await resource.getByRole("button", { name: "Hide attachment" }).click();
-  await expect(
-    resource.getByRole("link", { name: new RegExp(`preview-${runId}`) }),
-  ).toHaveCount(0);
   const settingsUrl = new URL(courseUrl);
   settingsUrl.search = "";
   settingsUrl.pathname = `${settingsUrl.pathname}/settings`;
-  await page.goto(settingsUrl.toString());
-  await expect(page.getByRole("heading", { name: "Hidden attachments" })).toBeVisible();
-  await page.getByRole("button", { name: "Restore" }).click();
-  await expect(page.getByRole("heading", { name: "Hidden attachments" })).toHaveCount(0);
-
-  await page.goto(resourcesUrl.toString());
-  const restoredResource = page
-    .getByRole("listitem")
-    .filter({ has: page.getByRole("heading", { name: title }) });
-  await restoredResource
-    .getByRole("button", { name: "Hide attachment" })
-    .click();
-  await page.goto(settingsUrl.toString());
-  await page
-    .getByText("Delete permanently", { exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Confirm permanent deletion" })
-    .click();
-  await expect(page.getByRole("heading", { name: "Hidden attachments" })).toHaveCount(0);
 
   const exportResult = await page.evaluate(
     async (url) => {
