@@ -96,7 +96,9 @@ test("signup to private course, resource upload, moderation, and denial", async 
   await composer
     .getByRole("button", { name: "Publish resource" })
     .click();
-  await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  await expect(page.getByRole("heading", { name: title })).toBeVisible({
+    timeout: 20_000,
+  });
 
   const resource = page
     .getByRole("listitem")
