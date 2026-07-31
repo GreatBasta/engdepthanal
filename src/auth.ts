@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { eq } from "drizzle-orm";
+import { cache } from "react";
 import { z } from "zod";
 
 import { db } from "@/lib/db/client";
@@ -67,7 +68,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 });
 
 /** The signed-in student's id, or null. */
-export async function currentStudentId(): Promise<string | null> {
+export const currentStudentId = cache(async (): Promise<string | null> => {
   const session = await auth();
   return session?.user?.id ?? null;
-}
+});

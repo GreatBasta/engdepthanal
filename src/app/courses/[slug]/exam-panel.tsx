@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 import { getCourseExam } from "@/lib/courses/exam";
-import { getCourseCurriculum } from "@/lib/courses/curriculum";
+import { getCourseCurriculumIndex } from "@/lib/courses/curriculum";
 
 import { AttachmentForm } from "./attachment-form";
 import { ExamQuestionForm } from "./exam-question-form";
@@ -30,7 +30,7 @@ export async function ExamPanel({
 }) {
   const [exam, curriculum] = await Promise.all([
     getCourseExam(coursePageId, canModerate),
-    getCourseCurriculum(coursePageId, "published"),
+    getCourseCurriculumIndex(coursePageId, "published"),
   ]);
   const topics = (curriculum?.topics ?? [])
     .filter((topic) => topic.hiddenAt === null)

@@ -17,6 +17,11 @@ export default async function PrivacySettings({
     <form action={updateCourseSettingsAction} className="max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <input type="hidden" name="coursePageId" value={detail.course.id} />
       <input type="hidden" name="courseSlug" value={slug} />
+      <input
+        type="hidden"
+        name="universityProgramId"
+        value={detail.course.universityProgramId}
+      />
       <input type="hidden" name="localName" value={detail.course.localName} />
       <input type="hidden" name="courseCode" value={detail.course.courseCode ?? ""} />
       <input type="hidden" name="professorName" value={detail.course.professorName ?? ""} />

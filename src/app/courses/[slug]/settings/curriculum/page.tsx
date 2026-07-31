@@ -7,10 +7,16 @@ import { CurriculumPanel } from "../../curriculum-panel";
 
 export default async function CurriculumSettings({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ topic?: string }>;
 }) {
-  const [{ slug }, studentId] = await Promise.all([params, currentStudentId()]);
+  const [{ slug }, query, studentId] = await Promise.all([
+    params,
+    searchParams,
+    currentStudentId(),
+  ]);
   const detail = await getCourseBySlugForViewer(slug, studentId);
   if (!detail?.permissions.canEdit) notFound();
   return (
@@ -18,6 +24,9 @@ export default async function CurriculumSettings({
       coursePageId={detail.course.id}
       courseSlug={slug}
       canEdit
+      selectedTopic={query.topic}
+      settingsMode
+      viewerStudentId={studentId}
     />
   );
 }

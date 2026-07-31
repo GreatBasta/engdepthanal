@@ -2,12 +2,17 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { and, count, eq, gt, gte, sql } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { currentStudentId } from "@/auth";
 import { courseDuplicateKey } from "@/lib/courses/core";
+import {
+  archiveOwnedCourse,
+  permanentlyDeleteOwnedCourse,
+  restoreOwnedCourse,
+} from "@/lib/courses/lifecycle";
 import {
   canEditCourse,
   canManageMembers,
@@ -62,6 +67,7 @@ const optionalInteger = (minimum: number, maximum: number) =>
 const updateCourseSchema = z.object({
   coursePageId: z.string().uuid(),
   courseSlug: z.string().min(1).max(120),
+  universityProgramId: z.string().uuid(),
   localName: z.string().trim().min(2).max(180),
   courseCode: optionalText(40),
   professorName: optionalText(120),
@@ -83,6 +89,7 @@ export async function updateCourseSettingsAction(formData: FormData) {
   const parsed = updateCourseSchema.safeParse({
     coursePageId: formData.get("coursePageId"),
     courseSlug: formData.get("courseSlug"),
+    universityProgramId: formData.get("universityProgramId"),
     localName: formData.get("localName"),
     courseCode: formData.get("courseCode"),
     professorName: formData.get("professorName"),
@@ -120,6 +127,68 @@ export async function updateCourseSettingsAction(formData: FormData) {
     );
   revalidatePath(`/courses/${courseSlug}`);
   revalidatePath("/courses");
+  revalidateTag("course-directory");
+}
+
+const lifecycleSchema = z.object({
+  coursePageId: z.string().uuid(),
+});
+
+function revalidateCourseLists() {
+  revalidatePath("/my-courses");
+  revalidatePath("/courses");
+  revalidateTag("course-directory");
+}
+
+export async function archiveCourseAction(formData: FormData) {
+  const parsed = lifecycleSchema.safeParse({
+    coursePageId: formData.get("coursePageId"),
+  });
+  if (!parsed.success) return;
+  const studentId = await currentStudentId();
+  if (!studentId) redirect("/login?next=/my-courses");
+  const course = await archiveOwnedCourse(parsed.data.coursePageId, studentId);
+  if (!course) redirect("/my-courses?error=archive");
+  revalidateCourseLists();
+  redirect("/my-courses?status=archived");
+}
+
+export async function restoreCourseAction(formData: FormData) {
+  const parsed = lifecycleSchema.safeParse({
+    coursePageId: formData.get("coursePageId"),
+  });
+  if (!parsed.success) return;
+  const studentId = await currentStudentId();
+  if (!studentId) redirect("/login?next=/my-courses");
+  const course = await restoreOwnedCourse(parsed.data.coursePageId, studentId);
+  if (!course) redirect("/my-courses?error=restore");
+  revalidateCourseLists();
+  redirect(`/courses/${course.slug}/settings`);
+}
+
+export async function permanentlyDeleteCourseAction(formData: FormData) {
+  const parsed = lifecycleSchema
+    .extend({ confirmation: z.string().trim().min(2).max(180) })
+    .safeParse({
+      coursePageId: formData.get("coursePageId"),
+      confirmation: formData.get("confirmation"),
+    });
+  if (!parsed.success) redirect("/my-courses?error=confirmation");
+  const studentId = await currentStudentId();
+  if (!studentId) redirect("/login?next=/my-courses");
+  let course;
+  try {
+    course = await permanentlyDeleteOwnedCourse(
+      parsed.data.coursePageId,
+      studentId,
+      parsed.data.confirmation,
+    );
+  } catch {
+    redirect("/my-courses?error=delete");
+  }
+  if (!course) redirect("/my-courses?error=confirmation");
+  revalidateCourseLists();
+  redirect("/my-courses?status=deleted");
 }
 
 export async function joinCourseAction(formData: FormData) {

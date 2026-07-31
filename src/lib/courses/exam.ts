@@ -191,41 +191,58 @@ export async function getCourseExam(
       )
       .orderBy(asc(examMergeRequests.createdAt)),
   ]);
+  const attachmentsByParent = new Map<
+    string,
+    (typeof attachmentRows)[number][]
+  >();
+  for (const attachment of attachmentRows) {
+    if (!attachment.parentType || !attachment.parentId) continue;
+    const key = `${attachment.parentType}:${attachment.parentId}`;
+    const values = attachmentsByParent.get(key) ?? [];
+    values.push(attachment);
+    attachmentsByParent.set(key, values);
+  }
+  const occurrenceAggregateByQuestion = new Map(
+    occurrenceAggregates.map((row) => [row.questionId, row]),
+  );
+  const voteAggregateByQuestion = new Map(
+    voteAggregates.map((row) => [row.questionId, row]),
+  );
+  const occurrencesByQuestion = new Map<
+    string,
+    (typeof occurrenceRows)[number][]
+  >();
+  for (const occurrence of occurrenceRows) {
+    const values = occurrencesByQuestion.get(occurrence.questionId) ?? [];
+    values.push(occurrence);
+    occurrencesByQuestion.set(occurrence.questionId, values);
+  }
 
   return {
     profile: profileRows[0] ?? null,
     materials: materialRows.map((material) => ({
       ...material,
-      attachments: attachmentRows.filter(
-        (attachment) =>
-          attachment.parentType === "course_resource" &&
-          attachment.parentId === material.id,
-      ),
+      attachments:
+        attachmentsByParent.get(`course_resource:${material.id}`) ?? [],
     })),
     experiences: experienceRows.map((experience) => ({
       ...experience,
-      attachments: attachmentRows.filter(
-        (attachment) =>
-          attachment.parentType === "exam_experience" &&
-          attachment.parentId === experience.id,
-      ),
+      attachments:
+        attachmentsByParent.get(`exam_experience:${experience.id}`) ?? [],
     })),
     questions: questionRows.map((question) => {
+      const occurrenceAggregate = occurrenceAggregateByQuestion.get(question.id);
       const occurrences = Number(
-        occurrenceAggregates.find((row) => row.questionId === question.id)
-          ?.occurrences ?? 0,
+        occurrenceAggregate?.occurrences ?? 0,
       );
       const distinctSessions = Number(
-        occurrenceAggregates.find((row) => row.questionId === question.id)
-          ?.distinctSessions ?? 0,
+        occurrenceAggregate?.distinctSessions ?? 0,
       );
       const netVotes = Number(
-        voteAggregates.find((row) => row.questionId === question.id)
-          ?.netVotes ?? 0,
+        voteAggregateByQuestion.get(question.id)?.netVotes ?? 0,
       );
       const distinctContributors = Number(
-        occurrenceAggregates.find((row) => row.questionId === question.id)
-          ?.distinctContributors ?? 0,
+        occurrenceAggregate?.distinctContributors ?? 0,
       );
       return {
         ...question,
@@ -241,14 +258,9 @@ export async function getCourseExam(
           distinctContributors,
           netVotes,
         }),
-        occurrences: occurrenceRows.filter(
-          (row) => row.questionId === question.id,
-        ),
-        attachments: attachmentRows.filter(
-          (attachment) =>
-            attachment.parentType === "exam_question" &&
-            attachment.parentId === question.id,
-        ),
+        occurrences: occurrencesByQuestion.get(question.id) ?? [],
+        attachments:
+          attachmentsByParent.get(`exam_question:${question.id}`) ?? [],
       };
     }),
     mergeRequests: mergeRows,

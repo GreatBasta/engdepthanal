@@ -40,6 +40,17 @@ export function canManageMembers(context: CoursePermissionContext): boolean {
   return canViewCourse(context) && context.membership?.role === "owner";
 }
 
+export function isCourseOwner(context: CoursePermissionContext): boolean {
+  return (
+    context.studentId !== null &&
+    context.membership?.role === "owner"
+  );
+}
+
+export function canDeleteCourse(context: CoursePermissionContext): boolean {
+  return isCourseOwner(context) && context.archived;
+}
+
 export function canPostToCourse(context: CoursePermissionContext): boolean {
   return (
     canViewCourse(context) &&

@@ -42,6 +42,11 @@ body {
   outline-offset: 3px;
 }
 
+.render-lazy {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 12rem;
+}
+
 button,
 a,
 input,
@@ -49,6 +54,20 @@ select,
 textarea,
 summary {
   touch-action: manipulation;
+}
+
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  color: #0f172a;
+  caret-color: #0f172a;
+  -webkit-text-fill-color: currentColor;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: #64748b;
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

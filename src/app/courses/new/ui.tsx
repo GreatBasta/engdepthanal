@@ -1,8 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useMemo, useState } from "react";
+import {
+  useActionState,
+  useDeferredValue,
+  useMemo,
+  useState,
+} from "react";
 
+import { curriculumCategories } from "@/lib/curriculum/taxonomy";
 import { createCourseAction, type CreateCourseState } from "./actions";
 
 interface TemplateOption {
@@ -13,6 +19,7 @@ interface TemplateOption {
   year: number;
   category: string;
   disciplineTags: string[];
+  recommendedDegreePrograms: string[];
   topicCount: number;
   subtopicCount: number;
 }
@@ -36,6 +43,7 @@ export function CreateCourseForm({
   defaultCohortYear,
   defaultAcademicYear,
   defaultAttendance,
+  defaultProgramSlug,
 }: {
   templates: TemplateOption[];
   universityPrograms: UniversityProgramOption[];
@@ -43,26 +51,51 @@ export function CreateCourseForm({
   defaultCohortYear: number;
   defaultAcademicYear: string;
   defaultAttendance: "attended" | "not_attended";
+  defaultProgramSlug: string;
 }) {
   const [state, action, pending] = useActionState(createCourseAction, initialState);
   const [step, setStep] = useState(1);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const deferredQuery = useDeferredValue(query);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>(
     () => (templates[0] ? [templates[0].id] : []),
   );
-  const filtered = useMemo(
+  const groupedTemplates = useMemo(
     () =>
-      templates.filter(
-        (template) =>
-          (category === "all" || template.category === category) &&
-          `${template.name} ${template.description ?? ""} ${template.disciplineTags.join(" ")}`
-            .toLowerCase()
-            .includes(query.toLowerCase()),
-      ),
-    [templates, query, category],
+      curriculumCategories.flatMap((macroCategory) => {
+        if (category !== "all" && macroCategory.key !== category) return [];
+        const matches = templates
+          .filter(
+            (template) =>
+              template.category === macroCategory.key &&
+              `${template.name} ${template.description ?? ""} ${template.disciplineTags.join(" ")}`
+                .toLowerCase()
+                .includes(deferredQuery.toLowerCase()),
+          )
+          .toSorted((left, right) => {
+            const leftRecommended = left.recommendedDegreePrograms.includes(
+              defaultProgramSlug,
+            );
+            const rightRecommended = right.recommendedDegreePrograms.includes(
+              defaultProgramSlug,
+            );
+            return (
+              Number(rightRecommended) - Number(leftRecommended) ||
+              left.year - right.year ||
+              left.name.localeCompare(right.name)
+            );
+          });
+        return matches.length
+          ? [{ ...macroCategory, templates: matches }]
+          : [];
+      }),
+    [templates, deferredQuery, category, defaultProgramSlug],
   );
-  const categories = Array.from(new Set(templates.map((item) => item.category)));
+  const resultCount = groupedTemplates.reduce(
+    (total, group) => total + group.templates.length,
+    0,
+  );
 
   return (
     <form action={action} className="space-y-6">
@@ -123,40 +156,89 @@ export function CreateCourseForm({
           <label className="sr-only" htmlFor="template-category">Category</label>
           <select id="template-category" value={category} onChange={(event) => setCategory(event.target.value)} className={inputClass}>
             <option value="all">All categories</option>
-            {categories.map((item) => <option key={item} value={item}>{item.replaceAll("-", " ")}</option>)}
+            {curriculumCategories.map((item) => (
+              <option key={item.key} value={item.key}>
+                {item.label}
+              </option>
+            ))}
           </select>
         </div>
-        <div className="mt-5 grid max-h-[34rem] gap-3 overflow-y-auto pr-1 sm:grid-cols-2">
-          {filtered.map((template) => (
-            <label key={template.id} className="cursor-pointer rounded-xl border border-slate-200 p-4 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50">
-              <span className="flex items-start gap-3">
-                <input
-                  type="checkbox"
-                  value={template.id}
-                  checked={selectedTemplateIds.includes(template.id)}
-                  onChange={(event) =>
-                    setSelectedTemplateIds((current) =>
-                      event.target.checked
-                        ? current.includes(template.id)
-                          ? current
-                          : [...current, template.id]
-                        : current.filter((id) => id !== template.id),
-                    )
-                  }
-                  className="mt-1 accent-indigo-600"
-                />
-                <span>
-                  <span className="font-bold">{template.name}</span>
-                  <span className="ml-2 text-xs text-slate-500">v{template.version}</span>
-                  <span className="mt-1 block text-xs capitalize text-indigo-700">{template.category.replaceAll("-", " ")}</span>
-                  <span className="mt-2 line-clamp-2 block text-sm text-slate-600">{template.description}</span>
-                  <span className="mt-2 block text-xs text-slate-500">
-                    {template.topicCount} topics · {template.subtopicCount} subtopics
-                  </span>
-                </span>
-              </span>
-            </label>
+        <p className="mt-4 text-xs font-medium text-slate-500" aria-live="polite">
+          {resultCount} matching {resultCount === 1 ? "template" : "templates"} ·{" "}
+          {selectedTemplateIds.length} selected
+        </p>
+        <div className="mt-3 max-h-[34rem] space-y-5 overflow-y-auto pr-1">
+          {groupedTemplates.map((group) => (
+            <section
+              key={group.key}
+              aria-labelledby={`category-${group.key}`}
+              className="render-lazy rounded-2xl border border-slate-200 bg-slate-50/70 p-3"
+            >
+              <div className="px-1 pb-3">
+                <h3 id={`category-${group.key}`} className="font-bold text-slate-950">
+                  {group.label}
+                </h3>
+                <p className="mt-1 text-xs leading-5 text-slate-600">
+                  {group.description}
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {group.templates.map((template) => {
+                  const recommended =
+                    template.recommendedDegreePrograms.includes(
+                      defaultProgramSlug,
+                    );
+                  return (
+                    <label
+                      key={template.id}
+                      className="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50"
+                    >
+                      <span className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          value={template.id}
+                          checked={selectedTemplateIds.includes(template.id)}
+                          onChange={(event) =>
+                            setSelectedTemplateIds((current) =>
+                              event.target.checked
+                                ? current.includes(template.id)
+                                  ? current
+                                  : [...current, template.id]
+                                : current.filter((id) => id !== template.id),
+                            )
+                          }
+                          className="mt-1 accent-indigo-600"
+                        />
+                        <span>
+                          <span className="font-bold">{template.name}</span>
+                          <span className="ml-2 text-xs text-slate-500">
+                            v{template.version}
+                          </span>
+                          {recommended ? (
+                            <span className="mt-1 block w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                              Recommended for your degree
+                            </span>
+                          ) : null}
+                          <span className="mt-2 line-clamp-2 block text-sm text-slate-600">
+                            {template.description}
+                          </span>
+                          <span className="mt-2 block text-xs text-slate-500">
+                            {template.topicCount} topics ·{" "}
+                            {template.subtopicCount} subtopics
+                          </span>
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </section>
           ))}
+          {resultCount === 0 ? (
+            <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600">
+              No templates match this macro category and search.
+            </p>
+          ) : null}
         </div>
       </fieldset>
 

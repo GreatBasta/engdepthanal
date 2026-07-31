@@ -3,7 +3,7 @@ import { and, eq } from "drizzle-orm";
 
 import { currentStudentId } from "@/auth";
 import {
-  getCourseCurriculum,
+  getCourseCurriculumOutline,
   type CurriculumView,
 } from "@/lib/courses/curriculum";
 import { db } from "@/lib/db/client";
@@ -29,17 +29,29 @@ export async function CurriculumPanel({
   canEdit,
   canTrack = false,
   preview,
+  selectedTopic,
+  settingsMode = false,
+  viewerStudentId,
 }: {
   coursePageId: string;
   courseSlug: string;
   canEdit: boolean;
   canTrack?: boolean;
   preview?: string;
+  selectedTopic?: string;
+  settingsMode?: boolean;
+  viewerStudentId?: string | null;
 }) {
   const view: CurriculumView =
     canEdit && preview !== "published" ? "draft" : "published";
-  const curriculum = await getCourseCurriculum(coursePageId, view);
-  const studentId = canTrack ? await currentStudentId() : null;
+  const curriculum = await getCourseCurriculumOutline(
+    coursePageId,
+    view,
+    selectedTopic,
+  );
+  const studentId = canTrack
+    ? viewerStudentId ?? (await currentStudentId())
+    : null;
   const progressRows =
     studentId && curriculum
       ? await db
@@ -89,6 +101,17 @@ export async function CurriculumPanel({
     ? curriculum.topics
     : curriculum.topics.filter((topic) => topic.hiddenAt === null);
   const bulkFormId = `bulk-${curriculum.version.id}`;
+  const topicHref = (topicStableId?: string) => {
+    if (settingsMode) {
+      return topicStableId
+        ? `/courses/${courseSlug}/settings/curriculum?topic=${topicStableId}`
+        : `/courses/${courseSlug}/settings/curriculum`;
+    }
+    const params = new URLSearchParams({ tab: "curriculum" });
+    if (preview === "published") params.set("preview", "published");
+    if (topicStableId) params.set("topic", topicStableId);
+    return `/courses/${courseSlug}?${params.toString()}`;
+  };
 
   return (
     <div className="space-y-5">
@@ -182,20 +205,25 @@ export async function CurriculumPanel({
 
       <ol className="space-y-4">
         {visibleTopics.map((topic, topicIndex) => {
+          const expanded = topic.stableId === selectedTopic;
           const subtopics = editable
             ? topic.subtopics
             : topic.subtopics.filter((subtopic) => subtopic.hiddenAt === null);
           return (
             <li key={topic.id}>
-              <details
-                open={topicIndex < 2}
-                className={`group rounded-2xl border bg-white shadow-sm dark:bg-zinc-900 ${
+              <section
+                className={`render-lazy rounded-2xl border bg-white shadow-sm dark:bg-zinc-900 ${
                   topic.hiddenAt
                     ? "border-dashed border-zinc-300 opacity-70 dark:border-zinc-700"
                     : "border-zinc-200 dark:border-zinc-800"
                 }`}
               >
-                <summary className="cursor-pointer list-none px-5 py-4 marker:hidden">
+                <Link
+                  href={topicHref(expanded ? undefined : topic.stableId)}
+                  aria-expanded={expanded}
+                  aria-controls={`topic-${topic.id}`}
+                  className="block min-h-11 rounded-2xl px-5 py-4 hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 dark:hover:bg-zinc-800/60"
+                >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
@@ -209,7 +237,7 @@ export async function CurriculumPanel({
                         {topic.name}
                       </h3>
                       <p className="mt-1 text-xs text-zinc-500">
-                        {subtopics.length} subtopics ·{" "}
+                        {topic.subtopicCount} subtopics ·{" "}
                         {topic.provenance === "template"
                           ? "cloned from template"
                           : "course-local"}
@@ -217,14 +245,20 @@ export async function CurriculumPanel({
                     </div>
                     <span
                       aria-hidden
-                      className="mt-2 text-zinc-400 transition group-open:rotate-180"
+                      className={`mt-2 text-zinc-400 transition ${
+                        expanded ? "rotate-180" : ""
+                      }`}
                     >
                       ⌄
                     </span>
                   </div>
-                </summary>
+                </Link>
 
-                <div className="border-t border-zinc-200 px-4 py-5 dark:border-zinc-800 sm:px-5">
+                {expanded ? (
+                <div
+                  id={`topic-${topic.id}`}
+                  className="border-t border-zinc-200 px-4 py-5 dark:border-zinc-800 sm:px-5"
+                >
                   {editable ? (
                     <TopicEditor
                       topic={topic}
@@ -353,7 +387,8 @@ export async function CurriculumPanel({
                     />
                   ) : null}
                 </div>
-              </details>
+                ) : null}
+              </section>
             </li>
           );
         })}
@@ -410,7 +445,7 @@ function TopicEditor({
   courseSlug,
 }: {
   topic: NonNullable<
-    Awaited<ReturnType<typeof getCourseCurriculum>>
+    Awaited<ReturnType<typeof getCourseCurriculumOutline>>
   >["topics"][number];
   coursePageId: string;
   courseSlug: string;
@@ -485,7 +520,7 @@ function SubtopicEditor({
   courseSlug,
 }: {
   subtopic: NonNullable<
-    Awaited<ReturnType<typeof getCourseCurriculum>>
+    Awaited<ReturnType<typeof getCourseCurriculumOutline>>
   >["topics"][number]["subtopics"][number];
   coursePageId: string;
   courseSlug: string;

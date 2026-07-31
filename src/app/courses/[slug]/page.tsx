@@ -66,6 +66,7 @@ export default async function CoursePage({
     preview?: string;
     page?: string;
     subtopic?: string;
+    topic?: string;
   }>;
 }) {
   const [{ slug }, query, studentId] = await Promise.all([
@@ -73,7 +74,10 @@ export default async function CoursePage({
     searchParams,
     currentStudentId(),
   ]);
-  const detail = await getCourseBySlugForViewer(slug, studentId);
+  const detail = await getCourseBySlugForViewer(slug, studentId, {
+    templates: true,
+    versions: true,
+  });
   if (!detail) notFound();
 
   const tab: CourseTab = TABS.some(([key]) => key === query.tab)
@@ -160,6 +164,8 @@ export default async function CoursePage({
             canEdit={detail.permissions.canEdit}
             canTrack={detail.permissions.role !== null}
             preview={query.preview}
+            selectedTopic={query.topic}
+            viewerStudentId={studentId}
           />
         ) : null}
         {tab === "resources" ? (

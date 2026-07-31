@@ -1,6 +1,7 @@
 "use server";
 
 import { and, count, eq, gte } from "drizzle-orm";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
@@ -120,5 +121,8 @@ export async function createCourseAction(
     };
   }
 
+  revalidatePath("/courses");
+  revalidatePath("/my-courses");
+  revalidateTag("course-directory");
   redirect(`/courses/${course.slug}?tab=curriculum`);
 }

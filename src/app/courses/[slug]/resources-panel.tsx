@@ -8,7 +8,7 @@ import {
   isNull,
 } from "drizzle-orm";
 
-import { getCourseCurriculum } from "@/lib/courses/curriculum";
+import { getCourseCurriculumIndex } from "@/lib/courses/curriculum";
 import { db } from "@/lib/db/client";
 import {
   courseAttachments,
@@ -56,7 +56,42 @@ export async function ResourcesPanel({
   selectedSubtopic?: string;
 }) {
   const safePage = Math.max(1, Math.floor(page));
-  const curriculum = await getCourseCurriculum(coursePageId, "published");
+  const filters = [
+    eq(courseResources.coursePageId, coursePageId),
+    isNull(courseResources.hiddenAt),
+    isNull(courseResources.deletedAt),
+  ];
+  if (selectedSubtopic) {
+    filters.push(
+      eq(
+        courseResources.courseSubtopicStableId,
+        selectedSubtopic,
+      ),
+    );
+  }
+
+  const [curriculum, resources] = await Promise.all([
+    getCourseCurriculumIndex(coursePageId, "published"),
+    db
+      .select({
+        id: courseResources.id,
+        type: courseResources.type,
+        context: courseResources.context,
+        topicStableId: courseResources.courseTopicStableId,
+        subtopicStableId: courseResources.courseSubtopicStableId,
+        title: courseResources.title,
+        body: courseResources.body,
+        linkUrl: courseResources.linkUrl,
+        createdAt: courseResources.createdAt,
+        author: students.displayName,
+      })
+      .from(courseResources)
+      .innerJoin(students, eq(courseResources.authorId, students.id))
+      .where(and(...filters))
+      .orderBy(desc(courseResources.createdAt))
+      .limit(20)
+      .offset((safePage - 1) * 20),
+  ]);
   const topics = (curriculum?.topics ?? []).filter(
     (topic) => topic.hiddenAt === null,
   );
@@ -72,40 +107,6 @@ export async function ResourcesPanel({
   const selectedSubtopicInfo = subtopics.find(
     (subtopic) => subtopic.stableId === selectedSubtopic,
   );
-
-  const filters = [
-    eq(courseResources.coursePageId, coursePageId),
-    isNull(courseResources.hiddenAt),
-    isNull(courseResources.deletedAt),
-  ];
-  if (selectedSubtopicInfo) {
-    filters.push(
-      eq(
-        courseResources.courseSubtopicStableId,
-        selectedSubtopicInfo.stableId,
-      ),
-    );
-  }
-
-  const resources = await db
-    .select({
-      id: courseResources.id,
-      type: courseResources.type,
-      context: courseResources.context,
-      topicStableId: courseResources.courseTopicStableId,
-      subtopicStableId: courseResources.courseSubtopicStableId,
-      title: courseResources.title,
-      body: courseResources.body,
-      linkUrl: courseResources.linkUrl,
-      createdAt: courseResources.createdAt,
-      author: students.displayName,
-    })
-    .from(courseResources)
-    .innerJoin(students, eq(courseResources.authorId, students.id))
-    .where(and(...filters))
-    .orderBy(desc(courseResources.createdAt))
-    .limit(20)
-    .offset((safePage - 1) * 20);
 
   const resourceIds = resources.map((resource) => resource.id);
   const [attachments, comments, reactionRows] = resourceIds.length
@@ -168,6 +169,31 @@ export async function ResourcesPanel({
       `${subtopic.topicName} · ${subtopic.name}`,
     ]),
   );
+  const commentsByResource = new Map<
+    string,
+    (typeof comments)[number][]
+  >();
+  for (const comment of comments) {
+    const values = commentsByResource.get(comment.resourceId) ?? [];
+    values.push(comment);
+    commentsByResource.set(comment.resourceId, values);
+  }
+  const attachmentsByResource = new Map<
+    string,
+    (typeof attachments)[number][]
+  >();
+  for (const attachment of attachments) {
+    if (!attachment.parentId) continue;
+    const values = attachmentsByResource.get(attachment.parentId) ?? [];
+    values.push(attachment);
+    attachmentsByResource.set(attachment.parentId, values);
+  }
+  const reactionCountByKey = new Map(
+    reactionRows.map((reaction) => [
+      `${reaction.resourceId}:${reaction.kind}`,
+      Number(reaction.value),
+    ]),
+  );
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_21rem]">
@@ -214,9 +240,10 @@ export async function ResourcesPanel({
         {resources.length ? (
           <ul className="mt-5 space-y-3">
             {resources.map((resource) => {
-              const resourceComments = comments.filter(
-                (comment) => comment.resourceId === resource.id,
-              );
+              const resourceComments =
+                commentsByResource.get(resource.id) ?? [];
+              const resourceAttachments =
+                attachmentsByResource.get(resource.id) ?? [];
               const contextLabel =
                 resource.context === "topic" && resource.topicStableId
                   ? topicByStableId.get(resource.topicStableId) ?? "Topic"
@@ -228,7 +255,7 @@ export async function ResourcesPanel({
               return (
                 <li
                   key={resource.id}
-                  className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
+                  className="render-lazy rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"
                 >
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="rounded-full bg-indigo-50 px-2.5 py-1 font-semibold capitalize text-indigo-700">
@@ -257,11 +284,7 @@ export async function ResourcesPanel({
                       Open link
                     </Link>
                   ) : null}
-                  {attachments
-                    .filter(
-                      (attachment) => attachment.parentId === resource.id,
-                    )
-                    .map((attachment) => (
+                  {resourceAttachments.map((attachment) => (
                       <div
                         key={attachment.id}
                         className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center"
@@ -319,13 +342,8 @@ export async function ResourcesPanel({
                   >
                     {(Object.keys(reactionLabels) as ReactionKind[]).map(
                       (kind) => {
-                        const value = Number(
-                          reactionRows.find(
-                            (reaction) =>
-                              reaction.resourceId === resource.id &&
-                              reaction.kind === kind,
-                          )?.value ?? 0,
-                        );
+                        const value =
+                          reactionCountByKey.get(`${resource.id}:${kind}`) ?? 0;
                         const label = reactionLabels[kind];
                         return canPost ? (
                           <form

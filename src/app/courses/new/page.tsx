@@ -31,6 +31,8 @@ export default async function NewCoursePage() {
           year: curriculumTemplates.year,
           category: curriculumTemplates.category,
           disciplineTags: curriculumTemplates.disciplineTags,
+          recommendedDegreePrograms:
+            curriculumTemplates.recommendedDegreePrograms,
           topicCount: countDistinct(templateTopics.id),
           subtopicCount: countDistinct(templateSubtopics.id),
         })
@@ -69,8 +71,14 @@ export default async function NewCoursePage() {
           universityProgramId: enrollments.universityProgramId,
           intakeYear: enrollments.intakeYear,
           phase: enrollments.phase,
+          programSlug: programs.slug,
         })
         .from(enrollments)
+        .innerJoin(
+          universityPrograms,
+          eq(enrollments.universityProgramId, universityPrograms.id),
+        )
+        .innerJoin(programs, eq(universityPrograms.programId, programs.id))
         .where(eq(enrollments.studentId, studentId))
         .limit(1),
     ]);
@@ -109,6 +117,7 @@ export default async function NewCoursePage() {
         defaultAttendance={
           enrollment.phase === "attending" ? "attended" : "not_attended"
         }
+        defaultProgramSlug={enrollment.programSlug}
       />
     </main>
   );

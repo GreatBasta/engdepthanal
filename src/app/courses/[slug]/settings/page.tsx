@@ -1,12 +1,20 @@
 import { notFound } from "next/navigation";
-import { and, desc, eq, isNotNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull } from "drizzle-orm";
 
 import { currentStudentId } from "@/auth";
 import { getCourseBySlugForViewer } from "@/lib/courses/data";
 import { db } from "@/lib/db/client";
-import { courseAttachments } from "@/lib/db/schema";
+import {
+  courseAttachments,
+  programs,
+  universities,
+  universityPrograms,
+} from "@/lib/db/schema";
 
-import { updateCourseSettingsAction } from "../actions";
+import {
+  archiveCourseAction,
+  updateCourseSettingsAction,
+} from "../actions";
 import {
   moderateCourseContentAction,
   permanentlyDeleteCourseAttachmentAction,
@@ -20,23 +28,39 @@ export default async function GeneralCourseSettings({
   const [{ slug }, studentId] = await Promise.all([params, currentStudentId()]);
   const detail = await getCourseBySlugForViewer(slug, studentId);
   if (!detail?.permissions.canEdit) notFound();
-  const deletedAttachments = await db
-    .select({
-      id: courseAttachments.id,
-      fileName: courseAttachments.fileName,
-      sizeBytes: courseAttachments.sizeBytes,
-      deletedAt: courseAttachments.deletedAt,
-    })
-    .from(courseAttachments)
-    .where(
-      and(
-        eq(courseAttachments.coursePageId, detail.course.id),
-        isNotNull(courseAttachments.deletedAt),
-      ),
-    )
-    .orderBy(desc(courseAttachments.deletedAt));
+  const [deletedAttachments, programOptions] = await Promise.all([
+    db
+      .select({
+        id: courseAttachments.id,
+        fileName: courseAttachments.fileName,
+        sizeBytes: courseAttachments.sizeBytes,
+        deletedAt: courseAttachments.deletedAt,
+      })
+      .from(courseAttachments)
+      .where(
+        and(
+          eq(courseAttachments.coursePageId, detail.course.id),
+          isNotNull(courseAttachments.deletedAt),
+        ),
+      )
+      .orderBy(desc(courseAttachments.deletedAt)),
+    db
+      .select({
+        id: universityPrograms.id,
+        universityName: universities.name,
+        programName: programs.name,
+        localName: universityPrograms.localName,
+      })
+      .from(universityPrograms)
+      .innerJoin(
+        universities,
+        eq(universityPrograms.universityId, universities.id),
+      )
+      .innerJoin(programs, eq(universityPrograms.programId, programs.id))
+      .orderBy(asc(universities.name), asc(programs.name)),
+  ]);
   const input =
-    "mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3";
+    "mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-slate-950";
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -46,6 +70,21 @@ export default async function GeneralCourseSettings({
       >
         <input type="hidden" name="coursePageId" value={detail.course.id} />
         <input type="hidden" name="courseSlug" value={slug} />
+        <label className="block text-sm font-semibold">
+          University and degree program
+          <select
+            name="universityProgramId"
+            defaultValue={detail.course.universityProgramId}
+            className={input}
+          >
+            {programOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.universityName} —{" "}
+                {option.localName || option.programName}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="block text-sm font-semibold">
           Local course name
           <input
@@ -214,6 +253,39 @@ export default async function GeneralCourseSettings({
               </li>
             ))}
           </ul>
+        </section>
+      ) : null}
+
+      {detail.permissions.role === "owner" ? (
+        <section className="rounded-2xl border border-rose-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-bold text-rose-900">Course lifecycle</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            Archive this custom course before deleting it. Archiving removes it
+            from Discover and member access, but you can restore it from My
+            courses.
+          </p>
+          <details className="mt-4 rounded-xl border border-rose-300">
+            <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-semibold text-rose-800">
+              Archive course
+            </summary>
+            <form
+              action={archiveCourseAction}
+              className="border-t border-rose-200 p-4"
+            >
+              <input
+                type="hidden"
+                name="coursePageId"
+                value={detail.course.id}
+              />
+              <p className="text-sm text-slate-600">
+                You can restore it later or permanently delete it from the
+                archived section.
+              </p>
+              <button className="mt-3 min-h-11 rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white">
+                Confirm archive
+              </button>
+            </form>
+          </details>
         </section>
       ) : null}
     </div>

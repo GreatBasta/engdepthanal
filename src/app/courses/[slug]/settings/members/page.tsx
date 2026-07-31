@@ -12,7 +12,9 @@ export default async function MemberSettings({
   params: Promise<{ slug: string }>;
 }) {
   const [{ slug }, studentId] = await Promise.all([params, currentStudentId()]);
-  const detail = await getCourseBySlugForViewer(slug, studentId);
+  const detail = await getCourseBySlugForViewer(slug, studentId, {
+    members: true,
+  });
   if (!detail?.permissions.canManageMembers) notFound();
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">

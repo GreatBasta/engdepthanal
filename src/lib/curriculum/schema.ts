@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { curriculumCategoryKeys } from "./taxonomy";
+
 export const curriculumDepthLevels = [
   "awareness",
   "procedural",
@@ -40,14 +42,7 @@ export const curriculumTemplateSchema = z.object({
   templateKey: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   name: z.string().trim().min(1),
   description: z.string().trim().min(1),
-  category: z.enum([
-    "mathematics",
-    "physics",
-    "chemistry-materials",
-    "computing",
-    "engineering-core",
-    "biomedical",
-  ]),
+  category: z.enum(curriculumCategoryKeys),
   disciplineTags: z.array(z.string().trim().min(1)).min(1),
   recommendedDegreePrograms: z.array(z.string().trim().min(1)).min(1),
   typicalYear: z.number().int().min(1).max(6),
@@ -98,6 +93,12 @@ export function validateCurriculumCatalog(input: unknown): {
       });
     }
     templateKeys.add(template.templateKey);
+    if (!template.disciplineTags.includes(template.category)) {
+      issues.push({
+        path: `${template.templateKey}.disciplineTags`,
+        message: `must include its macro category ${template.category}`,
+      });
+    }
 
     const topicSlugs = new Set<string>();
     const templateStableIds = new Set<string>();

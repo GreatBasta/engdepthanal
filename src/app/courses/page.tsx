@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { unstable_cache } from "next/cache";
 import {
   and,
   asc,
@@ -20,93 +21,11 @@ import {
   universityPrograms,
 } from "@/lib/db/schema";
 
-export default async function CourseDirectoryPage({
-  searchParams,
-}: {
-  searchParams: Promise<{
-    q?: string;
-    university?: string;
-    program?: string;
-    year?: string;
-    semester?: string;
-    invite?: string;
-  }>;
-}) {
-  const [query, studentId] = await Promise.all([
-    searchParams,
-    currentStudentId(),
-  ]);
-  const search = query.q?.trim().slice(0, 100) || "";
-  const universityId = query.university?.trim() || "";
-  const programSlug = query.program?.trim() || "";
-  const academicYear = query.year?.trim().slice(0, 20) || "";
-  const parsedSemester = Number(query.semester);
-  const semester =
-    Number.isInteger(parsedSemester) &&
-    parsedSemester >= 1 &&
-    parsedSemester <= 12
-      ? parsedSemester
-      : null;
+const PAGE_SIZE = 24;
 
-  // Visibility is a mandatory predicate, never a post-query filter. This
-  // makes accidental leakage of private or unlisted metadata much harder.
-  const directoryConditions = [
-    eq(coursePages.visibility, "public"),
-    isNull(coursePages.archivedAt),
-    universityId ? eq(universities.id, universityId) : undefined,
-    programSlug ? eq(programs.slug, programSlug) : undefined,
-    academicYear ? eq(coursePages.academicYear, academicYear) : undefined,
-    semester ? eq(coursePages.semester, semester) : undefined,
-    search
-      ? or(
-          ilike(coursePages.localName, `%${search}%`),
-          ilike(coursePages.courseCode, `%${search}%`),
-          ilike(coursePages.professorName, `%${search}%`),
-          ilike(universities.name, `%${search}%`),
-          ilike(programs.name, `%${search}%`),
-        )
-      : undefined,
-  ];
-
-  const [courses, universityOptions, programOptions, yearOptions] =
-    await Promise.all([
-      db
-        .select({
-          slug: coursePages.slug,
-          localName: coursePages.localName,
-          courseCode: coursePages.courseCode,
-          professorName: coursePages.professorName,
-          academicYear: coursePages.academicYear,
-          semester: coursePages.semester,
-          description: coursePages.description,
-          updatedAt: coursePages.updatedAt,
-          universityName: universities.name,
-          countryCode: universities.countryCode,
-          programName: programs.name,
-          memberCount: count(courseMembers.studentId),
-        })
-        .from(coursePages)
-        .innerJoin(
-          universityPrograms,
-          eq(coursePages.universityProgramId, universityPrograms.id),
-        )
-        .innerJoin(
-          universities,
-          eq(universityPrograms.universityId, universities.id),
-        )
-        .innerJoin(programs, eq(universityPrograms.programId, programs.id))
-        .leftJoin(
-          courseMembers,
-          eq(coursePages.id, courseMembers.coursePageId),
-        )
-        .where(and(...directoryConditions))
-        .groupBy(
-          coursePages.id,
-          universities.id,
-          programs.id,
-        )
-        .orderBy(desc(coursePages.updatedAt))
-        .limit(100),
+const getDirectoryOptions = unstable_cache(
+  async () =>
+    Promise.all([
       db
         .selectDistinct({
           id: universities.id,
@@ -154,7 +73,113 @@ export default async function CourseDirectoryPage({
           ),
         )
         .orderBy(desc(coursePages.academicYear)),
-    ]);
+    ]),
+  ["course-directory-options"],
+  { revalidate: 300, tags: ["course-directory"] },
+);
+
+export default async function CourseDirectoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    q?: string;
+    university?: string;
+    program?: string;
+    year?: string;
+    semester?: string;
+    invite?: string;
+    page?: string;
+  }>;
+}) {
+  const [query, studentId] = await Promise.all([
+    searchParams,
+    currentStudentId(),
+  ]);
+  const search = query.q?.trim().slice(0, 100) || "";
+  const universityId = query.university?.trim() || "";
+  const programSlug = query.program?.trim() || "";
+  const academicYear = query.year?.trim().slice(0, 20) || "";
+  const parsedSemester = Number(query.semester);
+  const semester =
+    Number.isInteger(parsedSemester) &&
+    parsedSemester >= 1 &&
+    parsedSemester <= 12
+      ? parsedSemester
+      : null;
+  const parsedPage = Number(query.page);
+  const page =
+    Number.isInteger(parsedPage) && parsedPage > 0
+      ? Math.min(parsedPage, 10_000)
+      : 1;
+
+  // Visibility is a mandatory predicate, never a post-query filter. This
+  // makes accidental leakage of private or unlisted metadata much harder.
+  const directoryConditions = [
+    eq(coursePages.visibility, "public"),
+    isNull(coursePages.archivedAt),
+    universityId ? eq(universities.id, universityId) : undefined,
+    programSlug ? eq(programs.slug, programSlug) : undefined,
+    academicYear ? eq(coursePages.academicYear, academicYear) : undefined,
+    semester ? eq(coursePages.semester, semester) : undefined,
+    search
+      ? or(
+          ilike(coursePages.localName, `%${search}%`),
+          ilike(coursePages.courseCode, `%${search}%`),
+          ilike(coursePages.professorName, `%${search}%`),
+          ilike(universities.name, `%${search}%`),
+          ilike(programs.name, `%${search}%`),
+        )
+      : undefined,
+  ];
+
+  const [courseRows, directoryOptions] = await Promise.all([
+    db
+      .select({
+        slug: coursePages.slug,
+        localName: coursePages.localName,
+        courseCode: coursePages.courseCode,
+        professorName: coursePages.professorName,
+        academicYear: coursePages.academicYear,
+        semester: coursePages.semester,
+        description: coursePages.description,
+        updatedAt: coursePages.updatedAt,
+        universityName: universities.name,
+        countryCode: universities.countryCode,
+        programName: programs.name,
+        memberCount: count(courseMembers.studentId),
+      })
+      .from(coursePages)
+      .innerJoin(
+        universityPrograms,
+        eq(coursePages.universityProgramId, universityPrograms.id),
+      )
+      .innerJoin(
+        universities,
+        eq(universityPrograms.universityId, universities.id),
+      )
+      .innerJoin(programs, eq(universityPrograms.programId, programs.id))
+      .leftJoin(courseMembers, eq(coursePages.id, courseMembers.coursePageId))
+      .where(and(...directoryConditions))
+      .groupBy(coursePages.id, universities.id, programs.id)
+      .orderBy(desc(coursePages.updatedAt))
+      .limit(PAGE_SIZE + 1)
+      .offset((page - 1) * PAGE_SIZE),
+    getDirectoryOptions(),
+  ]);
+  const [universityOptions, programOptions, yearOptions] = directoryOptions;
+  const hasNextPage = courseRows.length > PAGE_SIZE;
+  const courses = courseRows.slice(0, PAGE_SIZE);
+  const pageHref = (nextPage: number) => {
+    const params = new URLSearchParams();
+    if (search) params.set("q", search);
+    if (universityId) params.set("university", universityId);
+    if (programSlug) params.set("program", programSlug);
+    if (academicYear) params.set("year", academicYear);
+    if (semester) params.set("semester", String(semester));
+    if (nextPage > 1) params.set("page", String(nextPage));
+    const suffix = params.toString();
+    return suffix ? `/courses?${suffix}` : "/courses";
+  };
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-8 sm:px-6 sm:py-12">
@@ -286,6 +311,7 @@ export default async function CourseDirectoryPage({
       <div className="mt-6 flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-zinc-500">
           {courses.length} public {courses.length === 1 ? "course" : "courses"}
+          {page > 1 ? ` on page ${page}` : ""}
         </h2>
         {search ||
         universityId ||
@@ -304,7 +330,7 @@ export default async function CourseDirectoryPage({
       {courses.length > 0 ? (
         <ul className="mt-3 grid gap-4 md:grid-cols-2">
           {courses.map((course) => (
-            <li key={course.slug}>
+            <li key={course.slug} className="render-lazy">
               <Link
                 href={`/courses/${course.slug}`}
                 className="group block h-full rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-indigo-800"
@@ -352,10 +378,41 @@ export default async function CourseDirectoryPage({
           </p>
         </section>
       )}
+
+      {page > 1 || hasNextPage ? (
+        <nav
+          aria-label="Course directory pages"
+          className="mt-8 flex items-center justify-between gap-3"
+        >
+          {page > 1 ? (
+            <Link
+              href={pageHref(page - 1)}
+              rel="prev"
+              className="inline-flex min-h-11 items-center rounded-xl border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-800"
+            >
+              Previous
+            </Link>
+          ) : (
+            <span />
+          )}
+          <span className="text-sm text-zinc-500">Page {page}</span>
+          {hasNextPage ? (
+            <Link
+              href={pageHref(page + 1)}
+              rel="next"
+              className="inline-flex min-h-11 items-center rounded-xl border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-800"
+            >
+              Next
+            </Link>
+          ) : (
+            <span />
+          )}
+        </nav>
+      ) : null}
     </main>
   );
 }
 
 const filterClass =
-  "rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-950";
+  "rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-950 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100";
 

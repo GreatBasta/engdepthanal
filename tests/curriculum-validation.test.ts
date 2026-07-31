@@ -74,3 +74,21 @@ test("rejects missing prerequisites and prerequisite cycles", () => {
   const result = validateCurriculumCatalog(template);
   assert.ok(result.issues.some((issue) => /cycle/.test(issue.message)));
 });
+
+test("rejects templates placed outside their declared macro category", () => {
+  const source: unknown = JSON.parse(
+    readFileSync(resolve("curriculum/catalog.json"), "utf8"),
+  );
+  const valid = validateCurriculumCatalog(source);
+  assert.ok(valid.catalog);
+  const catalog = structuredClone(valid.catalog);
+  const firstTemplate = catalog.templates[0];
+  assert.ok(firstTemplate);
+  firstTemplate.disciplineTags = firstTemplate.disciplineTags.filter(
+    (tag) => tag !== firstTemplate.category,
+  );
+  const result = validateCurriculumCatalog(catalog);
+  assert.ok(
+    result.issues.some((issue) => /macro category/.test(issue.message)),
+  );
+});

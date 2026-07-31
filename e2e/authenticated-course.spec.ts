@@ -3,8 +3,8 @@ import { expect, test } from "@playwright/test";
 import { grantPreviewAccess } from "./support";
 
 const email = process.env.E2E_EMAIL;
-const password = process.env.E2E_PASSWORD;
-const runId = process.env.E2E_RUN_ID ?? "preview";
+  const password = process.env.E2E_PASSWORD;
+  const runId = process.env.E2E_RUN_ID ?? "preview";
 
 test("signup to private course, resource upload, moderation, and denial", async ({
   browser,
@@ -47,11 +47,18 @@ test("signup to private course, resource upload, moderation, and denial", async 
   await page.waitForURL(/\/my-courses/);
 
   await page.goto("/courses/new");
+  const courseName = `Preview Systems Course ${runId}`;
   await page
     .getByLabel("Local course name")
-    .fill(`Preview Systems Course ${runId}`);
+    .fill(courseName);
   await page.getByRole("button", { name: "Continue" }).click();
 
+  await expect(
+    page.getByRole("heading", { name: "Mathematics", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Engineering core", exact: true }),
+  ).toBeVisible();
   const defaultTemplate = page.getByRole("checkbox").first();
   if (await defaultTemplate.isChecked()) await defaultTemplate.uncheck();
   const templateSearch = page.getByLabel("Search templates");
@@ -70,7 +77,7 @@ test("signup to private course, resource upload, moderation, and denial", async 
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: `Preview Systems Course ${runId}`,
+      name: courseName,
     }),
   ).toBeVisible();
   await expect(page.getByText("Editable draft").first()).toBeVisible();
@@ -160,4 +167,45 @@ test("signup to private course, resource upload, moderation, and denial", async 
     profile: { email },
   });
 
+  await page.goto(settingsUrl.toString());
+  await expect(page.getByLabel("University and degree program")).toBeVisible();
+  const editedCourseName = `${courseName} edited`;
+  await page.getByLabel("Local course name").fill(editedCourseName);
+  await page.getByRole("button", { name: "Save settings" }).click();
+  await page.goto(courseUrl);
+  await expect(
+    page.getByRole("heading", { level: 1, name: editedCourseName }),
+  ).toBeVisible();
+
+  await page.goto(settingsUrl.toString());
+  await page.getByText("Archive course", { exact: true }).click();
+  await page.getByRole("button", { name: "Confirm archive" }).click();
+  await page.waitForURL(/\/my-courses\?status=archived/);
+  const archivedCourse = page
+    .getByRole("listitem")
+    .filter({ has: page.getByRole("heading", { name: editedCourseName }) });
+  await archivedCourse
+    .getByRole("button", { name: "Restore course" })
+    .click();
+  await page.waitForURL(/\/courses\/.+\/settings/);
+
+  await page.getByText("Archive course", { exact: true }).click();
+  await page.getByRole("button", { name: "Confirm archive" }).click();
+  await page.waitForURL(/\/my-courses\?status=archived/);
+  const restoredThenArchived = page
+    .getByRole("listitem")
+    .filter({ has: page.getByRole("heading", { name: editedCourseName }) });
+  await restoredThenArchived
+    .getByText("Delete permanently", { exact: true })
+    .click();
+  await restoredThenArchived
+    .getByLabel(new RegExp(`Type .*${runId}.* to confirm`))
+    .fill(editedCourseName);
+  await restoredThenArchived
+    .getByRole("button", { name: "Delete all course data" })
+    .click();
+  await page.waitForURL(/\/my-courses\?status=deleted/);
+  await expect(
+    page.getByRole("heading", { name: editedCourseName }),
+  ).toHaveCount(0);
 });

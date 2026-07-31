@@ -8,20 +8,24 @@ import { courseMembers, coursePages } from "@/lib/db/schema";
 import {
   canAccessAttachment,
   canEditCourse,
+  canDeleteCourse,
   canManageMembers,
   canModerateCourse,
   canPostToCourse,
   canViewCourse,
+  isCourseOwner,
   type CoursePermissionContext,
 } from "./permission-rules";
 
 export {
   canAccessAttachment,
   canEditCourse,
+  canDeleteCourse,
   canManageMembers,
   canModerateCourse,
   canPostToCourse,
   canViewCourse,
+  isCourseOwner,
   type CourseAttendance,
   type CourseMemberRole,
   type CoursePermissionContext,
