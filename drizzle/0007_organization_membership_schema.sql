@@ -1,7 +1,5 @@
 CREATE TYPE "public"."coownership_request_status" AS ENUM('pending', 'accepted', 'rejected', 'cancelled');--> statement-breakpoint
 CREATE TYPE "public"."organization_request_status" AS ENUM('pending', 'matched', 'approved', 'rejected');--> statement-breakpoint
-ALTER TYPE "public"."course_member_role" ADD VALUE 'coowner';--> statement-breakpoint
-ALTER TYPE "public"."course_member_role" ADD VALUE 'visitor';--> statement-breakpoint
 CREATE TABLE "course_coownership_requests" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"course_page_id" uuid NOT NULL,

@@ -1,5 +1,5 @@
--- Data-only follow-up to 0006. Keeping this in a separate migration allows
--- PostgreSQL to commit the new enum values before they are used in UPDATEs.
+-- Data-only follow-up. Enum expansion and the schema migration have already
+-- committed, so PostgreSQL can safely write the new role values here.
 UPDATE "universities"
 SET
   "canonical_name" = COALESCE("canonical_name", "name"),

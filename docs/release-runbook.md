@@ -28,6 +28,36 @@ the branch as a preview; it does not justify a production migration or promote.
    additive schema. Database rollback is forward-fix by default because removing
    columns or enum values is destructive.
 
+### Organization and membership rollout
+
+Apply the new migration files as three separate committed transactions, in
+their numbered order:
+
+1. `0006_add_course_member_roles.sql` adds the `coowner` and `visitor` enum
+   values. PostgreSQL does not allow a newly-added enum value to be used until
+   the transaction that added it has committed.
+2. `0007_organization_membership_schema.sql` adds organization metadata,
+   preferred-locale and primary-enrollment fields, request tables, indexes, and
+   the new membership defaults.
+3. `0008_organization_role_backfill.sql` normalizes legacy organizations,
+   selects one deterministic primary enrollment per student, and maps legacy
+   membership/invite roles (`editor` to `coowner`; `contributor` and `viewer`
+   to `visitor`). The application stops producing the deprecated roles, but the
+   old enum values remain available for a later verified cleanup.
+
+Before any production run, take a verified backup and rehearse these exact
+files against its isolated restore. Record row counts before and after for
+universities, students, enrollments, courses, memberships, and invites. Run the
+data-only migration a second time and verify that counts and primary enrollment
+selection remain stable.
+
+Rollback is application-first: redeploy the previous application commit while
+leaving the additive columns, tables, indexes, and enum values in place. Do not
+drop them during an incident. If role data itself must be restored, use the
+pre-migration backup: `visitor` deliberately combines two legacy roles, so that
+mapping cannot be reversed reliably from the migrated rows alone. Unused new
+request tables can remain dormant until a forward fix is deployed.
+
 ## 3. Preview gates
 
 Deploy `release/publishable-mobile-v1` to project `engdepthanal` under team
@@ -37,7 +67,7 @@ Deploy `release/publishable-mobile-v1` to project `engdepthanal` under team
 - signup/login/onboarding and friendly invalid-credential errors;
 - create course from one and multiple immutable templates;
 - duplicate-course suggestion and explicit override;
-- owner/editor/member permissions and private/unlisted denial;
+- Owner/Co-owner/Visitor permissions and private/unlisted denial;
 - curriculum edit, coverage, private progress, filters, and revision history;
 - contextual note/link/image/PDF flow, authorized download, report/moderation,
   soft delete, and permanent Blob cleanup;
