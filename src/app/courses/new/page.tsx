@@ -6,13 +6,14 @@ import { currentStudentId } from "@/auth";
 import { db } from "@/lib/db/client";
 import {
   curriculumTemplates,
-  enrollments,
   programs,
-  universities,
-  universityPrograms,
   templateSubtopics,
   templateTopics,
 } from "@/lib/db/schema";
+import {
+  getPrimaryEnrollmentForStudent,
+  organizationResultFromPrimaryEnrollment,
+} from "@/lib/enrollment";
 
 import { CreateCourseForm } from "./ui";
 
@@ -20,14 +21,13 @@ export default async function NewCoursePage() {
   const studentId = await currentStudentId();
   if (!studentId) redirect("/login?next=/courses/new");
 
-  const [templateRows, universityProgramRows, [enrollment]] =
+  const [templateRows, degreeProgramRows, enrollment] =
     await Promise.all([
       db
         .select({
           id: curriculumTemplates.id,
           name: curriculumTemplates.name,
           description: curriculumTemplates.description,
-          version: curriculumTemplates.version,
           year: curriculumTemplates.year,
           category: curriculumTemplates.category,
           disciplineTags: curriculumTemplates.disciplineTags,
@@ -53,43 +53,24 @@ export default async function NewCoursePage() {
         ),
       db
         .select({
-          id: universityPrograms.id,
-          universityName: universities.name,
-          countryCode: universities.countryCode,
-          programName: programs.name,
-          localName: universityPrograms.localName,
+          slug: programs.slug,
+          name: programs.name,
         })
-        .from(universityPrograms)
-        .innerJoin(
-          universities,
-          eq(universityPrograms.universityId, universities.id),
-        )
-        .innerJoin(programs, eq(universityPrograms.programId, programs.id))
-        .orderBy(asc(universities.name), asc(programs.name)),
-      db
-        .select({
-          universityProgramId: enrollments.universityProgramId,
-          intakeYear: enrollments.intakeYear,
-          phase: enrollments.phase,
-          programSlug: programs.slug,
-        })
-        .from(enrollments)
-        .innerJoin(
-          universityPrograms,
-          eq(enrollments.universityProgramId, universityPrograms.id),
-        )
-        .innerJoin(programs, eq(universityPrograms.programId, programs.id))
-        .where(eq(enrollments.studentId, studentId))
-        .limit(1),
+        .from(programs)
+        .where(eq(programs.status, "verified"))
+        .orderBy(asc(programs.name)),
+      getPrimaryEnrollmentForStudent(studentId),
     ]);
 
   if (!enrollment) redirect("/onboarding");
+  const defaultOrganization =
+    organizationResultFromPrimaryEnrollment(enrollment);
 
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
       <header className="mb-8">
         <Link
-          href="/dashboard"
+          href="/"
           className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
         >
           ← Back to dashboard
@@ -102,13 +83,14 @@ export default async function NewCoursePage() {
         </h1>
         <p className="mt-3 max-w-2xl text-zinc-600 dark:text-zinc-400">
           Choose one or more immutable templates. We will clone them into an
-          editable draft, preserving where every topic came from.
+          editable curriculum, preserving where every topic came from.
         </p>
       </header>
 
       <CreateCourseForm
         templates={templateRows}
-        universityPrograms={universityProgramRows}
+        degreePrograms={degreeProgramRows}
+        defaultOrganization={defaultOrganization}
         defaultUniversityProgramId={enrollment.universityProgramId}
         defaultCohortYear={enrollment.intakeYear}
         defaultAcademicYear={`${new Date().getFullYear()}/${String(

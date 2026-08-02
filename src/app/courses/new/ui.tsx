@@ -8,14 +8,15 @@ import {
   useState,
 } from "react";
 
+import { OrganizationCombobox } from "@/components/organization-combobox";
 import { curriculumCategories } from "@/lib/curriculum/taxonomy";
+import type { OrganizationResult } from "@/lib/organizations/schema";
 import { createCourseAction, type CreateCourseState } from "./actions";
 
 interface TemplateOption {
   id: string;
   name: string;
   description: string | null;
-  version: number;
   year: number;
   category: string;
   disciplineTags: string[];
@@ -24,12 +25,9 @@ interface TemplateOption {
   subtopicCount: number;
 }
 
-interface UniversityProgramOption {
-  id: string;
-  universityName: string;
-  countryCode: string;
-  programName: string;
-  localName: string | null;
+interface DegreeProgramOption {
+  slug: string;
+  name: string;
 }
 
 const initialState: CreateCourseState = { error: null, duplicates: [] };
@@ -38,7 +36,8 @@ const inputClass =
 
 export function CreateCourseForm({
   templates,
-  universityPrograms,
+  degreePrograms,
+  defaultOrganization,
   defaultUniversityProgramId,
   defaultCohortYear,
   defaultAcademicYear,
@@ -46,7 +45,8 @@ export function CreateCourseForm({
   defaultProgramSlug,
 }: {
   templates: TemplateOption[];
-  universityPrograms: UniversityProgramOption[];
+  degreePrograms: DegreeProgramOption[];
+  defaultOrganization: OrganizationResult;
   defaultUniversityProgramId: string;
   defaultCohortYear: number;
   defaultAcademicYear: string;
@@ -57,6 +57,8 @@ export function CreateCourseForm({
   const [step, setStep] = useState(1);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const [useDifferentOrganization, setUseDifferentOrganization] =
+    useState(false);
   const deferredQuery = useDeferredValue(query);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>(
     [],
@@ -96,6 +98,9 @@ export function CreateCourseForm({
     (total, group) => total + group.templates.length,
     0,
   );
+  const defaultProgramName =
+    degreePrograms.find((program) => program.slug === defaultProgramSlug)
+      ?.name ?? defaultProgramSlug;
 
   return (
     <form action={action} className="space-y-6">
@@ -107,6 +112,11 @@ export function CreateCourseForm({
           value={templateId}
         />
       ))}
+      <input
+        type="hidden"
+        name="universityProgramId"
+        value={defaultUniversityProgramId}
+      />
       <ol aria-label="Course creation progress" className="grid grid-cols-3 gap-2">
         {["Course", "Templates", "Privacy"].map((label, index) => (
           <li
@@ -125,16 +135,52 @@ export function CreateCourseForm({
         <p className="text-sm font-semibold text-indigo-700">Step 1 of 3</p>
         <h2 className="mt-1 text-xl font-bold">Which real course is this?</h2>
         <div className="mt-5 grid gap-5">
-          <label className="text-sm font-semibold">
-            University and degree
-            <select name="universityProgramId" defaultValue={defaultUniversityProgramId} required className={`${inputClass} mt-1`}>
-              {universityPrograms.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.universityName} · {option.localName || option.programName} ({option.countryCode})
-                </option>
-              ))}
-            </select>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              University and degree
+            </p>
+            <p className="mt-1 font-bold text-slate-950">
+              {defaultOrganization.displayName}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">{defaultProgramName}</p>
+          </div>
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-semibold">
+            <input
+              type="checkbox"
+              name="useDifferentOrganization"
+              value="yes"
+              checked={useDifferentOrganization}
+              onChange={(event) =>
+                setUseDifferentOrganization(event.target.checked)
+              }
+              className="size-5 accent-indigo-600"
+            />
+            Choose another university for this course
           </label>
+          {useDifferentOrganization ? (
+            <div className="space-y-4 rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
+              <OrganizationCombobox
+                label="Another university"
+                name="organizationSelection"
+                defaultOrganization={null}
+              />
+              <label className="block text-sm font-semibold">
+                Degree program
+                <select
+                  name="programSlug"
+                  defaultValue={defaultProgramSlug}
+                  required
+                  className={`${inputClass} mt-1`}
+                >
+                  {degreePrograms.map((program) => (
+                    <option key={program.slug} value={program.slug}>
+                      {program.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          ) : null}
           <label className="text-sm font-semibold">
             Local course name
             <input name="localName" required minLength={2} maxLength={180} placeholder="e.g. Mathematical Analysis I" className={`${inputClass} mt-1`} />
@@ -211,9 +257,6 @@ export function CreateCourseForm({
                         />
                         <span>
                           <span className="font-bold">{template.name}</span>
-                          <span className="ml-2 text-xs text-slate-500">
-                            v{template.version}
-                          </span>
                           {recommended ? (
                             <span className="mt-1 block w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
                               Recommended for your degree

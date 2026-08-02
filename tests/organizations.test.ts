@@ -5,6 +5,7 @@ import {
   dedupeOrganizationResults,
   normalizeOrganizationName,
   normalizeRorResponse,
+  parseOrganizationSelection,
   type OrganizationResult,
 } from "../src/lib/organizations/schema";
 
@@ -77,4 +78,17 @@ test("deduplicates display results by canonical ROR ID and exact domain", () => 
 
 test("invalid upstream structures fail closed", () => {
   assert.deepEqual(normalizeRorResponse({ items: [{ id: "javascript:bad" }] }), []);
+});
+
+test("accepts only an explicit normalized organization selection", () => {
+  const [organization] = normalizeRorResponse({ items: [rorItem()] });
+  assert.deepEqual(
+    parseOrganizationSelection(JSON.stringify(organization)),
+    organization,
+  );
+  assert.equal(parseOrganizationSelection("Politecnico di Torino"), null);
+  assert.equal(
+    parseOrganizationSelection(JSON.stringify({ displayName: "Typed text" })),
+    null,
+  );
 });

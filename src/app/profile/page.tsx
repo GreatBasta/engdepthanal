@@ -1,35 +1,59 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import { currentStudentId, signOut } from "@/auth";
+import { OrganizationCombobox } from "@/components/organization-combobox";
 import { db } from "@/lib/db/client";
-import { students } from "@/lib/db/schema";
+import { programs, students } from "@/lib/db/schema";
+import {
+  getPrimaryEnrollmentForStudent,
+  organizationResultFromPrimaryEnrollment,
+} from "@/lib/enrollment";
 
-import { deleteAccountAction, updateProfileAction } from "./actions";
+import {
+  deleteAccountAction,
+  updateProfileAction,
+  updateStudyContextAction,
+} from "./actions";
 
 export const metadata = { title: "Profile" };
 
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ saved?: string; error?: string }>;
+  searchParams: Promise<{
+    saved?: string;
+    studySaved?: string;
+    error?: string;
+  }>;
 }) {
   const [studentId, query] = await Promise.all([
     currentStudentId(),
     searchParams,
   ]);
   if (!studentId) redirect("/login?next=/profile");
-  const [student] = await db
-    .select({
-      displayName: students.displayName,
-      email: students.email,
-      createdAt: students.createdAt,
-    })
-    .from(students)
-    .where(eq(students.id, studentId))
-    .limit(1);
+  const [[student], primaryEnrollment, degreePrograms] = await Promise.all([
+    db
+      .select({
+        displayName: students.displayName,
+        email: students.email,
+        preferredLocale: students.preferredLocale,
+      })
+      .from(students)
+      .where(eq(students.id, studentId))
+      .limit(1),
+    getPrimaryEnrollmentForStudent(studentId),
+    db
+      .select({ slug: programs.slug, name: programs.name })
+      .from(programs)
+      .where(eq(programs.status, "verified"))
+      .orderBy(asc(programs.name)),
+  ]);
   if (!student) redirect("/login");
+  const defaultOrganization = primaryEnrollment
+    ? organizationResultFromPrimaryEnrollment(primaryEnrollment)
+    : null;
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-4 py-8 sm:px-6">
@@ -40,6 +64,11 @@ export default async function ProfilePage({
       {query.saved ? (
         <p role="status" className="mt-5 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">
           Profile saved.
+        </p>
+      ) : null}
+      {query.studySaved ? (
+        <p role="status" className="mt-5 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">
+          Study context saved. Discover and recommendations now use this university.
         </p>
       ) : null}
       {query.error ? (
@@ -74,6 +103,72 @@ export default async function ProfilePage({
             Save profile
           </button>
         </form>
+      </section>
+
+      <section id="study-context" className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <h2 className="font-bold">Study context</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-600">
+          This university controls default discovery and recommendations. Changing it does
+          not remove previous memberships, owned courses, contributions, resources, exams,
+          or private progress.
+        </p>
+        {primaryEnrollment && defaultOrganization ? (
+          <form action={updateStudyContextAction} className="mt-5 space-y-4">
+            <OrganizationCombobox
+              defaultOrganization={defaultOrganization}
+              countryCode={undefined}
+              label="Primary university"
+            />
+            <label className="block text-sm font-semibold">
+              Degree program
+              <select
+                name="programSlug"
+                defaultValue={primaryEnrollment.programSlug}
+                required
+                className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3"
+              >
+                {degreePrograms.map((program) => (
+                  <option key={program.slug} value={program.slug}>
+                    {program.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm font-semibold">
+              Intake year
+              <input
+                name="intakeYear"
+                type="number"
+                min={2000}
+                max={2100}
+                required
+                defaultValue={primaryEnrollment.intakeYear}
+                className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3"
+              />
+            </label>
+            <label className="block text-sm font-semibold">
+              Preferred language
+              <select
+                name="preferredLocale"
+                defaultValue={student.preferredLocale === "it" ? "it" : "en"}
+                className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3"
+              >
+                <option value="en">English</option>
+                <option value="it">Italiano</option>
+              </select>
+            </label>
+            <button className="min-h-11 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white">
+              Save study context
+            </button>
+          </form>
+        ) : (
+          <Link
+            href="/onboarding"
+            className="mt-4 inline-flex min-h-11 items-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white"
+          >
+            Choose university
+          </Link>
+        )}
       </section>
 
       <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">

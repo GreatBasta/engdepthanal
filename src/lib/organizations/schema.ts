@@ -1,8 +1,5 @@
 import { z } from "zod";
 
-export const localeSchema = z.enum(["en", "it"]);
-export type AppLocale = z.infer<typeof localeSchema>;
-
 export const organizationSearchParamsSchema = z.object({
   q: z.string().trim().min(2).max(120),
   country: z
@@ -33,6 +30,18 @@ export const organizationResultSchema = z.object({
 });
 
 export type OrganizationResult = z.infer<typeof organizationResultSchema>;
+
+export function parseOrganizationSelection(
+  value: FormDataEntryValue | string | null,
+) {
+  if (typeof value !== "string" || !value) return null;
+  try {
+    const parsed = organizationResultSchema.safeParse(JSON.parse(value));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
 
 const rorNameSchema = z.object({
   value: z.string().min(1).max(300),

@@ -8,6 +8,7 @@ import {
   universities,
   universityPrograms,
 } from "@/lib/db/schema";
+import type { OrganizationResult } from "@/lib/organizations/schema";
 
 /**
  * The signed-in student's enrollment (uni × program × intake). One per
@@ -42,8 +43,12 @@ export async function getPrimaryEnrollmentForStudent(studentId: string) {
       createdAt: enrollments.createdAt,
       updatedAt: enrollments.updatedAt,
       organizationId: universities.id,
+      organizationCanonicalName: universities.canonicalName,
       organizationName: universities.displayName,
       organizationFallbackName: universities.name,
+      organizationAliases: universities.aliases,
+      organizationAcronyms: universities.acronyms,
+      organizationType: universities.organizationType,
       organizationCity: universities.city,
       organizationRegion: universities.region,
       organizationCountryCode: universities.countryCode,
@@ -51,6 +56,9 @@ export async function getPrimaryEnrollmentForStudent(studentId: string) {
       organizationDomains: universities.domains,
       organizationWebsiteUrl: universities.websiteUrl,
       organizationRorId: universities.rorId,
+      organizationExternalSource: universities.externalSource,
+      organizationExternalUpdatedAt: universities.externalUpdatedAt,
+      organizationVerificationStatus: universities.status,
       programId: programs.id,
       programSlug: programs.slug,
       programName: programs.name,
@@ -70,6 +78,42 @@ export async function getPrimaryEnrollmentForStudent(studentId: string) {
     .orderBy(desc(enrollments.isPrimary), asc(enrollments.createdAt))
     .limit(1);
   return enrollment ?? null;
+}
+
+export function organizationResultFromPrimaryEnrollment(
+  enrollment: NonNullable<
+    Awaited<ReturnType<typeof getPrimaryEnrollmentForStudent>>
+  >,
+): OrganizationResult {
+  const canonicalName =
+    enrollment.organizationCanonicalName ??
+    enrollment.organizationName ??
+    enrollment.organizationFallbackName;
+  return {
+    localId: enrollment.organizationId,
+    rorId: enrollment.organizationRorId,
+    canonicalName,
+    displayName: enrollment.organizationName ?? canonicalName,
+    aliases: enrollment.organizationAliases,
+    acronyms: enrollment.organizationAcronyms,
+    organizationType: enrollment.organizationType ?? "education",
+    city: enrollment.organizationCity,
+    region: enrollment.organizationRegion,
+    countryCode: enrollment.organizationCountryCode,
+    countryName: enrollment.organizationCountryName,
+    domains: enrollment.organizationDomains,
+    websiteUrl: enrollment.organizationWebsiteUrl,
+    source:
+      enrollment.organizationExternalSource === "ror" &&
+      enrollment.organizationRorId
+        ? "ror"
+        : "local",
+    verified: enrollment.organizationVerificationStatus === "verified",
+    externalUpdatedAt:
+      enrollment.organizationExternalUpdatedAt
+        ?.toISOString()
+        .slice(0, 10) ?? null,
+  };
 }
 
 export async function getPrimaryOrganizationForStudent(studentId: string) {

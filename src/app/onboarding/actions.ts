@@ -1,18 +1,14 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { currentStudentId } from "@/auth";
 import { db } from "@/lib/db/client";
-import {
-  enrollments,
-  programs,
-  universityPrograms,
-} from "@/lib/db/schema";
-import { persistOrganizationSelection } from "@/lib/organizations/persistence";
-import { organizationResultSchema } from "@/lib/organizations/schema";
+import { enrollments } from "@/lib/db/schema";
+import { persistOrganizationProgramSelection } from "@/lib/organizations/persistence";
+import { parseOrganizationSelection } from "@/lib/organizations/schema";
 
 export interface OnboardingFormState {
   error: string | null;
@@ -30,21 +26,9 @@ const onboardingSchema = z.object({
   }),
 });
 
-function parseOrganizationSelection(value: FormDataEntryValue | null) {
-  if (typeof value !== "string" || !value) return null;
-  try {
-    const parsed = organizationResultSchema.safeParse(JSON.parse(value));
-    return parsed.success ? parsed.data : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
- * Onboarding: the student names their university and course; if the
- * university is not in the database yet, it is added (as `unverified` —
- * see STRUCTURE.md §5.4: unverified entries never pollute aggregates).
- * Creates the enrollment that unlocks the first-year database.
+ * Onboarding persists an explicit verified organization selection and creates
+ * the primary study context used throughout the application.
  */
 export async function completeOnboarding(
   _prev: OnboardingFormState,
@@ -69,36 +53,17 @@ export async function completeOnboarding(
   }
   const { programSlug, intakeYear, phase } = parsed.data;
 
-  const [program] = await db
-    .select({ id: programs.id })
-    .from(programs)
-    .where(eq(programs.slug, programSlug))
-    .limit(1);
-  if (!program) return { error: "Unknown course — please pick from the list." };
-
-  const organizationId = await persistOrganizationSelection(organization);
-
-  // Resolve or add the university × program pair.
-  let [uniProgram] = await db
-    .select({ id: universityPrograms.id })
-    .from(universityPrograms)
-    .where(
-      and(
-        eq(universityPrograms.universityId, organizationId),
-        eq(universityPrograms.programId, program.id),
-      ),
-    )
-    .limit(1);
-  uniProgram ??= (
-    await db
-      .insert(universityPrograms)
-      .values({
-        universityId: organizationId,
-        programId: program.id,
-        status: organization.verified ? "verified" : "unverified",
-      })
-      .returning({ id: universityPrograms.id })
-  )[0];
+  let selection: Awaited<
+    ReturnType<typeof persistOrganizationProgramSelection>
+  >;
+  try {
+    selection = await persistOrganizationProgramSelection(
+      organization,
+      programSlug,
+    );
+  } catch {
+    return { error: "Unknown degree program — please pick from the list." };
+  }
 
   await db.transaction(async (tx) => {
     await tx
@@ -109,7 +74,7 @@ export async function completeOnboarding(
       .insert(enrollments)
       .values({
         studentId,
-        universityProgramId: uniProgram.id,
+        universityProgramId: selection.universityProgramId,
         intakeYear,
         phase,
         isPrimary: true,

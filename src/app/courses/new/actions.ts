@@ -12,7 +12,10 @@ import {
   type DuplicateCourseWarning,
 } from "@/lib/courses/create";
 import { db } from "@/lib/db/client";
-import { coursePages, universityPrograms } from "@/lib/db/schema";
+import { coursePages } from "@/lib/db/schema";
+import { getPrimaryEnrollmentForStudent } from "@/lib/enrollment";
+import { persistOrganizationProgramSelection } from "@/lib/organizations/persistence";
+import { parseOrganizationSelection } from "@/lib/organizations/schema";
 
 export interface CreateCourseState {
   error: string | null;
@@ -32,7 +35,6 @@ const optionalInteger = (minimum: number, maximum: number) =>
   );
 
 const createCourseSchema = z.object({
-  universityProgramId: z.string().uuid(),
   localName: z.string().trim().min(2).max(180),
   courseCode: optionalText(40),
   professorName: optionalText(120),
@@ -56,7 +58,6 @@ export async function createCourseAction(
   if (!studentId) redirect("/login?next=/courses/new");
 
   const parsed = createCourseSchema.safeParse({
-    universityProgramId: formData.get("universityProgramId"),
     localName: formData.get("localName"),
     courseCode: formData.get("courseCode"),
     professorName: formData.get("professorName"),
@@ -75,13 +76,52 @@ export async function createCourseAction(
     };
   }
 
-  const [universityProgram] = await db
-    .select({ id: universityPrograms.id })
-    .from(universityPrograms)
-    .where(eq(universityPrograms.id, parsed.data.universityProgramId))
-    .limit(1);
-  if (!universityProgram) {
-    return { error: "That university program is unavailable.", duplicates: [] };
+  let universityProgramId: string;
+  if (formData.get("useDifferentOrganization") === "yes") {
+    const organization = parseOrganizationSelection(
+      formData.get("organizationSelection"),
+    );
+    const programSlug = z
+      .string()
+      .trim()
+      .min(1)
+      .max(120)
+      .safeParse(formData.get("programSlug"));
+    if (!organization || !programSlug.success) {
+      return {
+        error: "Select a verified university and degree program.",
+        duplicates: [],
+      };
+    }
+    try {
+      const selection = await persistOrganizationProgramSelection(
+        organization,
+        programSlug.data,
+      );
+      universityProgramId = selection.universityProgramId;
+    } catch {
+      return {
+        error: "That university or degree program is unavailable.",
+        duplicates: [],
+      };
+    }
+  } else {
+    const primary = await getPrimaryEnrollmentForStudent(studentId);
+    const submittedProgram = z
+      .string()
+      .uuid()
+      .safeParse(formData.get("universityProgramId"));
+    if (!primary) redirect("/onboarding");
+    if (
+      !submittedProgram.success ||
+      submittedProgram.data !== primary.universityProgramId
+    ) {
+      return {
+        error: "Your primary university context changed. Reload and try again.",
+        duplicates: [],
+      };
+    }
+    universityProgramId = primary.universityProgramId;
   }
 
   // A lightweight server-side creation limit prevents accidental or scripted
@@ -103,7 +143,11 @@ export async function createCourseAction(
     };
   }
 
-  const input = { ...parsed.data, createdBy: studentId };
+  const input = {
+    ...parsed.data,
+    universityProgramId,
+    createdBy: studentId,
+  };
   const duplicates = await findDuplicateCourses(input);
   const duplicateConfirmed = formData.get("confirmDuplicate") === "yes";
   if (duplicates.length > 0 && !duplicateConfirmed) {
@@ -122,6 +166,7 @@ export async function createCourseAction(
   }
 
   revalidatePath("/courses");
+  revalidatePath("/");
   revalidatePath("/my-courses");
   revalidateTag("course-directory");
   redirect(`/courses/${course.slug}?tab=curriculum`);
