@@ -6,7 +6,6 @@ import { z } from "zod";
 
 import { currentStudentId } from "@/auth";
 import {
-  canEditCourse,
   canModerateCourse,
   canPostToCourse,
   loadCoursePermissionContext,
@@ -35,7 +34,7 @@ const courseIdentitySchema = z.object({
 
 async function examAuthorization(
   coursePageId: string,
-  permission: "post" | "edit" | "moderate",
+  permission: "post" | "moderate",
 ) {
   const studentId = await currentStudentId();
   if (!studentId) return null;
@@ -44,9 +43,7 @@ async function examAuthorization(
   const allowed =
     permission === "post"
       ? canPostToCourse(context)
-      : permission === "edit"
-        ? canEditCourse(context)
-        : canModerateCourse(context);
+      : canModerateCourse(context);
   return allowed ? { studentId, context } : null;
 }
 
@@ -78,7 +75,7 @@ export async function saveExamProfileAction(formData: FormData) {
   if (!parsed.success) return;
   const authorized = await examAuthorization(
     parsed.data.coursePageId,
-    "edit",
+    "post",
   );
   if (!authorized) return;
 

@@ -14,8 +14,9 @@ import {
   restoreOwnedCourse,
 } from "@/lib/courses/lifecycle";
 import {
-  canEditCourse,
+  canManageCourseSettings,
   canManageMembers,
+  effectiveCourseRole,
   loadCoursePermissionContext,
 } from "@/lib/courses/permissions";
 import { db } from "@/lib/db/client";
@@ -32,15 +33,13 @@ export interface InviteMemberState {
   inviteUrl: string | null;
 }
 
-const memberRole = z.enum(["owner", "editor", "contributor", "viewer"]);
-const inviteRole = z.enum(["editor", "contributor", "viewer"]);
 const attendance = z.enum(["attended", "not_attended"]);
 
 const manageMemberSchema = z.object({
   coursePageId: z.string().uuid(),
   courseSlug: z.string().min(1).max(120),
   studentId: z.string().uuid(),
-  role: memberRole,
+  role: z.literal("visitor"),
   attendance,
 });
 
@@ -48,7 +47,6 @@ const inviteSchema = z.object({
   coursePageId: z.string().uuid(),
   courseSlug: z.string().min(1).max(120),
   email: z.string().trim().toLowerCase().email().max(320),
-  role: inviteRole,
   attendance,
 });
 
@@ -109,7 +107,7 @@ export async function updateCourseSettingsAction(formData: FormData) {
     parsed.data.coursePageId,
     studentId,
   );
-  if (!context || !canEditCourse(context)) return;
+  if (!context || !canManageCourseSettings(context)) return;
 
   const { coursePageId, courseSlug, returnTo, ...course } = parsed.data;
   await db
@@ -227,11 +225,13 @@ export async function joinCourseAction(formData: FormData) {
     .values({
       coursePageId: parsed.data.coursePageId,
       studentId,
-      role: "viewer",
+      role: "visitor",
       attendance: parsed.data.attendance,
     })
     .onConflictDoNothing();
   revalidatePath(`/courses/${parsed.data.courseSlug}`);
+  revalidatePath("/");
+  revalidatePath("/my-courses");
   redirect(`/courses/${parsed.data.courseSlug}?tab=curriculum`);
 }
 
@@ -253,7 +253,6 @@ export async function inviteMemberAction(
     coursePageId: formData.get("coursePageId"),
     courseSlug: formData.get("courseSlug"),
     email: formData.get("email"),
-    role: formData.get("role"),
     attendance: formData.get("attendance"),
   });
   if (!parsed.success) {
@@ -308,9 +307,9 @@ export async function inviteMemberAction(
         ),
       )
       .limit(1);
-    if (membership?.role === "owner") {
+    if (membership) {
       return {
-        error: "An owner cannot be changed through an invitation.",
+        error: "This student is already a course member.",
         message: null,
         inviteUrl: null,
       };
@@ -320,17 +319,10 @@ export async function inviteMemberAction(
       .values({
         coursePageId: parsed.data.coursePageId,
         studentId: student.id,
-        role: parsed.data.role,
+        role: "visitor",
         attendance: parsed.data.attendance,
       })
-      .onConflictDoUpdate({
-        target: [courseMembers.coursePageId, courseMembers.studentId],
-        set: {
-          role: parsed.data.role,
-          attendance: parsed.data.attendance,
-          updatedAt: new Date(),
-        },
-      });
+      .onConflictDoNothing();
     revalidatePath(`/courses/${parsed.data.courseSlug}`);
     return {
       error: null,
@@ -344,7 +336,7 @@ export async function inviteMemberAction(
   await db.insert(courseInvites).values({
     coursePageId: parsed.data.coursePageId,
     email: parsed.data.email,
-    role: parsed.data.role,
+    role: "visitor",
     attendance: parsed.data.attendance,
     tokenHash: tokenHash(rawToken),
     status: "pending",
@@ -382,18 +374,9 @@ export async function updateCourseMemberAction(formData: FormData) {
     .limit(1);
   if (!target) return;
 
-  if (target.role === "owner" && parsed.data.role !== "owner") {
-    const [owners] = await db
-      .select({ value: count() })
-      .from(courseMembers)
-      .where(
-        and(
-          eq(courseMembers.coursePageId, parsed.data.coursePageId),
-          eq(courseMembers.role, "owner"),
-        ),
-      );
-    if (Number(owners?.value ?? 0) <= 1) return;
-  }
+  // Co-ownership promotion only happens through an accepted visitor request.
+  // The original owner is immutable; this action only demotes a co-owner.
+  if (effectiveCourseRole(target.role) !== "coowner") return;
 
   await db
     .update(courseMembers)
@@ -409,6 +392,9 @@ export async function updateCourseMemberAction(formData: FormData) {
       ),
     );
   revalidatePath(`/courses/${parsed.data.courseSlug}`);
+  revalidatePath(`/courses/${parsed.data.courseSlug}/settings/members`);
+  revalidatePath("/");
+  revalidatePath("/my-courses");
 }
 
 const acceptInviteSchema = z.object({
@@ -459,7 +445,7 @@ export async function acceptCourseInviteAction(formData: FormData) {
       .values({
         coursePageId: invite.coursePageId,
         studentId,
-        role: invite.role,
+        role: "visitor",
         attendance: invite.attendance,
       })
       .onConflictDoNothing();
@@ -478,5 +464,9 @@ export async function acceptCourseInviteAction(formData: FormData) {
       );
   });
 
-  redirect(`/courses/${invite.slug}/settings/members`);
+  revalidatePath("/");
+  revalidatePath("/my-courses");
+  revalidatePath(`/courses/${invite.slug}`);
+
+  redirect(`/courses/${invite.slug}`);
 }

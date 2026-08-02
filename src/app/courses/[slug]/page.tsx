@@ -1,19 +1,19 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { currentStudentId } from "@/auth";
 import { getCourseBySlugForViewer } from "@/lib/courses/data";
 import { db } from "@/lib/db/client";
-import { coursePages } from "@/lib/db/schema";
+import { courseCoownershipRequests, coursePages } from "@/lib/db/schema";
 
+import { joinCourseAction } from "./actions";
 import {
-  joinCourseAction,
-  updateCourseMemberAction,
-  updateCourseSettingsAction,
-} from "./actions";
-import { InviteMemberForm } from "./contributors-ui";
+  cancelCoownershipRequestAction,
+  leaveCoownershipAction,
+  requestCoownershipAction,
+} from "./coownership-actions";
 import { CurriculumPanel } from "./curriculum-panel";
 import { ExamPanel } from "./exam-panel";
 import { ResourcesPanel } from "./resources-panel";
@@ -67,6 +67,8 @@ export default async function CoursePage({
     page?: string;
     subtopic?: string;
     topic?: string;
+    request?: string;
+    coownership?: string;
   }>;
 }) {
   const [{ slug }, query, studentId] = await Promise.all([
@@ -79,6 +81,20 @@ export default async function CoursePage({
     versions: true,
   });
   if (!detail) notFound();
+  const [pendingCoownershipRequest] =
+    studentId && detail.permissions.role === "visitor"
+      ? await db
+          .select({ id: courseCoownershipRequests.id })
+          .from(courseCoownershipRequests)
+          .where(
+            and(
+              eq(courseCoownershipRequests.coursePageId, detail.course.id),
+              eq(courseCoownershipRequests.requesterId, studentId),
+              eq(courseCoownershipRequests.status, "pending"),
+            ),
+          )
+          .limit(1)
+      : [];
 
   const tab: CourseTab = TABS.some(([key]) => key === query.tab)
     ? (query.tab as CourseTab)
@@ -93,16 +109,20 @@ export default async function CoursePage({
         <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <Link
-              href={studentId ? "/dashboard" : "/courses"}
+              href={studentId ? "/" : "/courses"}
               className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
             >
-              ← {studentId ? "Dashboard" : "Course directory"}
+              ← {studentId ? "Home" : "Course directory"}
             </Link>
             <div className="flex items-center gap-2">
               <VisibilityBadge visibility={detail.course.visibility} />
               {detail.permissions.role ? (
-                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium capitalize text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-                  {detail.permissions.role}
+                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+                  {detail.permissions.role === "coowner"
+                    ? "Co-owner"
+                    : detail.permissions.role === "owner"
+                      ? "Owner"
+                      : "Visitor"}
                 </span>
               ) : null}
             </div>
@@ -155,7 +175,12 @@ export default async function CoursePage({
 
       <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {tab === "overview" ? (
-          <Overview detail={detail} publishedVersion={published?.version} />
+          <Overview
+            detail={detail}
+            pendingCoownershipRequest={pendingCoownershipRequest ?? null}
+            publishedVersion={published?.version}
+            requestStatus={query.request}
+          />
         ) : null}
         {tab === "curriculum" ? (
           <CurriculumPanel
@@ -183,7 +208,6 @@ export default async function CoursePage({
             coursePageId={detail.course.id}
             courseSlug={detail.course.slug}
             canPost={detail.permissions.canPost}
-            canEdit={detail.permissions.canEdit}
             canModerate={detail.permissions.canModerate}
           />
         ) : null}
@@ -194,10 +218,14 @@ export default async function CoursePage({
 
 function Overview({
   detail,
+  pendingCoownershipRequest,
   publishedVersion,
+  requestStatus,
 }: {
   detail: NonNullable<Awaited<ReturnType<typeof getCourseBySlugForViewer>>>;
+  pendingCoownershipRequest: { id: string } | null;
   publishedVersion: number | undefined;
+  requestStatus: string | undefined;
 }) {
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -234,6 +262,15 @@ function Overview({
       </section>
 
       <aside className="space-y-4">
+        {requestStatus === "pending" || requestStatus === "already-pending" ? (
+          <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">
+            Your co-ownership request is pending Owner review.
+          </p>
+        ) : requestStatus === "cancelled" ? (
+          <p role="status" className="rounded-xl bg-slate-100 p-3 text-sm text-slate-700">
+            Co-ownership request cancelled.
+          </p>
+        ) : null}
         {!detail.permissions.role ? (
           <form
             action={joinCourseAction}
@@ -256,6 +293,47 @@ function Overview({
             </button>
           </form>
         ) : null}
+        {detail.permissions.role === "visitor" ? (
+          pendingCoownershipRequest ? (
+            <form action={cancelCoownershipRequestAction} className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+              <input type="hidden" name="coursePageId" value={detail.course.id} />
+              <input type="hidden" name="courseSlug" value={detail.course.slug} />
+              <p className="font-bold text-amber-950">Request pending</p>
+              <p className="mt-1 text-sm leading-6 text-amber-900">
+                Only the course Owner can accept or reject this request.
+              </p>
+              <button className="mt-3 min-h-11 rounded-xl border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-950">
+                Cancel request
+              </button>
+            </form>
+          ) : (
+            <form action={requestCoownershipAction} className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5">
+              <input type="hidden" name="coursePageId" value={detail.course.id} />
+              <input type="hidden" name="courseSlug" value={detail.course.slug} />
+              <h2 className="font-bold text-indigo-950">Request co-ownership</h2>
+              <p className="mt-1 text-sm leading-6 text-indigo-900">
+                Co-owners can edit and apply curriculum changes. The Owner must approve.
+              </p>
+              <label className="mt-3 block text-sm font-semibold text-indigo-950">
+                Message (optional)
+                <textarea name="message" maxLength={800} rows={3} className="mt-1 w-full rounded-xl border border-indigo-200 bg-white p-3" />
+              </label>
+              <button className="mt-3 min-h-11 w-full rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white">
+                Request co-ownership
+              </button>
+            </form>
+          )
+        ) : null}
+        {detail.permissions.role === "coowner" ? (
+          <form action={leaveCoownershipAction} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <input type="hidden" name="coursePageId" value={detail.course.id} />
+            <input type="hidden" name="courseSlug" value={detail.course.slug} />
+            <p className="text-sm text-slate-600">You can return to Visitor without leaving the course.</p>
+            <button className="mt-3 min-h-11 rounded-xl border border-slate-300 px-4 text-sm font-semibold">
+              Leave co-ownership
+            </button>
+          </form>
+        ) : null}
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="font-semibold">Source templates</h2>
           <ul className="mt-3 space-y-2 text-sm">
@@ -273,231 +351,23 @@ function Overview({
         </section>
 
         {detail.permissions.canEdit ? (
-          <>
             <Link
               href={`/courses/${detail.course.slug}/settings/curriculum`}
               className="flex w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-500"
             >
               Edit curriculum
             </Link>
+        ) : null}
+        {detail.permissions.canManageCourseSettings ? (
             <Link
               href={`/courses/${detail.course.slug}/settings`}
               className="flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold"
             >
               Course settings
             </Link>
-          </>
         ) : null}
       </aside>
     </div>
-  );
-}
-
-function CourseSettings({
-  detail,
-}: {
-  detail: NonNullable<Awaited<ReturnType<typeof getCourseBySlugForViewer>>>;
-}) {
-  const inputClass =
-    "mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-950";
-
-  return (
-    <details className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <summary className="cursor-pointer font-semibold">Course settings</summary>
-      <form action={updateCourseSettingsAction} className="mt-5 space-y-4">
-        <input type="hidden" name="coursePageId" value={detail.course.id} />
-        <input type="hidden" name="courseSlug" value={detail.course.slug} />
-        <label className="block text-sm font-medium">
-          Local course name
-          <input
-            name="localName"
-            required
-            minLength={2}
-            maxLength={180}
-            defaultValue={detail.course.localName}
-            className={inputClass}
-          />
-        </label>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="block text-sm font-medium">
-            Course code
-            <input
-              name="courseCode"
-              maxLength={40}
-              defaultValue={detail.course.courseCode ?? ""}
-              className={inputClass}
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            Professor
-            <input
-              name="professorName"
-              maxLength={120}
-              defaultValue={detail.course.professorName ?? ""}
-              className={inputClass}
-            />
-          </label>
-        </div>
-        <div className="grid grid-cols-3 gap-3">
-          <label className="block text-sm font-medium">
-            Academic year
-            <input
-              name="academicYear"
-              required
-              defaultValue={detail.course.academicYear}
-              className={inputClass}
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            Cohort
-            <input
-              name="cohortYear"
-              type="number"
-              min={2000}
-              max={2100}
-              defaultValue={detail.course.cohortYear ?? ""}
-              className={inputClass}
-            />
-          </label>
-          <label className="block text-sm font-medium">
-            Semester
-            <input
-              name="semester"
-              type="number"
-              min={1}
-              max={12}
-              defaultValue={detail.course.semester ?? ""}
-              className={inputClass}
-            />
-          </label>
-        </div>
-        <label className="block text-sm font-medium">
-          Description
-          <textarea
-            name="description"
-            rows={4}
-            maxLength={2_000}
-            defaultValue={detail.course.description ?? ""}
-            className={inputClass}
-          />
-        </label>
-        <label className="block text-sm font-medium">
-          Visibility
-          <select
-            name="visibility"
-            defaultValue={detail.course.visibility}
-            className={inputClass}
-          >
-            <option value="private">Private</option>
-            <option value="unlisted">Unlisted</option>
-            <option value="public">Public</option>
-          </select>
-        </label>
-        <button
-          type="submit"
-          className="w-full rounded-xl bg-zinc-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900"
-        >
-          Save course settings
-        </button>
-      </form>
-    </details>
-  );
-}
-
-function Contributors({
-  members,
-  canManage,
-  coursePageId,
-  courseSlug,
-}: {
-  members: NonNullable<
-    Awaited<ReturnType<typeof getCourseBySlugForViewer>>
-  >["members"];
-  canManage: boolean;
-  coursePageId: string;
-  courseSlug: string;
-}) {
-  return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold">Contributors</h2>
-          <p className="mt-1 text-sm text-zinc-500">
-            Course roles and attendance are independent.
-          </p>
-        </div>
-        {canManage ? (
-          <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300">
-            Member management enabled
-          </span>
-        ) : null}
-      </div>
-      <ul className="mt-6 divide-y divide-zinc-200 dark:divide-zinc-800">
-        {members.map((member) => (
-          <li
-            key={member.studentId}
-            className="flex flex-wrap items-center justify-between gap-3 py-4"
-          >
-            <span className="font-medium">{member.name}</span>
-            {canManage ? (
-              <form
-                action={updateCourseMemberAction}
-                className="flex flex-wrap items-center gap-2"
-              >
-                <input
-                  type="hidden"
-                  name="coursePageId"
-                  value={coursePageId}
-                />
-                <input type="hidden" name="courseSlug" value={courseSlug} />
-                <input type="hidden" name="studentId" value={member.studentId} />
-                <select
-                  name="role"
-                  defaultValue={member.role}
-                  aria-label={`Role for ${member.name}`}
-                  className="rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-xs capitalize dark:border-zinc-700 dark:bg-zinc-950"
-                >
-                  <option value="owner">Owner</option>
-                  <option value="editor">Editor</option>
-                  <option value="contributor">Contributor</option>
-                  <option value="viewer">Viewer</option>
-                </select>
-                <select
-                  name="attendance"
-                  defaultValue={member.attendance}
-                  aria-label={`Attendance for ${member.name}`}
-                  className="rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-xs dark:border-zinc-700 dark:bg-zinc-950"
-                >
-                  <option value="attended">Attended</option>
-                  <option value="not_attended">Not attended</option>
-                </select>
-                <button
-                  type="submit"
-                  className="rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
-                >
-                  Save
-                </button>
-              </form>
-            ) : (
-              <span className="flex gap-2 text-xs">
-                <span className="rounded-full bg-zinc-100 px-2.5 py-1 capitalize dark:bg-zinc-800">
-                  {member.role}
-                </span>
-                <span className="rounded-full bg-zinc-100 px-2.5 py-1 capitalize dark:bg-zinc-800">
-                  {member.attendance.replace("_", " ")}
-                </span>
-              </span>
-            )}
-          </li>
-        ))}
-      </ul>
-      {canManage ? (
-        <InviteMemberForm
-          coursePageId={coursePageId}
-          courseSlug={courseSlug}
-        />
-      ) : null}
-    </section>
   );
 }
 

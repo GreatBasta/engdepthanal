@@ -462,7 +462,7 @@ export default async function CourseDirectoryPage({
                       </div>
                       <p className="mt-2 text-sm text-slate-600">{course.programName} · {course.academicYear}</p>
                       <p className="mt-3 text-xs text-slate-500">
-                        {Number(course.memberCount)} contributors
+                        {Number(course.memberCount)} members
                         {course.professorName ? ` · Prof. ${course.professorName}` : ""}
                       </p>
                     </Link>

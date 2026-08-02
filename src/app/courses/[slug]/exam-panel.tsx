@@ -19,13 +19,11 @@ export async function ExamPanel({
   coursePageId,
   courseSlug,
   canPost,
-  canEdit,
   canModerate,
 }: {
   coursePageId: string;
   courseSlug: string;
   canPost: boolean;
-  canEdit: boolean;
   canModerate: boolean;
 }) {
   const [exam, curriculum] = await Promise.all([
@@ -88,7 +86,7 @@ export async function ExamPanel({
           ) : null}
         </div>
 
-        {canEdit ? (
+        {canPost ? (
           <form
             action={saveExamProfileAction}
             className="mt-5 grid gap-3 sm:grid-cols-2"
@@ -256,7 +254,7 @@ export async function ExamPanel({
         <p className="mt-4 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900">
           Student-reported and non-official
           {exam.profile?.verificationCount
-            ? ` · ${exam.profile.verificationCount} editor verification${
+            ? ` · ${exam.profile.verificationCount} student verification${
                 exam.profile.verificationCount === 1 ? "" : "s"
               }`
             : ""}

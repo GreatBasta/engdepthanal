@@ -18,7 +18,7 @@ export default async function PrivacySettings({
     currentStudentId(),
   ]);
   const detail = await getCourseBySlugForViewer(slug, studentId);
-  if (!detail?.permissions.canEdit) notFound();
+  if (!detail?.permissions.canManageCourseSettings) notFound();
   return (
     <div className="max-w-2xl space-y-4">
     {query.saved === "1" ? (

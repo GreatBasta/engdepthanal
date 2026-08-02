@@ -321,7 +321,7 @@ export async function ResourcesPanel({
                             <input
                               type="hidden"
                               name="reason"
-                              value="Hidden by course editor"
+                              value="Hidden by course Owner"
                             />
                             <button
                               type="submit"

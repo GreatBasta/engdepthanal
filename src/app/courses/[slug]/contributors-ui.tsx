@@ -32,8 +32,12 @@ export function InviteMemberForm({
     >
       <input type="hidden" name="coursePageId" value={coursePageId} />
       <input type="hidden" name="courseSlug" value={courseSlug} />
-      <h3 className="font-semibold">Add or invite a contributor</h3>
-      <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_10rem_11rem_auto]">
+      <h3 className="font-semibold">Add or invite a visitor</h3>
+      <p className="mt-1 text-xs leading-5 text-zinc-600 dark:text-zinc-400">
+        Visitors can contribute resources and exam information. Curriculum editing
+        requires an Owner-approved co-ownership request.
+      </p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem_auto]">
         <input
           type="email"
           name="email"
@@ -43,11 +47,6 @@ export function InviteMemberForm({
           aria-label="Invitee email"
           className={inputClass}
         />
-        <select name="role" defaultValue="contributor" className={inputClass}>
-          <option value="editor">Editor</option>
-          <option value="contributor">Contributor</option>
-          <option value="viewer">Viewer</option>
-        </select>
         <select
           name="attendance"
           defaultValue="not_attended"

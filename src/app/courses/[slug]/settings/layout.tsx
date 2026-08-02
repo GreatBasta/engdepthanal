@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
+
+import { currentStudentId } from "@/auth";
+import { getCourseBySlugForViewer } from "@/lib/courses/data";
 
 export default async function CourseSettingsLayout({
   children,
@@ -7,13 +11,17 @@ export default async function CourseSettingsLayout({
   children: React.ReactNode;
   params: Promise<{ slug: string }>;
 }) {
-  const { slug } = await params;
-  const items = [
-    ["", "General"],
-    ["/members", "Members"],
-    ["/curriculum", "Curriculum"],
-    ["/privacy", "Privacy"],
-  ];
+  const [{ slug }, studentId] = await Promise.all([params, currentStudentId()]);
+  const detail = await getCourseBySlugForViewer(slug, studentId);
+  if (!detail?.permissions.canEdit) notFound();
+  const items = detail.permissions.canManageCourseSettings
+    ? [
+        ["", "General"],
+        ["/members", "Members"],
+        ["/curriculum", "Curriculum"],
+        ["/privacy", "Privacy"],
+      ]
+    : [["/curriculum", "Curriculum"]];
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-4 py-8 sm:px-6">
       <Link href={`/courses/${slug}`} className="text-sm font-semibold text-indigo-700">

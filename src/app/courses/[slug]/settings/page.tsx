@@ -33,7 +33,7 @@ export default async function GeneralCourseSettings({
     currentStudentId(),
   ]);
   const detail = await getCourseBySlugForViewer(slug, studentId);
-  if (!detail?.permissions.canEdit) notFound();
+  if (!detail?.permissions.canManageCourseSettings) notFound();
   const [deletedAttachments, programOptions] = await Promise.all([
     db
       .select({
@@ -181,7 +181,7 @@ export default async function GeneralCourseSettings({
         <section className="rounded-2xl border border-rose-200 bg-white p-5 shadow-sm">
           <h2 className="text-lg font-bold">Hidden attachments</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Moderated files remain recoverable until an editor permanently
+            Moderated files remain recoverable until the Owner permanently
             removes both the private Blob object and its database metadata.
           </p>
           <ul className="mt-4 space-y-3">
