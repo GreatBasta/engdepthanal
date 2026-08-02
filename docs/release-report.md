@@ -1,257 +1,260 @@
-# Publishable mobile v1 release report
+# Worldwide organizations and collaborative curriculum release report
 
-Status date: 2026-07-30  
-Release status: verified Preview candidate; draft PR remains intentionally
-unmerged and production has not been promoted
+Status date: 2026-08-02
+Release status: protected Preview deployed; draft PR remains unmerged;
+production was not migrated or promoted
 
 ## Delivery
 
 | Item | Value |
 |---|---|
 | Branch | `release/publishable-mobile-v1` |
-| Base | `main` at `967884a` |
-| Application head verified | `ed700c5` |
-| PR | [GreatBasta/engdepthanal#18](https://github.com/GreatBasta/engdepthanal/pull/18) (draft) |
-| Preview | `https://engdepthanal-marzobar-3689-ste11.vercel.app` |
-| Production | Not changed |
+| Starting head | `78aa2c30576194de52e97e7a377d3ab21b346a50` |
+| Application head verified | `a50a80bb408ba56e883dd963062495bdb624904a` |
+| Base | `main` at `7df6ba84388eec706068cfd63578fd2c286958fe` |
+| Pull request | [GreatBasta/engdepthanal#19](https://github.com/GreatBasta/engdepthanal/pull/19) (draft) |
+| Final Preview | `https://engdepthanal-5ejhusfyo-ste11.vercel.app` |
+| Deployment ID | `dpl_9utqPSLLMRY62uGig9JXADuWdaTV` |
 | Vercel team/project | `ste11` / `engdepthanal` |
 | Project ID | `prj_YtFAzAXZzgFyipPSJAfBgeXDW8PQ` |
-| Existing production aliases | `engdepthanal-coral.vercel.app`, `engdepthanal-ste11.vercel.app` |
+| Deployment target | Preview (`target: null`), READY |
+| Production | Not changed |
+
+The update contains 79 changed files, 15,051 insertions, and 2,617
+deletions from the starting head. GitHub is the recovery source of truth and
+the cloud working tree is aligned with the remote branch.
 
 Published logical commits:
 
-1. `6c1cec4` — canonical catalog and additive schema
-2. `05a0bea` — unified mobile course/curriculum workflows
-3. `7ea4b31` — contextual resources and confidence-aware exams
-4. `e4580b0` — auth/admin/legal/observability hardening
-5. `abb55e5` — release documentation and mobile E2E configuration
-6. `ec66cb9` — contextual resource discussion and exam duplicate suggestions
-7. `b96933e` — student-reported exam evidence and permitted materials
-8. `2cdaa9b` — private attachment lifecycle and mobile upload handling
-9. `d3a5dc6` / `69f6053` — bounded release tooling and deployment archive
-10. `775137d` / `0b245d7` — private-course and Blob lifecycle E2E
-11. `df95822` — persistent multi-template wizard selection
-12. `ed700c5` — application icon metadata
+1. `0a52f0c` — unified organization foundation
+2. `a98ce25` — primary organization context
+3. `76b8b66` — authenticated Home and organization grouping
+4. `a3e2c49` — Owner-approved co-ownership
+5. `6d5b33a` — staged curriculum editing and Apply flow
+6. `a18ffcb` — English and Italian localization
+7. `8998882` — mobile loading and interaction regressions
+8. `11361d0` — safe organization/role migration split
+9. `d151f76` — file-by-file PostgreSQL migration runner
+10. `f66655d` — reserved-connection transaction fix
+11. `a50a80b` — canonical database verifier fix
 
-## Migrations and data
+## Organization architecture
 
-The complete additive migration chain was applied to an isolated Preview
-database:
+The existing `universities` table remains physically stable and is the
+canonical organization store. Application code exposes a normalized
+organization abstraction and one reusable `OrganizationCombobox` used by
+onboarding, Profile study context, course creation, course settings, and the
+course directory.
 
-- `drizzle/0000_nifty_stardust.sql`
-- `drizzle/0001_finished_guard_trigger.sql`
-- `drizzle/0002_mute_dreadnoughts.sql`
-- `drizzle/0003_outgoing_dakota_north.sql`
-- `drizzle/0004_flippant_red_skull.sql`
-- `drizzle/0005_overrated_bullseye.sql`
+`GET /api/organizations/search` validates query/country parameters with Zod,
+requires two characters, searches locally first, calls ROR v2 server-side only
+when needed, filters active education organizations, caches repeated searches,
+rate-limits callers, and returns a bounded normalized contract. The client
+debounces requests, cancels stale searches, provides accessible keyboard and
+loading/empty/retry states, and requires explicit selection. A separate
+request route records “university not found” submissions for admin review.
 
-New tables:
+Stored ROR metadata includes ROR ID, canonical/display/normalized names,
+aliases, acronyms, organization type, city, region, country code/name, domains,
+primary domain, website, external source/update time, verification status, and
+created/updated timestamps. Deduplication uses exact ROR ID and exact domain;
+similar names are never merged automatically.
 
-- `course_subtopic_progress`
-- `course_resources`
-- `course_resource_comments`
-- `course_resource_reactions`
-- `rate_limit_buckets`
+`getPrimaryEnrollmentForStudent` is the authoritative study-context helper.
+Changing the primary organization changes discovery/recommendation defaults
+without deleting previous memberships, courses, contributions, resources,
+progress, or exam data.
 
-Existing tables receive only nullable or defaulted columns and indexes. The
-migrations contain no `DROP`, truncation, delete, seed, or binary payload.
-Template seed IDs are deterministic and inserts are conflict-safe.
+## Product flows
 
-No migration, seed, cleanup, archive, or deletion was run against production.
-The canonical seed ran twice on the isolated Preview database with identical
-results: 10 programs, 47 templates, 306 topics, 1,173 subtopics, and 713
-prerequisites, with no duplicate template versions or orphan topics.
+- `/` keeps the public landing page for anonymous users and renders the
+  personalized dashboard for authenticated users. `/dashboard` redirects to
+  `/`.
+- Home summarizes the primary university, owned/co-owned/visited courses,
+  recent university courses/resources/exam activity, and pending requests.
+- `/courses` defaults authenticated users to their primary university, stores
+  scope and organization in URL parameters, supports “My university” and “All
+  universities,” and groups public results by organization. Private and
+  unlisted courses are excluded from the public directory.
+- `/my-courses` groups memberships by university and separates owned/co-owned
+  courses from visiting courses.
+- Course creation defaults organization/program from onboarding and uses the
+  shared organization search only when the user intentionally changes it.
+- Profile contains primary university, program, intake year, preferred
+  language, and the non-destructive university-change explanation.
 
-E2E cleanup used a Preview-only database. PostgreSQL cascade behavior also
-removed the canonical templates because `curriculum_templates.created_by`
-references students; the deterministic canonical seed was immediately restored
-and reverified. The final Preview state contains the full canonical catalog and
-zero test students, courses, universities, or attachments. Production was never
-connected to this cleanup. A restored production-backup rehearsal and rollback
-proof remain mandatory before production migration.
+## Membership and co-ownership
 
-## Routes
+The user-facing model is Owner, Co-owner, and Visitor. Compatibility helpers
+temporarily recognize deprecated database enum values, but the application no
+longer produces them. Migration mapping is:
 
-Added:
+- `owner` to `owner`
+- `editor` to `coowner`
+- `contributor` and `viewer` to `visitor`
 
-- `/my-courses`
-- `/profile`
-- `/api/account/export`
-- `/api/health`
-- `/courses/[slug]/settings`
-- `/courses/[slug]/settings/members`
-- `/courses/[slug]/settings/curriculum`
-- `/courses/[slug]/settings/privacy`
-- `/privacy`
-- `/terms`
-- `/community-guidelines`
-- `/copyright`
-- `/contact`
-- `/robots.txt`
-- `/sitemap.xml`
+Explicit server-side helpers cover owner/co-owner/visitor identity, curriculum
+editing, contribution, co-ownership review, course settings, moderation, and
+archived-course deletion. Visitors can contribute resources, comments,
+attachments, reactions, exam information, recurring questions, occurrences,
+and reports, but cannot mutate curriculum or settings. Co-owners can edit and
+apply curriculum while ownership, privacy, archive/delete, moderation, and
+request review remain Owner-only.
 
-Changed/retired:
+`course_coownership_requests` stores requester, optional message, status,
+reviewer, and audit timestamps. A partial unique index prevents duplicate
+pending requests. Visitor request/cancel, Owner accept/reject, Owner demotion,
+and Co-owner leave actions are enforced server-side. Acceptance changes the
+membership transactionally and prevents self-review or non-Owner review.
 
-- `/dashboard` reliably redirects to `/my-courses`.
-- `/admin/login` redirects to normal `/login?next=/admin`; dedicated
-  username/password admin actions and UI were removed.
-- Public course tabs are Overview, Curriculum, Resources, and Exam.
-  Contributors and Community are no longer public tabs.
-- Legacy `/subjects/[slug]/survey`, `/swipe`, and `/gaps` redirect using the
-  reliable subject slug to the read-only subject view.
-- Legacy records and `/subjects/[slug]/track` remain preserved outside primary
-  navigation. No uncertain legacy progress mapping was attempted.
+## Curriculum interaction
 
-## Curriculum catalog
+The curriculum now uses a client-side accessible accordion with local expanded
+state and lazy-loaded/cached subtopics. Expansion never calls router navigation
+or submits a form. Topic cards show classification progress and bulk coverage
+controls; each subtopic has direct Covered/Not covered buttons with an internal
+unknown state. Advanced fields remain behind Edit details.
 
-Totals: 47 templates, 306 topics, 1,173 subtopics. Deterministic validation
-checksum: `d4574cb439e44b86`.
+Coverage changes stay in client state until Apply. A persistent desktop/mobile
+bar shows pending count, saving/success/failure state, retry, and discard. The
+transactional batch action authenticates Owner/Co-owner access, rejects
+cross-course IDs, applies all changes atomically, updates immutable history and
+the current public state, updates course timestamps, and revalidates routes.
+Standard UI no longer exposes draft, publish, snapshot, or version workflow
+terms; it shows curriculum last-updated information instead.
 
-| Template | Topics | Subtopics |
-|---|---:|---:|
-| Anatomy and Physiology | 6 | 18 |
-| Biology for Engineers | 6 | 18 |
-| Biomaterials | 6 | 18 |
-| Biomechanics | 6 | 18 |
-| Biomedical Signals | 6 | 18 |
-| Calculus I | 12 | 105 |
-| Calculus II | 6 | 18 |
-| Circuit Analysis | 6 | 18 |
-| Classical Mechanics | 12 | 97 |
-| Complex Numbers and Transform Methods | 6 | 18 |
-| Computer Architecture and Digital Logic | 6 | 18 |
-| Control Systems | 6 | 18 |
-| Data Science Fundamentals | 6 | 18 |
-| Data Structures and Algorithms | 6 | 18 |
-| Database Fundamentals | 6 | 18 |
-| Discrete Mathematics | 6 | 18 |
-| Dynamics | 6 | 18 |
-| Electricity and Magnetism | 6 | 18 |
-| Electronics | 6 | 18 |
-| Engineering Design | 6 | 18 |
-| Engineering Drawing and CAD | 6 | 18 |
-| Engineering Project Management | 6 | 18 |
-| Engineering Thermodynamics | 6 | 18 |
-| Fluid Mechanics | 6 | 18 |
-| General Chemistry for Engineers | 12 | 96 |
-| Linear Algebra | 12 | 101 |
-| Engineering Materials and Manufacturing Processes | 6 | 18 |
-| Materials Science and Engineering | 6 | 18 |
-| Measurement and Instrumentation | 6 | 18 |
-| Mechanics of Materials | 6 | 18 |
-| Medical Imaging | 6 | 18 |
-| Modern Physics Fundamentals | 6 | 18 |
-| Multivariable Calculus | 6 | 18 |
-| Numerical Methods | 6 | 18 |
-| Object-Oriented Programming | 6 | 18 |
-| Optimization Fundamentals | 6 | 18 |
-| Ordinary Differential Equations | 6 | 18 |
-| Organic and Biochemistry for Engineers | 6 | 18 |
-| Probability and Statistics | 6 | 18 |
-| Programming Fundamentals | 6 | 18 |
-| Scientific Computing | 6 | 18 |
-| Signals and Systems | 6 | 18 |
-| Statics | 6 | 18 |
-| Technical Communication | 6 | 18 |
-| Thermodynamics | 6 | 18 |
-| Waves and Optics | 6 | 18 |
-| Web and Software Engineering Fundamentals | 6 | 18 |
-| Total | 306 | 1,173 |
+Live Preview evidence on the 12-topic public Calculus curriculum: a lower topic
+expanded and collapsed at `window.scrollY = 994` with a measured delta of
+exactly `0 px` both times. The loaded panel returned all seven subtopics without
+a route change. No banned version terminology was present.
 
-Source families stored per template:
+## Localization
 
-- MIT OpenCourseWare course and search pages
-- OpenStax Calculus, University Physics, Chemistry, Biology, and Anatomy and
-  Physiology
-- ACM/IEEE Computing Curricula 2020 and CS2023 recommendations
-- ABET Criteria for Accrediting Engineering Programs 2025–2026
+Typed flat dictionaries in `src/lib/i18n/messages.ts` provide English and
+Italian with exact key parity and non-empty-value tests. Resolution order is
+saved student preference, locale cookie, `Accept-Language`, then English.
+`LocaleProvider`, the language selector, dynamic `<html lang>`, localized
+metadata, and Intl date/number formatting are shared across App Router flows.
 
-Descriptions are paraphrased. The canonical seed has no fake reviews, comments,
-exam questions, occurrences, or other social data.
+Core navigation, onboarding, Home, Discover, My courses, creation, course
+shell/tabs, curriculum, resources, exam, members/settings, actions, validation,
+errors, empty states, accessibility labels, roles, depth and coverage states
+are localized. University/course/professor names and student-generated content
+are intentionally unchanged. Academic content falls back to English rather
+than rendering an empty Italian value.
 
-## Environment
+Live Preview switching produced English and Italian headings/navigation,
+updated `<html lang>` correctly, and preserved Italian after reload.
 
-Documented variables:
+## Migrations and data verification
 
-- `DATABASE_URL`
-- `DATABASE_URL_UNPOOLED`
-- `AUTH_SECRET`
-- `BLOB_READ_WRITE_TOKEN` (or Vercel OIDC)
-- `ADMIN_EMAILS` (bootstrap only)
-- `NEXT_PUBLIC_APP_URL`
-- `NEXT_PUBLIC_CONTACT_EMAIL`
+Additive files:
 
-Preview-only configuration provisioned:
+- `drizzle/0006_add_course_member_roles.sql`
+- `drizzle/0007_organization_membership_schema.sql`
+- `drizzle/0008_organization_role_backfill.sql`
 
-- isolated Neon store `engdepthanal-preview-v1`
-- isolated private Blob store `engdepthanal-preview-attachments` in FRA1
-- rotated Preview `AUTH_SECRET`
+PostgreSQL cannot use an enum value until the transaction that adds it commits.
+The repository therefore uses `scripts/migrate.ts`, which takes an advisory
+lock and commits each numbered Drizzle file separately. `npm run db:migrate`
+and `db:setup` both use this runner; plain `drizzle-kit migrate` must not be
+substituted for this release.
 
-Still missing for production release:
+A production-like legacy rehearsal preserved all organizations, enrollments,
+courses, memberships, and invites; mapped one editor to Co-owner and two legacy
+reader/contributor memberships to Visitor; chose a deterministic primary
+enrollment; passed a second data-backfill run; and rejected a duplicate pending
+co-ownership request.
 
-- monitored contact email
-- authorized mail provider if password reset/email verification is enabled
+The isolated Preview database applied all nine migrations. The canonical seed
+ran twice successfully. Final verification reported 47 templates, 306 topics,
+1,173 subtopics, 713 prerequisite edges, no duplicate keys, no orphan progress
+or resources, and `integrity: ok`. No migration, seed, or verification command
+was run against production.
 
-No secret, database URL, token, `.vercel` metadata, or PII export is committed.
+## Quality evidence
 
-## Verification evidence
+Passed in the cloud:
 
-Passed locally and/or against the protected Vercel Preview:
-
-- `npm ci`
-- `npm run curriculum:validate` — 47/306/1,173
-- `npm run typecheck` — zero errors
-- `npm test` — 16 passed, 0 failed
-- `npm run build` — success, 24 static pages/assets; build command unchanged
-  and no DB/seed/migration invocation
+- `npm ci --cache /tmp/engdepthanal-npm-cache`
+- `npm run curriculum:validate` — 47 / 306 / 1,173, checksum
+  `d4574cb439e44b86`
+- `npm run typecheck`
+- `npm test` — 28 passed, 0 failed
+- `AUTH_SECRET=preview-build-check npm run build`
 - `git diff --check`
-- Drizzle Preview rehearsal — all 6 migrations applied
-- canonical seed idempotency — two runs, identical totals and zero duplicates
-- Playwright public/device matrix — 28 passed, 6 intentional
-  device-specific skips
-- Playwright authenticated Pixel 7 journey — signup, onboarding, private
-  course, combined templates, curriculum publish, contextual resource,
-  private Markdown attachment, anonymous course/attachment denial,
-  hide/restore/permanent Blob removal, and account export
-- final iPhone SE smoke — home, horizontal overflow, and `/api/health`
-- final deployment runtime logs — no `error` or `fatal` entries
-- Lighthouse mobile — Performance 89, Accessibility 100, Best Practices 100,
-  SEO 63
+- nine-file production-like migration rehearsal
+- isolated Preview migration, two seed passes, and `db:verify`
+- final Vercel build using only `npm run build`
 
-Unit/integration coverage includes curriculum validation/cycles, attachment
-MIME/extension/signatures, course normalization/slugs, visibility permissions,
-role capabilities, private attachment metadata, low/high-confidence exam
-ranking, and deterministic recurring-question duplicate suggestions.
+Lighthouse mobile on the exact production build in the cloud:
 
-The Lighthouse SEO score is intentionally reduced by Vercel's protected Preview
-`noindex` response; the application's robots audit passes. Accessibility 100 is
-automated evidence, not a substitute for a complete manual keyboard,
-focus-order, and screen-reader audit.
+| Category/metric | Result |
+|---|---:|
+| Performance | 99 |
+| Accessibility | 100 |
+| Best Practices | 100 |
+| SEO | 100 |
+| First Contentful Paint | 0.9 s |
+| Largest Contentful Paint | 2.0 s |
+| Total Blocking Time | 0 ms |
+| Cumulative Layout Shift | 0 |
+| Speed Index | 0.9 s |
 
-`npm audit` still reports 10 transitive findings (4 moderate, 4 high, 2
-critical). No breaking dependency upgrade was applied without a separate
-compatibility pass.
+Protected Preview browser checks passed for the anonymous landing page,
+English/Italian persistence, worldwide ROR results, explicit organization URL
+selection, grouped Discover results, public curriculum, hidden version terms,
+stable lower-topic expansion/collapse, no horizontal overflow at the cloud
+browser viewport, dashboard redirect, and core semantic accessibility checks.
+Home, Discover, and Curriculum each had one H1 and one main landmark, no
+duplicate IDs, no missing image alt attributes, and no unlabeled visible
+controls.
 
-## Known limits and next release
+The repository Playwright matrix was invoked against the protected Preview
+with a disposable cloud Chromium. All 50 public-matrix cases were blocked in
+the shared `grantPreviewAccess` setup by the shell egress policy
+(`ERR_EMPTY_RESPONSE`) before application assertions. The connected cloud
+browser and Vercel authenticated fetch both reached the same deployment
+successfully, so this is recorded as an infrastructure limitation rather than
+an application test failure. The authenticated destructive journey was not run
+without a Preview credential/browser path.
 
-The Preview candidate is suitable for review, but these safeguards remain
-before merge or production promotion:
+Final build logs contain no relevant warnings or errors. Final deployment
+runtime logs contain no warning, error, or fatal entries, and Vercel reports no
+runtime error clusters in the observed period.
 
-1. take and restore-test a production backup, rehearse the additive migrations
-   against that restored copy, document rollback, and verify existing
-   users/courses;
-2. resolve or explicitly accept the 10 `npm audit` findings after compatibility
-   testing;
-3. complete manual keyboard/focus/screen-reader review and extend authenticated
-   write E2E beyond Pixel 7 to the remaining target devices;
-4. exercise join/roles, exam occurrence/report moderation, admin, and account
-   deletion against a production-like restored dataset;
-5. configure a monitored contact address and an approved mail provider before
-   enabling reset/verification;
-6. add required GitHub checks and branch protection because the draft PR
-   currently has no CI status checks;
-7. review production placeholders with an explicit export/backup before any
-   archive or delete action.
+## Remaining limits and authorization
 
-Keep PR #18 draft and do not merge, migrate production, or promote the Preview
-until these items are closed.
+1. Re-run the complete Playwright device/authenticated matrix from an approved
+   runner that can reach protected `*.vercel.app` deployments and has isolated
+   Preview test credentials. Include iPhone SE, modern iPhone, Pixel 7, 768 px,
+   desktop, Visitor contribution, Owner approval, Co-owner curriculum Apply,
+   private attachment isolation, and cleanup.
+2. Restore a recent production backup into a new isolated database and repeat
+   the migration/rollback rehearsal. The synthetic legacy rehearsal is not a
+   substitute for authorization to access a real backup.
+3. Complete manual keyboard/focus/screen-reader testing in English and Italian.
+4. Keep PR #19 draft until review and required checks are complete.
+
+No additional authorization is required for continued Preview review.
+Production migration requires an authorized operator, a verified fresh backup,
+production database access, and an explicit go/no-go decision. Production Blob
+or environment variables were not changed.
+
+## Production plan and rollback
+
+1. Restore-test a fresh production backup in isolation and record pre-migration
+   row counts.
+2. Run `npm run db:migrate` once from a controlled job using the direct
+   production connection. Verify that 0006 commits before 0007/0008.
+3. Run the production-safe canonical seed and `npm run db:verify`; compare
+   counts and sample existing private-course access.
+4. Deploy the application only after the data checks pass. Do not make
+   migrations part of ordinary Vercel builds.
+5. On application regression, redeploy the prior application commit while
+   retaining the additive schema and deprecated enum values. Forward-fix the
+   application or schema.
+6. Do not destructively remove new columns/tables/enums during incident
+   response. If role data itself must be reversed, restore from the backup:
+   migrated Visitor rows cannot reliably distinguish former Contributor from
+   former Viewer.
