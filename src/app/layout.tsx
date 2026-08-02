@@ -1,8 +1,14 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { AppNav } from "@/components/app-nav";
 import { LocaleProvider } from "@/components/locale-provider";
 import { getI18n } from "@/lib/i18n/server";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-content",
+};
 
 export async function generateMetadata(): Promise<Metadata> {
   const { t } = await getI18n();

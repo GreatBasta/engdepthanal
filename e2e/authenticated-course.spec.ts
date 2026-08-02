@@ -108,6 +108,15 @@ test("signup to private course, resource upload, moderation, and denial", async 
   await page.getByRole("button", { name: "Covered" }).first().click();
   const applyButton = page.getByRole("button", { name: "Apply changes" });
   await expect(applyButton).toBeEnabled();
+  const [applyBox, navBox] = await Promise.all([
+    applyButton.boundingBox(),
+    page.getByRole("navigation", { name: "Primary navigation" }).boundingBox(),
+  ]);
+  expect(applyBox).not.toBeNull();
+  expect(navBox).not.toBeNull();
+  expect((applyBox?.y ?? 0) + (applyBox?.height ?? 0)).toBeLessThanOrEqual(
+    navBox?.y ?? Number.POSITIVE_INFINITY,
+  );
   const beforeApply = await page.evaluate(() => window.scrollY);
   await applyButton.click();
   await expect(page.getByText("Curriculum changes applied.")).toBeVisible();

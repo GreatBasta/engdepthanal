@@ -40,6 +40,26 @@ test("Italian preference updates html language and persists", async ({
   await expect(page.getByRole("link", { name: "Scopri" })).toBeVisible();
 });
 
+test("core public routes do not overflow at 320 by 568", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "desktop",
+    "Explicit 320 px regression runs once",
+  );
+  await page.setViewportSize({ width: 320, height: 568 });
+
+  for (const route of ["/", "/courses?scope=all"]) {
+    await page.goto(route);
+    const widths = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      content: document.documentElement.scrollWidth,
+    }));
+    expect(widths.viewport).toBe(320);
+    expect(widths.content).toBeLessThanOrEqual(widths.viewport);
+  }
+});
+
 test("mobile navigation has four labelled one-handed targets", async ({
   page,
 }, testInfo) => {
