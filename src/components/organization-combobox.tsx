@@ -1,13 +1,8 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 
+import { useI18n } from "@/components/locale-provider";
 import {
   organizationResultSchema,
   type OrganizationResult,
@@ -17,7 +12,7 @@ type SearchState = "idle" | "loading" | "ready" | "empty" | "error";
 
 export function OrganizationCombobox({
   name = "organizationSelection",
-  label = "University",
+  label,
   countryCode,
   defaultOrganization = null,
   required = true,
@@ -32,6 +27,7 @@ export function OrganizationCombobox({
   requestEnabled?: boolean;
   onSelectionChange?: (organization: OrganizationResult | null) => void;
 }) {
+  const { t } = useI18n();
   const inputId = useId();
   const listboxId = useId();
   const statusId = useId();
@@ -142,21 +138,21 @@ export function OrganizationCombobox({
     activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined;
   const statusText =
     state === "loading"
-      ? "Searching universities"
+      ? t("organization.searchingAnnouncement")
       : state === "ready"
-        ? `${results.length} universities found`
+        ? t("organization.resultsFound", { count: results.length })
         : state === "empty"
-          ? "No universities found"
+          ? t("organization.noneFound")
           : state === "error"
-            ? "University search unavailable"
+            ? t("organization.unavailable")
             : selected
-              ? `${selected.displayName} selected`
-              : "Type at least two characters and select a university";
+              ? t("organization.selected", { name: selected.displayName })
+              : t("organization.typeToSearch");
 
   return (
     <div className="relative">
       <label htmlFor={inputId} className="block text-sm font-semibold">
-        {label}
+        {label ?? t("organization.university")}
       </label>
       <input
         id={inputId}
@@ -179,7 +175,7 @@ export function OrganizationCombobox({
           setRequestStatus("idle");
         }}
         onKeyDown={handleKeyDown}
-        placeholder="Search worldwide universities…"
+        placeholder={t("organization.searchPlaceholder")}
         className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm shadow-sm focus:border-indigo-500"
       />
       <input
@@ -193,19 +189,23 @@ export function OrganizationCombobox({
 
       {state === "loading" ? (
         <div className="mt-2 min-h-20 rounded-xl border border-slate-200 bg-white p-4 text-sm text-slate-500 shadow-lg">
-          Searching…
+          {t("organization.searching")}
         </div>
       ) : null}
       {results.length ? (
         <ul
           id={listboxId}
           role="listbox"
-          aria-label="University results"
+          aria-label={t("organization.results")}
           className="absolute z-50 mt-2 max-h-80 w-full overflow-y-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xl"
         >
           {results.map((result, index) => (
             <li
-              key={result.localId ?? result.rorId ?? `${result.displayName}-${index}`}
+              key={
+                result.localId ??
+                result.rorId ??
+                `${result.displayName}-${index}`
+              }
               id={`${listboxId}-option-${index}`}
               role="option"
               aria-selected={activeIndex === index}
@@ -224,7 +224,11 @@ export function OrganizationCombobox({
                       {result.displayName}
                     </span>
                     <span className="mt-0.5 block text-xs text-slate-600">
-                      {[result.city, result.region, result.countryName ?? result.countryCode]
+                      {[
+                        result.city,
+                        result.region,
+                        result.countryName ?? result.countryCode,
+                      ]
                         .filter(Boolean)
                         .join(", ")}
                     </span>
@@ -235,7 +239,9 @@ export function OrganizationCombobox({
                     ) : null}
                   </span>
                   <span className="shrink-0 rounded-full bg-slate-100 px-2 py-1 text-[10px] font-bold uppercase text-slate-600">
-                    {result.source === "local" ? "Local" : "ROR"}
+                    {result.source === "local"
+                      ? t("organization.local")
+                      : t("organization.ror")}
                   </span>
                 </span>
               </button>
@@ -246,39 +252,63 @@ export function OrganizationCombobox({
 
       {state === "error" ? (
         <div className="mt-2 flex min-h-14 items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-          Search is temporarily unavailable.
-          <button type="button" onClick={() => void runSearch(query)} className="min-h-11 rounded-lg border border-amber-300 px-3 font-semibold">
-            Retry
+          {t("organization.temporaryUnavailable")}
+          <button
+            type="button"
+            onClick={() => void runSearch(query)}
+            className="min-h-11 rounded-lg border border-amber-300 px-3 font-semibold"
+          >
+            {t("common.retry")}
           </button>
         </div>
       ) : null}
       {state === "empty" && requestEnabled ? (
         <div className="mt-2 rounded-xl border border-slate-200 bg-white p-3 text-sm">
-          <p>No verified university matches this search.</p>
+          <p>{t("organization.noVerifiedMatch")}</p>
           <button
             type="button"
             onClick={() => setRequestOpen((open) => !open)}
             className="mt-2 min-h-11 rounded-lg border border-slate-300 px-3 font-semibold"
           >
-            University not found
+            {t("organization.notFound")}
           </button>
         </div>
       ) : null}
       {requestOpen ? (
         <div className="mt-2 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
           <p className="text-xs leading-5 text-slate-600">
-            This creates a review request. It does not silently verify typed text.
+            {t("organization.requestExplanation")}
           </p>
-          <input value={requestCity} onChange={(event) => setRequestCity(event.target.value)} placeholder="City (optional)" className="min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm" />
-          <input value={requestWebsite} onChange={(event) => setRequestWebsite(event.target.value)} type="url" placeholder="Official website (optional)" className="min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm" />
-          <button type="button" onClick={() => void requestOrganization()} disabled={requestStatus === "sending" || requestStatus === "sent"} className="min-h-11 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white disabled:opacity-60">
+          <input
+            value={requestCity}
+            onChange={(event) => setRequestCity(event.target.value)}
+            placeholder={t("organization.cityOptional")}
+            className="min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm"
+          />
+          <input
+            value={requestWebsite}
+            onChange={(event) => setRequestWebsite(event.target.value)}
+            type="url"
+            placeholder={t("organization.websiteOptional")}
+            className="min-h-11 w-full rounded-lg border border-slate-300 px-3 text-sm"
+          />
+          <button
+            type="button"
+            onClick={() => void requestOrganization()}
+            disabled={requestStatus === "sending" || requestStatus === "sent"}
+            className="min-h-11 rounded-lg bg-slate-900 px-3 text-sm font-semibold text-white disabled:opacity-60"
+          >
             {requestStatus === "sending"
-              ? "Sending…"
+              ? t("organization.sending")
               : requestStatus === "sent"
-                ? "Request sent"
-                : "Send for review"}
+                ? t("organization.requestSent")
+                : t("organization.sendReview")}
           </button>
-          {requestStatus === "error" ? <p role="alert" className="text-xs text-red-700">The request could not be sent. Try again.</p> : null}
+          {requestStatus === "error" ? (
+            <p role="alert" className="text-xs text-red-700">
+              {t("organization.requestFailed")}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </div>

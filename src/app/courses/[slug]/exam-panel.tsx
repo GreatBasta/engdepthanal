@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { getCourseExam } from "@/lib/courses/exam";
 import { getCourseCurriculumIndex } from "@/lib/courses/curriculum";
+import { getI18n } from "@/lib/i18n/server";
 
 import { AttachmentForm } from "./attachment-form";
 import { ExamQuestionForm } from "./exam-question-form";
@@ -26,10 +27,12 @@ export async function ExamPanel({
   canPost: boolean;
   canModerate: boolean;
 }) {
-  const [exam, curriculum] = await Promise.all([
+  const [exam, curriculum, i18n] = await Promise.all([
     getCourseExam(coursePageId, canModerate),
     getCourseCurriculumIndex(coursePageId, "published"),
+    getI18n(),
   ]);
+  const { t, formatDate } = i18n;
   const topics = (curriculum?.topics ?? [])
     .filter((topic) => topic.hiddenAt === null)
     .map((topic) => ({ stableId: topic.stableId, name: topic.name }));
@@ -68,19 +71,16 @@ export async function ExamPanel({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.14em] text-indigo-600 dark:text-indigo-400">
-              Assessment profile
+              {t("exam.profile")}
             </p>
             <h2 className="mt-1 text-xl font-semibold">
-              How this course is examined
+              {t("exam.howExamined")}
             </h2>
           </div>
           {exam.profile?.updatedAt ? (
             <span className="text-xs text-zinc-500">
-              Updated{" "}
-              {exam.profile.updatedAt.toLocaleDateString("en", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
+              {t("common.updated", {
+                date: formatDate(exam.profile.updatedAt),
               })}
             </span>
           ) : null}
@@ -96,52 +96,52 @@ export async function ExamPanel({
               courseSlug={courseSlug}
             />
             <label className="text-xs font-medium">
-              Assessment type
+              {t("exam.assessmentType")}
               <select
                 name="assessmentType"
                 defaultValue={exam.profile?.assessmentType ?? ""}
                 className={`${inputClass} mt-1 w-full`}
               >
-                <option value="">Unknown</option>
-                <option value="written">Written</option>
-                <option value="oral">Oral</option>
-                <option value="practical">Practical</option>
-                <option value="project">Project</option>
-                <option value="mixed">Mixed</option>
+                <option value="">{t("common.unknown")}</option>
+                <option value="written">{t("exam.written")}</option>
+                <option value="oral">{t("exam.oral")}</option>
+                <option value="practical">{t("exam.practical")}</option>
+                <option value="project">{t("exam.project")}</option>
+                <option value="mixed">{t("exam.mixed")}</option>
               </select>
             </label>
             <label className="text-xs font-medium">
-              Format
+              {t("exam.format")}
               <input
                 name="format"
                 defaultValue={exam.profile?.format ?? ""}
                 maxLength={500}
-                placeholder="e.g. 3 exercises + oral follow-up"
+                placeholder={t("exam.formatPlaceholder")}
                 className={`${inputClass} mt-1 w-full`}
               />
             </label>
             <label className="text-xs font-medium">
-              Grading scale
+              {t("exam.gradingScale")}
               <input
                 name="gradingScale"
                 defaultValue={exam.profile?.gradingScale ?? ""}
                 maxLength={120}
-                placeholder="e.g. 0–30, pass at 18"
+                placeholder={t("exam.gradingPlaceholder")}
                 className={`${inputClass} mt-1 w-full`}
               />
             </label>
             <label className="text-xs font-medium">
-              Last verified academic year
+              {t("exam.lastVerifiedYear")}
               <input
                 name="lastVerifiedAcademicYear"
                 defaultValue={exam.profile?.lastVerifiedAcademicYear ?? ""}
                 maxLength={20}
-                placeholder="e.g. 2025/26"
+                placeholder={t("exam.yearPlaceholder")}
                 className={`${inputClass} mt-1 w-full`}
               />
             </label>
             <label className="text-xs font-medium">
-              Duration (minutes)
+              {t("exam.durationMinutes")}
               <input
                 name="durationMinutes"
                 type="number"
@@ -159,7 +159,7 @@ export async function ExamPanel({
                 defaultChecked={exam.profile?.openBook ?? false}
                 className="accent-indigo-600"
               />
-              Open book
+              {t("exam.openBook")}
             </label>
             <label className="flex items-center gap-2 text-sm">
               <input
@@ -169,16 +169,16 @@ export async function ExamPanel({
                 defaultChecked={exam.profile?.calculatorAllowed ?? false}
                 className="accent-indigo-600"
               />
-              Calculator allowed
+              {t("exam.calculatorAllowed")}
             </label>
             <label className="text-xs font-medium sm:col-span-2">
-              Details
+              {t("exam.details")}
               <textarea
                 name="details"
                 rows={3}
                 maxLength={4000}
                 defaultValue={exam.profile?.details ?? ""}
-                placeholder="Structure, grading rules, permitted materials, oral sequence…"
+                placeholder={t("exam.detailsPlaceholder")}
                 className={`${inputClass} mt-1 w-full`}
               />
             </label>
@@ -186,60 +186,63 @@ export async function ExamPanel({
               type="submit"
               className="justify-self-start rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500"
             >
-              Save exam profile
+              {t("exam.saveProfile")}
             </button>
           </form>
         ) : exam.profile ? (
           <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-3">
             <Metadata
-              label="Type"
-              value={exam.profile.assessmentType || "Unknown"}
+              label={t("exam.type")}
+              value={exam.profile.assessmentType || t("common.unknown")}
             />
             <Metadata
-              label="Format"
-              value={exam.profile.format || "Not specified"}
+              label={t("exam.format")}
+              value={exam.profile.format || t("course.notSpecified")}
             />
             <Metadata
-              label="Duration"
+              label={t("exam.duration")}
               value={
                 exam.profile.durationMinutes
-                  ? `${exam.profile.durationMinutes} minutes`
-                  : "Not specified"
+                  ? t("exam.minutes", {
+                      count: exam.profile.durationMinutes,
+                    })
+                  : t("course.notSpecified")
               }
             />
             <Metadata
-              label="Grading"
-              value={exam.profile.gradingScale || "Not specified"}
+              label={t("exam.grading")}
+              value={exam.profile.gradingScale || t("course.notSpecified")}
             />
             <Metadata
-              label="Last verified"
+              label={t("exam.lastVerified")}
               value={
-                exam.profile.lastVerifiedAcademicYear || "Not specified"
+                exam.profile.lastVerifiedAcademicYear ||
+                t("course.notSpecified")
               }
             />
             <Metadata
-              label="Open book"
+              label={t("exam.openBook")}
               value={
                 exam.profile.openBook == null
-                  ? "Unknown"
+                  ? t("common.unknown")
                   : exam.profile.openBook
-                    ? "Yes"
-                    : "No"
+                    ? t("common.yes")
+                    : t("common.no")
               }
             />
             <Metadata
-              label="Calculator"
+              label={t("exam.calculator")}
               value={
                 exam.profile.calculatorAllowed == null
-                  ? "Unknown"
+                  ? t("common.unknown")
                   : exam.profile.calculatorAllowed
-                    ? "Allowed"
-                    : "Not allowed"
+                    ? t("common.allowed")
+                    : t("common.notAllowed")
               }
             />
             {exam.profile.details ? (
               <div className="sm:col-span-3">
-                <dt className="text-zinc-500">Details</dt>
+                <dt className="text-zinc-500">{t("exam.details")}</dt>
                 <dd className="mt-1 whitespace-pre-wrap leading-6">
                   {exam.profile.details}
                 </dd>
@@ -247,28 +250,28 @@ export async function ExamPanel({
             ) : null}
           </dl>
         ) : (
-          <p className="mt-4 text-sm text-zinc-500">
-            No verified exam profile has been added yet.
-          </p>
+          <p className="mt-4 text-sm text-zinc-500">{t("exam.noProfile")}</p>
         )}
         <p className="mt-4 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-          Student-reported and non-official
+          {t("exam.studentReported")}
           {exam.profile?.verificationCount
-            ? ` · ${exam.profile.verificationCount} student verification${
-                exam.profile.verificationCount === 1 ? "" : "s"
+            ? ` · ${
+                exam.profile.verificationCount === 1
+                  ? t("exam.verificationOne")
+                  : t("exam.verifications", {
+                      count: exam.profile.verificationCount,
+                    })
               }`
             : ""}
-          . Confirm details with the university.
         </p>
       </section>
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold">Permitted exam materials</h2>
+            <h2 className="text-lg font-semibold">{t("exam.materials")}</h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Student-contributed materials appear here only after the
-              contributor confirms permission to share them.
+              {t("exam.materialsHelp")}
             </p>
           </div>
           {canPost ? (
@@ -276,7 +279,7 @@ export async function ExamPanel({
               href={`/courses/${courseSlug}?tab=resources`}
               className="inline-flex min-h-11 items-center rounded-xl bg-indigo-50 px-3 text-sm font-semibold text-indigo-700"
             >
-              Add in Resources
+              {t("exam.addResources")}
             </Link>
           ) : null}
         </div>
@@ -288,7 +291,7 @@ export async function ExamPanel({
                 className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800"
               >
                 <h3 className="font-semibold">
-                  {material.title || "Permitted material"}
+                  {material.title || t("exam.permittedMaterial")}
                 </h3>
                 {material.body ? (
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-zinc-600 dark:text-zinc-400">
@@ -302,7 +305,7 @@ export async function ExamPanel({
                     rel="noopener noreferrer nofollow"
                     className="mt-2 inline-flex min-h-11 items-center break-all text-sm font-semibold text-indigo-700 underline"
                   >
-                    Open material link
+                    {t("exam.openMaterial")}
                   </Link>
                 ) : null}
                 <ExamAttachmentList
@@ -310,23 +313,23 @@ export async function ExamPanel({
                   coursePageId={coursePageId}
                 />
                 <p className="mt-2 text-[11px] text-zinc-500">
-                  Permission confirmed by contributor · {material.authorName}
+                  {t("exam.permissionBy", { name: material.authorName })}
                 </p>
               </li>
             ))}
           </ul>
         ) : (
           <p className="mt-4 rounded-xl border border-dashed border-zinc-300 p-5 text-sm text-zinc-500">
-            No permitted exam materials have been shared.
+            {t("exam.noMaterials")}
           </p>
         )}
       </section>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-lg font-semibold">Exam experiences</h2>
+          <h2 className="text-lg font-semibold">{t("exam.experiences")}</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            First-hand reports stay distinct from question occurrence evidence.
+            {t("exam.experienceHelp")}
           </p>
           {canPost ? (
             <form
@@ -341,8 +344,8 @@ export async function ExamPanel({
                 name="title"
                 required
                 maxLength={180}
-                placeholder="Experience title"
-                aria-label="Experience title"
+                placeholder={t("exam.experienceTitle")}
+                aria-label={t("exam.experienceTitle")}
                 className={inputClass}
               />
               <textarea
@@ -350,8 +353,8 @@ export async function ExamPanel({
                 required
                 maxLength={20_000}
                 rows={4}
-                placeholder="What happened, what mattered, and what would you prepare?"
-                aria-label="Exam experience"
+                placeholder={t("exam.experiencePlaceholder")}
+                aria-label={t("exam.experience")}
                 className={inputClass}
               />
               <div className="grid gap-2 sm:grid-cols-3">
@@ -359,20 +362,20 @@ export async function ExamPanel({
                   name="academicYear"
                   maxLength={20}
                   placeholder="2026/27"
-                  aria-label="Academic year"
+                  aria-label={t("exam.academicYear")}
                   className={inputClass}
                 />
                 <input
                   name="examDate"
                   type="date"
-                  aria-label="Exam date"
+                  aria-label={t("exam.examDate")}
                   className={inputClass}
                 />
                 <input
                   name="grade"
                   maxLength={40}
-                  placeholder="Grade (optional)"
-                  aria-label="Grade"
+                  placeholder={t("exam.gradeOptional")}
+                  aria-label={t("exam.grade")}
                   className={inputClass}
                 />
               </div>
@@ -383,13 +386,13 @@ export async function ExamPanel({
                   value="yes"
                   className="accent-indigo-600"
                 />
-                Hide my name on this experience
+                {t("exam.anonymous")}
               </label>
               <button
                 type="submit"
                 className="justify-self-start rounded-lg bg-zinc-900 px-4 py-2 text-xs font-semibold text-white dark:bg-zinc-100 dark:text-zinc-900"
               >
-                Add experience
+                {t("exam.addExperience")}
               </button>
             </form>
           ) : null}
@@ -409,12 +412,16 @@ export async function ExamPanel({
                     <h3 className="font-semibold">{experience.title}</h3>
                     <p className="mt-1 text-xs text-zinc-500">
                       {experience.anonymous
-                        ? "Anonymous contributor"
+                        ? t("exam.anonymousContributor")
                         : experience.authorName}
                       {experience.academicYear
                         ? ` · ${experience.academicYear}`
                         : ""}
-                      {experience.grade ? ` · grade ${experience.grade}` : ""}
+                      {experience.grade
+                        ? ` · ${t("exam.gradeValue", {
+                            grade: experience.grade,
+                          })}`
+                        : ""}
                     </p>
                   </div>
                   {canModerate ? (
@@ -447,17 +454,15 @@ export async function ExamPanel({
           </ul>
           {exam.experiences.length === 0 ? (
             <p className="mt-4 text-sm text-zinc-500">
-              No exam experiences yet.
+              {t("exam.noExperiences")}
             </p>
           ) : null}
         </section>
 
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="text-lg font-semibold">Confidence-aware ranking</h2>
+          <h2 className="text-lg font-semibold">{t("exam.confidence")}</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-600 dark:text-zinc-400">
-            With limited evidence we show report, session and contributor
-            counts plus “Not enough data”. S–D tiers appear only after at least
-            10 approved reports, 3 sessions and 5 unique contributors.
+            {t("exam.confidenceHelp")}
           </p>
 
           {canPost ? (
@@ -474,13 +479,15 @@ export async function ExamPanel({
       <section>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold">Question bank</h2>
+            <h2 className="text-xl font-semibold">{t("exam.questionBank")}</h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Ranked by reported recurrence, not by a hidden model.
+              {t("exam.questionBankHelp")}
             </p>
           </div>
           <span className="text-sm text-zinc-500">
-            {questions.length} questions
+            {questions.length === 1
+              ? t("exam.questionOne")
+              : t("exam.questionCount", { count: questions.length })}
           </span>
         </div>
 
@@ -507,12 +514,14 @@ export async function ExamPanel({
                         {question.prompt}
                       </p>
                       <p className="mt-1 text-xs text-zinc-500">
-                        Added by {question.creatorName}
+                        {t("exam.addedBy", { name: question.creatorName })}
                         {question.questionType
                           ? ` · ${question.questionType.replaceAll("_", " ")}`
                           : ""}
                         {question.difficulty
-                          ? ` · difficulty ${question.difficulty}/5`
+                          ? ` · ${t("exam.difficultyValue", {
+                              value: question.difficulty,
+                            })}`
                           : ""}
                       </p>
                     </div>
@@ -529,24 +538,31 @@ export async function ExamPanel({
 
                   <div className="mt-3 flex flex-wrap gap-2 text-xs">
                     <span className="rounded-full bg-zinc-100 px-2.5 py-1 dark:bg-zinc-800">
-                      {question.evidence.occurrences} reports
+                      {t("exam.reports", {
+                        count: question.evidence.occurrences,
+                      })}
                     </span>
                     <span className="rounded-full bg-zinc-100 px-2.5 py-1 dark:bg-zinc-800">
-                      {question.evidence.distinctSessions} sessions
+                      {t("exam.sessions", {
+                        count: question.evidence.distinctSessions,
+                      })}
                     </span>
                     <span className="rounded-full bg-zinc-100 px-2.5 py-1 dark:bg-zinc-800">
-                      {question.evidence.distinctContributors} contributors
+                      {t("exam.contributors", {
+                        count: question.evidence.distinctContributors,
+                      })}
                     </span>
                     <span className="rounded-full bg-zinc-100 px-2.5 py-1 dark:bg-zinc-800">
-                      {question.evidence.netVotes >= 0 ? "+" : ""}
-                      {question.evidence.netVotes} votes
+                      {t("exam.votes", {
+                        count: `${question.evidence.netVotes >= 0 ? "+" : ""}${question.evidence.netVotes}`,
+                      })}
                     </span>
                   </div>
 
                   {question.answerGuidance ? (
                     <details className="mt-3 text-sm">
                       <summary className="cursor-pointer font-medium text-indigo-600 dark:text-indigo-400">
-                        Show answer guidance
+                        {t("exam.showGuidance")}
                       </summary>
                       <p className="mt-2 whitespace-pre-wrap leading-6 text-zinc-600 dark:text-zinc-400">
                         {question.answerGuidance}
@@ -570,7 +586,7 @@ export async function ExamPanel({
                   {question.occurrences.length > 0 ? (
                     <details className="mt-3 text-xs">
                       <summary className="cursor-pointer text-zinc-500">
-                        View occurrence evidence
+                        {t("exam.occurrenceEvidence")}
                       </summary>
                       <ul className="mt-2 space-y-1">
                         {question.occurrences.map((occurrence) => (
@@ -611,48 +627,45 @@ export async function ExamPanel({
                           name="sessionLabel"
                           required
                           maxLength={120}
-                          placeholder="Session, e.g. Winter 2026"
-                          aria-label="Exam session"
+                          placeholder={t("exam.sessionPlaceholder")}
+                          aria-label={t("exam.session")}
                           className={inputClass}
                         />
                         <input
                           name="occurredOn"
                           type="date"
-                          aria-label="Occurrence date"
+                          aria-label={t("exam.occurrenceDate")}
                           className={inputClass}
                         />
                         <input
                           name="notes"
                           maxLength={2000}
-                          placeholder="Optional occurrence notes"
-                          aria-label="Occurrence notes"
+                          placeholder={t("exam.occurrenceNotesPlaceholder")}
+                          aria-label={t("exam.occurrenceNotes")}
                           className={inputClass}
                         />
                         <input
                           name="professorName"
                           maxLength={120}
-                          placeholder="Professor (optional)"
-                          aria-label="Professor"
+                          placeholder={t("exam.professorOptional")}
+                          aria-label={t("course.professor")}
                           className={inputClass}
                         />
                         <button
                           type="submit"
                           className="justify-self-start rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold dark:border-zinc-700"
                         >
-                          Report occurrence
+                          {t("exam.reportOccurrence")}
                         </button>
                       </form>
 
                       <div className="space-y-2">
                         <div className="flex gap-2">
                           {[
-                            [1, "Useful"],
-                            [-1, "Not useful"],
+                            [1, t("exam.useful")],
+                            [-1, t("exam.notUseful")],
                           ].map(([value, label]) => (
-                            <form
-                              key={value}
-                              action={voteExamQuestionAction}
-                            >
+                            <form key={value} action={voteExamQuestionAction}>
                               <CourseIdentity
                                 coursePageId={coursePageId}
                                 courseSlug={courseSlug}
@@ -692,11 +705,11 @@ export async function ExamPanel({
                               name="targetQuestionId"
                               required
                               defaultValue=""
-                              aria-label="Merge target"
+                              aria-label={t("exam.mergeTarget")}
                               className={inputClass}
                             >
                               <option value="" disabled>
-                                Suggest duplicate of…
+                                {t("exam.suggestDuplicate")}
                               </option>
                               {questions
                                 .filter(
@@ -716,15 +729,15 @@ export async function ExamPanel({
                               required
                               minLength={4}
                               maxLength={2000}
-                              placeholder="Why are these duplicates?"
-                              aria-label="Merge rationale"
+                              placeholder={t("exam.mergeWhy")}
+                              aria-label={t("exam.mergeRationale")}
                               className={inputClass}
                             />
                             <button
                               type="submit"
                               className="justify-self-start rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold dark:border-zinc-700"
                             >
-                              Request merge
+                              {t("exam.requestMerge")}
                             </button>
                           </form>
                         ) : null}
@@ -739,14 +752,14 @@ export async function ExamPanel({
 
         {questions.length === 0 ? (
           <p className="mt-4 rounded-2xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500 dark:border-zinc-700">
-            No exam questions yet.
+            {t("exam.noQuestions")}
           </p>
         ) : null}
       </section>
 
       {canModerate && exam.mergeRequests.length > 0 ? (
         <section className="rounded-2xl border border-amber-300 bg-amber-50 p-5 dark:border-amber-900 dark:bg-amber-950/30">
-          <h2 className="font-semibold">Open merge requests</h2>
+          <h2 className="font-semibold">{t("exam.openMerges")}</h2>
           <ul className="mt-3 space-y-3">
             {exam.mergeRequests.map((request) => {
               const source = questionById.get(request.sourceQuestionId);
@@ -757,11 +770,11 @@ export async function ExamPanel({
                   className="rounded-xl bg-white p-4 text-sm dark:bg-zinc-900"
                 >
                   <p>
-                    <strong>Source:</strong>{" "}
+                    <strong>{t("exam.source")}</strong>{" "}
                     {source?.prompt || request.sourceQuestionId}
                   </p>
                   <p className="mt-1">
-                    <strong>Target:</strong>{" "}
+                    <strong>{t("exam.target")}</strong>{" "}
                     {target?.prompt || request.targetQuestionId}
                   </p>
                   <p className="mt-2 text-zinc-600 dark:text-zinc-400">
@@ -786,7 +799,7 @@ export async function ExamPanel({
                       value="accepted"
                       className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white"
                     >
-                      Accept and merge
+                      {t("exam.acceptMerge")}
                     </button>
                     <button
                       type="submit"
@@ -794,7 +807,7 @@ export async function ExamPanel({
                       value="rejected"
                       className="rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold dark:border-zinc-700"
                     >
-                      Reject
+                      {t("common.reject")}
                     </button>
                   </form>
                 </li>
@@ -807,19 +820,18 @@ export async function ExamPanel({
   );
 }
 
-function TierBadge({
+async function TierBadge({
   tier,
   sufficient,
 }: {
   tier: "S" | "A" | "B" | "C" | "D" | null;
   sufficient: boolean;
 }) {
+  const { t } = await getI18n();
   if (!sufficient || !tier) {
     return (
       <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-center text-[10px] font-semibold leading-tight text-zinc-500 dark:bg-zinc-800">
-        Not
-        <br />
-        enough
+        {t("exam.notEnough")}
       </span>
     );
   }
@@ -832,7 +844,7 @@ function TierBadge({
   };
   return (
     <span
-      aria-label={`Tier ${tier}`}
+      aria-label={t("exam.tier", { tier })}
       className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-xl font-black ${colors[tier]}`}
     >
       {tier}
@@ -873,7 +885,7 @@ function ExamAttachmentList({
   );
 }
 
-function HideExamContentForm({
+async function HideExamContentForm({
   targetType,
   targetId,
   hidden,
@@ -886,12 +898,10 @@ function HideExamContentForm({
   coursePageId: string;
   courseSlug: string;
 }) {
+  const { t } = await getI18n();
   return (
     <form action={setExamContentHiddenAction}>
-      <CourseIdentity
-        coursePageId={coursePageId}
-        courseSlug={courseSlug}
-      />
+      <CourseIdentity coursePageId={coursePageId} courseSlug={courseSlug} />
       <input type="hidden" name="targetType" value={targetType} />
       <input type="hidden" name="targetId" value={targetId} />
       <button
@@ -900,7 +910,7 @@ function HideExamContentForm({
         value={hidden ? "no" : "yes"}
         className="rounded-lg border border-zinc-300 px-2.5 py-1.5 text-xs dark:border-zinc-700"
       >
-        {hidden ? "Restore" : "Hide"}
+        {hidden ? t("common.restore") : t("common.hide")}
       </button>
     </form>
   );

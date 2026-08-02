@@ -1,11 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
+import { useI18n } from "@/components/locale-provider";
 
-import {
-  inviteMemberAction,
-  type InviteMemberState,
-} from "./actions";
+import { inviteMemberAction, type InviteMemberState } from "./actions";
 
 const initialState: InviteMemberState = {
   error: null,
@@ -20,6 +18,7 @@ export function InviteMemberForm({
   coursePageId: string;
   courseSlug: string;
 }) {
+  const { t } = useI18n();
   const [state, action, pending] = useActionState(
     inviteMemberAction,
     initialState,
@@ -32,10 +31,9 @@ export function InviteMemberForm({
     >
       <input type="hidden" name="coursePageId" value={coursePageId} />
       <input type="hidden" name="courseSlug" value={courseSlug} />
-      <h3 className="font-semibold">Add or invite a visitor</h3>
+      <h3 className="font-semibold">{t("members.addVisitor")}</h3>
       <p className="mt-1 text-xs leading-5 text-zinc-600 dark:text-zinc-400">
-        Visitors can contribute resources and exam information. Curriculum editing
-        requires an Owner-approved co-ownership request.
+        {t("members.visitorHelp")}
       </p>
       <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem_auto]">
         <input
@@ -44,7 +42,7 @@ export function InviteMemberForm({
           required
           maxLength={320}
           placeholder="student@example.edu"
-          aria-label="Invitee email"
+          aria-label={t("members.inviteeEmail")}
           className={inputClass}
         />
         <select
@@ -52,15 +50,15 @@ export function InviteMemberForm({
           defaultValue="not_attended"
           className={inputClass}
         >
-          <option value="attended">Attended</option>
-          <option value="not_attended">Not attended</option>
+          <option value="attended">{t("course.attended")}</option>
+          <option value="not_attended">{t("course.notAttended")}</option>
         </select>
         <button
           type="submit"
           disabled={pending}
           className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-60"
         >
-          {pending ? "Adding…" : "Add"}
+          {pending ? t("members.adding") : t("members.add")}
         </button>
       </div>
       {state.error ? (

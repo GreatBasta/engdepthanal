@@ -1,35 +1,39 @@
 import type { Metadata } from "next";
 import { AppNav } from "@/components/app-nav";
+import { LocaleProvider } from "@/components/locale-provider";
+import { getI18n } from "@/lib/i18n/server";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL ?? "https://engdepthanal-coral.vercel.app",
-  ),
-  title: {
-    default: "Course Atlas",
-    template: "%s · Course Atlas",
-  },
-  description:
-    "Find real university courses, compare curriculum, track private progress, and share contextual study resources.",
-  openGraph: {
-    title: "Course Atlas",
-    description:
-      "Collaborative, student-contributed course pages for engineering education.",
-    type: "website",
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return {
+    metadataBase: new URL(
+      process.env.NEXT_PUBLIC_APP_URL ??
+        "https://engdepthanal-coral.vercel.app",
+    ),
+    title: { default: t("app.name"), template: `%s · ${t("app.name")}` },
+    description: t("metadata.description"),
+    openGraph: {
+      title: t("app.name"),
+      description: t("metadata.ogDescription"),
+      type: "website",
+    },
+  };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const { locale, messages } = await getI18n();
   return (
-    <html lang="en">
+    <html lang={locale}>
       <body className="min-h-screen bg-slate-50 text-slate-950 antialiased">
-        <AppNav />
-        <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
-          {children}
-        </div>
+        <LocaleProvider locale={locale} messages={messages}>
+          <AppNav />
+          <div className="pb-[calc(4rem+env(safe-area-inset-bottom))] md:pb-0">
+            {children}
+          </div>
+        </LocaleProvider>
       </body>
     </html>
   );

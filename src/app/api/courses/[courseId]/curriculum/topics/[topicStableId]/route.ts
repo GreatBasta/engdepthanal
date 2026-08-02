@@ -11,6 +11,7 @@ import {
   canViewCourse,
   loadCoursePermissionContext,
 } from "@/lib/courses/permissions";
+import { getI18n } from "@/lib/i18n/server";
 
 const paramsSchema = z.object({
   courseId: z.string().uuid(),
@@ -25,7 +26,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ courseId: string; topicStableId: string }> },
 ) {
-  const [parsedParams, parsedQuery, studentId] = await Promise.all([
+  const [parsedParams, parsedQuery, studentId, i18n] = await Promise.all([
     params.then((value) => paramsSchema.safeParse(value)),
     Promise.resolve(
       querySchema.safeParse({
@@ -33,10 +34,12 @@ export async function GET(
       }),
     ),
     currentStudentId(),
+    getI18n(),
   ]);
+  const { t } = i18n;
   if (!parsedParams.success || !parsedQuery.success) {
     return NextResponse.json(
-      { error: "Invalid curriculum request." },
+      { error: t("curriculum.invalid") },
       { status: 400 },
     );
   }
@@ -46,14 +49,14 @@ export async function GET(
     studentId,
   );
   if (!context || !canViewCourse(context)) {
-    return NextResponse.json({ error: "Course not found." }, { status: 404 });
+    return NextResponse.json({ error: t("common.notFound") }, { status: 404 });
   }
 
   const view: CurriculumView =
     parsedQuery.data.mode === "edit" ? "draft" : "published";
   if (view === "draft" && !canEditCurriculum(context)) {
     return NextResponse.json(
-      { error: "Curriculum editing is not allowed." },
+      { error: t("curriculum.forbidden") },
       { status: 403 },
     );
   }
@@ -65,7 +68,7 @@ export async function GET(
     studentId,
   );
   if (!topic) {
-    return NextResponse.json({ error: "Topic not found." }, { status: 404 });
+    return NextResponse.json({ error: t("common.notFound") }, { status: 404 });
   }
 
   return NextResponse.json(topic, {

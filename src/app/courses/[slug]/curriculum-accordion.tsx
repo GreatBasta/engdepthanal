@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 
+import { useI18n } from "@/components/locale-provider";
 import type {
   CourseCoverage,
   CurriculumApplyResult,
@@ -18,6 +19,7 @@ import type {
   CurriculumTopicPayload,
   CurriculumTopicSummary,
 } from "@/lib/courses/curriculum-contract";
+import type { TranslationKey } from "@/lib/i18n/messages";
 
 import {
   addCourseSubtopicAction,
@@ -38,6 +40,13 @@ type TopicLoadState =
   | { state: "ready"; payload: CurriculumTopicPayload };
 
 type FormAction = (formData: FormData) => Promise<unknown>;
+
+const depthKey: Record<CurriculumSubtopicItem["depthLevel"], TranslationKey> = {
+  awareness: "depth.awareness",
+  procedural: "depth.procedural",
+  fluency: "depth.fluency",
+  proof: "depth.proof",
+};
 
 export function CurriculumAccordion({
   coursePageId,
@@ -61,6 +70,7 @@ export function CurriculumAccordion({
   topics: CurriculumTopicSummary[];
 }) {
   const router = useRouter();
+  const { t, formatDate } = useI18n();
   const [openTopics, setOpenTopics] = useState<Set<string>>(
     () => new Set(initialTopicStableId ? [initialTopicStableId] : []),
   );
@@ -110,7 +120,7 @@ export function CurriculumAccordion({
           throw new Error(
             "error" in result && result.error
               ? result.error
-              : "The topic could not be loaded.",
+              : t("curriculum.topicLoadFailed"),
           );
         }
         setLoadedTopics((current) => ({
@@ -127,7 +137,7 @@ export function CurriculumAccordion({
               message:
                 error instanceof Error
                   ? error.message
-                  : "The topic could not be loaded.",
+                  : t("curriculum.topicLoadFailed"),
             },
           }));
         }
@@ -137,7 +147,7 @@ export function CurriculumAccordion({
         }
       }
     },
-    [canEdit, coursePageId, loadedTopics],
+    [canEdit, coursePageId, loadedTopics, t],
   );
 
   useEffect(() => {
@@ -198,17 +208,17 @@ export function CurriculumAccordion({
     topicStableId?: string,
   ) {
     setApplyState("saving");
-    setApplyMessage("Saving the pending detail change…");
+    setApplyMessage(t("curriculum.savingDetails"));
     try {
       await action(formData);
       setAdvancedChangesPending(true);
       setApplyState("idle");
-      setApplyMessage("Detail change saved. Apply when ready.");
+      setApplyMessage(t("curriculum.detailsSaved"));
       if (topicStableId) await loadTopic(topicStableId, true);
       router.refresh();
     } catch {
       setApplyState("error");
-      setApplyMessage("The detail change could not be saved. Try again.");
+      setApplyMessage(t("curriculum.detailsFailed"));
     }
   }
 
@@ -219,7 +229,7 @@ export function CurriculumAccordion({
   function applyChanges() {
     if (!hasPendingChanges || applyState === "saving") return;
     setApplyState("saving");
-    setApplyMessage("Applying curriculum changes…");
+    setApplyMessage(t("curriculum.applying"));
     const changes = Object.entries(stagedCoverage).map(
       ([subtopicStableId, coverage]) => ({ subtopicStableId, coverage }),
     );
@@ -269,9 +279,11 @@ export function CurriculumAccordion({
 
   const statusText = useMemo(() => {
     if (applyMessage) return applyMessage;
-    if (!hasPendingChanges) return "No pending changes";
-    return `${pendingCount} pending change${pendingCount === 1 ? "" : "s"}`;
-  }, [applyMessage, hasPendingChanges, pendingCount]);
+    if (!hasPendingChanges) return t("curriculum.noPending");
+    return pendingCount === 1
+      ? t("curriculum.pendingOne")
+      : t("curriculum.pendingCount", { count: pendingCount });
+  }, [applyMessage, hasPendingChanges, pendingCount, t]);
 
   return (
     <div className="curriculum-editor space-y-5 pb-32 md:pb-8">
@@ -279,20 +291,21 @@ export function CurriculumAccordion({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold">
-              {settingsMode && canEdit ? "Curriculum setup" : "Curriculum"}
+              {settingsMode && canEdit
+                ? t("curriculum.setup")
+                : t("curriculum.title")}
             </h2>
             <p className="mt-1 text-sm text-zinc-600">
-              {canEdit
-                ? "Classify coverage directly, then apply all pending changes together."
-                : "Open any topic to explore its subtopics and learning details."}
+              {canEdit ? t("curriculum.editHelp") : t("curriculum.readHelp")}
             </p>
           </div>
           <p className="text-xs text-zinc-500">
-            Curriculum last updated{" "}
-            {new Intl.DateTimeFormat("en", {
-              dateStyle: "medium",
-              timeStyle: "short",
-            }).format(new Date(lastAppliedAt))}
+            {t("curriculum.lastUpdated", {
+              date: formatDate(lastAppliedAt, {
+                dateStyle: "medium",
+                timeStyle: "short",
+              }),
+            })}
           </p>
         </div>
       </section>
@@ -330,7 +343,7 @@ export function CurriculumAccordion({
                 >
                   <span className="min-w-0">
                     <span className="block text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
-                      Topic {topicIndex + 1}
+                      {t("curriculum.topic", { number: topicIndex + 1 })}
                     </span>
                     <span
                       className={`mt-1 block font-bold ${topic.hidden ? "line-through" : ""}`}
@@ -339,8 +352,13 @@ export function CurriculumAccordion({
                     </span>
                     <span className="mt-1 block text-xs text-zinc-500">
                       {canEdit
-                        ? `${classifiedCount} of ${topic.subtopicCount} classified`
-                        : `${topic.subtopicCount} subtopics`}
+                        ? t("curriculum.classified", {
+                            classified: classifiedCount,
+                            total: topic.subtopicCount,
+                          })
+                        : t("curriculum.subtopics", {
+                            count: topic.subtopicCount,
+                          })}
                     </span>
                   </span>
                   <span
@@ -369,7 +387,7 @@ export function CurriculumAccordion({
                           onClick={() => void loadTopic(topic.stableId, true)}
                           className="mt-3 min-h-11 rounded-xl border border-rose-300 bg-white px-4 font-semibold"
                         >
-                          Retry
+                          {t("common.retry")}
                         </button>
                       </div>
                     ) : payload ? (
@@ -397,7 +415,7 @@ export function CurriculumAccordion({
 
       {topics.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-zinc-300 p-8 text-center text-sm text-zinc-500">
-          No visible topics in this curriculum.
+          {t("curriculum.noVisibleTopics")}
         </p>
       ) : null}
 
@@ -409,24 +427,26 @@ export function CurriculumAccordion({
           className="rounded-2xl border border-dashed border-zinc-300 bg-white p-5"
         >
           <CourseIdentity coursePageId={coursePageId} courseSlug={courseSlug} />
-          <h3 className="font-bold">Add topic</h3>
+          <h3 className="font-bold">{t("curriculum.addTopic")}</h3>
           <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto]">
             <input
               name="name"
               required
               maxLength={180}
-              placeholder="Topic name"
-              aria-label="New topic name"
+              placeholder={t("curriculum.topicName")}
+              aria-label={t("curriculum.topicName")}
               className={inputClass}
             />
             <input
               name="description"
               maxLength={2000}
-              placeholder="Optional description"
-              aria-label="New topic description"
+              placeholder={t("curriculum.optionalDescription")}
+              aria-label={t("curriculum.optionalDescription")}
               className={inputClass}
             />
-            <button className={primaryButtonClass}>Add topic</button>
+            <button className={primaryButtonClass}>
+              {t("curriculum.addTopic")}
+            </button>
           </div>
         </form>
       ) : null}
@@ -439,10 +459,10 @@ export function CurriculumAccordion({
               className={`text-xs ${applyState === "error" ? "text-rose-700" : applyState === "success" ? "text-emerald-700" : "text-zinc-500"}`}
             >
               {applyState === "saving"
-                ? "Saving atomically…"
+                ? t("curriculum.savingAtomically")
                 : hasPendingChanges
-                  ? "Changes remain local or pending until Apply."
-                  : "The latest applied curriculum is public."}
+                  ? t("curriculum.pendingHelp")
+                  : t("curriculum.latestPublic")}
             </p>
           </div>
           <div className="flex shrink-0 gap-2">
@@ -456,7 +476,7 @@ export function CurriculumAccordion({
               }}
               className="hidden min-h-11 rounded-xl border border-zinc-300 px-3 text-sm font-semibold disabled:opacity-40 sm:inline-flex sm:items-center"
             >
-              Discard coverage
+              {t("curriculum.discardCoverage")}
             </button>
             <button
               type="button"
@@ -464,7 +484,9 @@ export function CurriculumAccordion({
               onClick={applyChanges}
               className="min-h-11 min-w-28 rounded-xl bg-indigo-600 px-4 text-sm font-bold text-white transition-opacity disabled:opacity-40"
             >
-              {applyState === "saving" ? "Applying…" : "Apply changes"}
+              {applyState === "saving"
+                ? t("curriculum.applying")
+                : t("curriculum.apply")}
             </button>
           </div>
         </div>
@@ -504,6 +526,7 @@ function TopicContent({
     topicStableId?: string,
   ) => Promise<void>;
 }) {
+  const { t } = useI18n();
   return (
     <div>
       {payload.topic.description ? (
@@ -518,18 +541,18 @@ function TopicContent({
             onClick={() => onMarkAll(payload, "covered")}
             className={secondaryButtonClass}
           >
-            Mark all covered
+            {t("curriculum.markAllCovered")}
           </button>
           <button
             type="button"
             onClick={() => onMarkAll(payload, "not_covered")}
             className={secondaryButtonClass}
           >
-            Mark all not covered
+            {t("curriculum.markAllNotCovered")}
           </button>
           <details className="ml-auto rounded-xl border border-zinc-200">
             <summary className="flex min-h-11 cursor-pointer items-center px-3 text-sm font-semibold">
-              Edit topic details
+              {t("curriculum.editTopic")}
             </summary>
             <div className="border-t border-zinc-200 p-3">
               <form
@@ -553,7 +576,9 @@ function TopicContent({
                   required
                   maxLength={180}
                   className={inputClass}
-                  aria-label={`Name for ${payload.topic.name}`}
+                  aria-label={t("curriculum.nameFor", {
+                    name: payload.topic.name,
+                  })}
                 />
                 <textarea
                   name="description"
@@ -561,9 +586,13 @@ function TopicContent({
                   maxLength={2000}
                   rows={3}
                   className={inputClass}
-                  aria-label={`Description for ${payload.topic.name}`}
+                  aria-label={t("curriculum.descriptionFor", {
+                    name: payload.topic.name,
+                  })}
                 />
-                <button className={secondaryButtonClass}>Save details</button>
+                <button className={secondaryButtonClass}>
+                  {t("curriculum.saveDetails")}
+                </button>
               </form>
               <div className="mt-2 flex flex-wrap gap-2">
                 <MoveButtons
@@ -598,7 +627,9 @@ function TopicContent({
                     value={payload.topic.hidden ? "no" : "yes"}
                   />
                   <button className={secondaryButtonClass}>
-                    {payload.topic.hidden ? "Restore topic" : "Hide topic"}
+                    {payload.topic.hidden
+                      ? t("curriculum.restoreTopic")
+                      : t("curriculum.hideTopic")}
                   </button>
                 </form>
               </div>
@@ -619,27 +650,31 @@ function TopicContent({
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs text-zinc-500">Subtopic {index + 1}</p>
+                  <p className="text-xs text-zinc-500">
+                    {t("curriculum.subtopic", { number: index + 1 })}
+                  </p>
                   <h4
                     className={`mt-0.5 font-bold ${subtopic.hidden ? "line-through" : ""}`}
                   >
                     {subtopic.name}
                   </h4>
                   <p className="mt-2 text-sm leading-6 text-zinc-600">
-                    {subtopic.description || "No description provided."}
+                    {subtopic.description || t("curriculum.noDescription")}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-zinc-600">
                     <span className="rounded-full bg-zinc-100 px-2 py-1 capitalize">
-                      {subtopic.depthLevel}
+                      {t(depthKey[subtopic.depthLevel])}
                     </span>
                     <span className="rounded-full bg-zinc-100 px-2 py-1">
                       {subtopic.estHours
-                        ? `${subtopic.estHours} hours`
-                        : "Hours not set"}
+                        ? t("curriculum.hours", {
+                            hours: subtopic.estHours,
+                          })
+                        : t("curriculum.hoursUnset")}
                     </span>
                     {pending ? (
                       <span className="rounded-full bg-amber-100 px-2 py-1 font-semibold text-amber-800">
-                        Pending
+                        {t("curriculum.pending")}
                       </span>
                     ) : null}
                   </div>
@@ -660,7 +695,7 @@ function TopicContent({
                   href={`/courses/${courseSlug}?tab=resources&subtopic=${subtopic.stableId}`}
                   className={secondaryButtonClass}
                 >
-                  Resources &amp; discussion
+                  {t("curriculum.resourcesDiscussion")}
                 </Link>
                 {canTrack && !canEdit ? (
                   <form
@@ -679,23 +714,29 @@ function TopicContent({
                     <select
                       name="state"
                       defaultValue={subtopic.progress ?? "not_started"}
-                      aria-label={`Private progress for ${subtopic.name}`}
+                      aria-label={t("curriculum.progressFor", {
+                        name: subtopic.name,
+                      })}
                       className={inputClass}
                     >
-                      <option value="not_started">Not started</option>
-                      <option value="learning">Learning</option>
-                      <option value="completed">Completed</option>
-                      <option value="saved">Saved</option>
+                      <option value="not_started">
+                        {t("progress.notStarted")}
+                      </option>
+                      <option value="learning">{t("progress.learning")}</option>
+                      <option value="completed">
+                        {t("progress.completed")}
+                      </option>
+                      <option value="saved">{t("progress.saved")}</option>
                     </select>
                     <button className={secondaryButtonClass}>
-                      Save progress
+                      {t("curriculum.saveProgress")}
                     </button>
                   </form>
                 ) : null}
                 {canEdit ? (
                   <details className="ml-auto rounded-xl border border-zinc-200">
                     <summary className="flex min-h-11 cursor-pointer items-center px-3 text-sm font-semibold">
-                      Edit details
+                      {t("curriculum.editDetails")}
                     </summary>
                     <div className="w-[min(34rem,calc(100vw-3.5rem))] border-t border-zinc-200 p-3">
                       <form
@@ -723,7 +764,9 @@ function TopicContent({
                           required
                           maxLength={220}
                           className={inputClass}
-                          aria-label={`Name for ${subtopic.name}`}
+                          aria-label={t("curriculum.nameFor", {
+                            name: subtopic.name,
+                          })}
                         />
                         <textarea
                           name="description"
@@ -731,19 +774,29 @@ function TopicContent({
                           maxLength={2000}
                           rows={3}
                           className={inputClass}
-                          aria-label={`Description for ${subtopic.name}`}
+                          aria-label={t("curriculum.descriptionFor", {
+                            name: subtopic.name,
+                          })}
                         />
                         <div className="grid gap-2 sm:grid-cols-2">
                           <select
                             name="depthLevel"
                             defaultValue={subtopic.depthLevel}
                             className={inputClass}
-                            aria-label={`Depth for ${subtopic.name}`}
+                            aria-label={t("curriculum.depthFor", {
+                              name: subtopic.name,
+                            })}
                           >
-                            <option value="awareness">Awareness</option>
-                            <option value="procedural">Procedural</option>
-                            <option value="fluency">Fluency</option>
-                            <option value="proof">Proof</option>
+                            <option value="awareness">
+                              {t("depth.awareness")}
+                            </option>
+                            <option value="procedural">
+                              {t("depth.procedural")}
+                            </option>
+                            <option value="fluency">
+                              {t("depth.fluency")}
+                            </option>
+                            <option value="proof">{t("depth.proof")}</option>
                           </select>
                           <input
                             name="estHours"
@@ -753,11 +806,13 @@ function TopicContent({
                             step={0.5}
                             defaultValue={subtopic.estHours ?? ""}
                             className={inputClass}
-                            aria-label={`Estimated hours for ${subtopic.name}`}
+                            aria-label={t("curriculum.hoursFor", {
+                              name: subtopic.name,
+                            })}
                           />
                         </div>
                         <button className={secondaryButtonClass}>
-                          Save details
+                          {t("curriculum.saveDetails")}
                         </button>
                       </form>
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -793,7 +848,9 @@ function TopicContent({
                             value={subtopic.hidden ? "no" : "yes"}
                           />
                           <button className={secondaryButtonClass}>
-                            {subtopic.hidden ? "Restore" : "Hide"}
+                            {subtopic.hidden
+                              ? t("curriculum.restore")
+                              : t("curriculum.hide")}
                           </button>
                         </form>
                       </div>
@@ -809,7 +866,7 @@ function TopicContent({
       {canEdit ? (
         <details className="mt-4 rounded-xl border border-dashed border-zinc-300">
           <summary className="flex min-h-11 cursor-pointer items-center px-3 text-sm font-semibold">
-            Add subtopic
+            {t("curriculum.addSubtopic")}
           </summary>
           <form
             action={(formData) =>
@@ -830,13 +887,13 @@ function TopicContent({
               name="name"
               required
               maxLength={220}
-              placeholder="Subtopic name"
+              placeholder={t("curriculum.subtopicName")}
               className={inputClass}
             />
             <input
               name="description"
               maxLength={2000}
-              placeholder="Description"
+              placeholder={t("curriculum.description")}
               className={inputClass}
             />
             <select
@@ -844,10 +901,10 @@ function TopicContent({
               defaultValue="procedural"
               className={inputClass}
             >
-              <option value="awareness">Awareness</option>
-              <option value="procedural">Procedural</option>
-              <option value="fluency">Fluency</option>
-              <option value="proof">Proof</option>
+              <option value="awareness">{t("depth.awareness")}</option>
+              <option value="procedural">{t("depth.procedural")}</option>
+              <option value="fluency">{t("depth.fluency")}</option>
+              <option value="proof">{t("depth.proof")}</option>
             </select>
             <div className="flex gap-2">
               <input
@@ -856,10 +913,10 @@ function TopicContent({
                 min={0}
                 max={999}
                 step={0.5}
-                placeholder="Hours"
+                placeholder={t("curriculum.hoursPlaceholder")}
                 className={`${inputClass} flex-1`}
               />
-              <button className={primaryButtonClass}>Add</button>
+              <button className={primaryButtonClass}>{t("members.add")}</button>
             </div>
           </form>
         </details>
@@ -880,10 +937,11 @@ function CoverageControl({
     coverage: CourseCoverage,
   ) => void;
 }) {
+  const { t } = useI18n();
   return (
     <div
       role="group"
-      aria-label={`Coverage for ${subtopic.name}`}
+      aria-label={t("curriculum.coverageFor", { name: subtopic.name })}
       className="grid min-w-[15rem] grid-cols-2 rounded-xl bg-zinc-100 p-1"
     >
       {(["covered", "not_covered"] as const).map((coverage) => {
@@ -896,31 +954,37 @@ function CoverageControl({
             onClick={() => onChange(subtopic, coverage)}
             className={`min-h-11 rounded-lg px-3 text-sm font-bold transition-colors duration-200 ${selected ? (coverage === "covered" ? "bg-emerald-600 text-white shadow-sm" : "bg-rose-600 text-white shadow-sm") : "text-zinc-600 hover:bg-white"}`}
           >
-            {coverage === "covered" ? "Covered" : "Not covered"}
+            {coverage === "covered"
+              ? t("coverage.covered")
+              : t("coverage.notCovered")}
           </button>
         );
       })}
       <span className="sr-only" aria-live="polite">
         {value === "unknown"
-          ? "Coverage not classified"
-          : value === "covered"
-            ? "Covered selected"
-            : "Not covered selected"}
+          ? t("curriculum.coverageNotClassified")
+          : t("curriculum.coverageSelected", {
+              coverage:
+                value === "covered"
+                  ? t("coverage.covered")
+                  : t("coverage.notCovered"),
+            })}
       </span>
     </div>
   );
 }
 
 function CoverageLabel({ value }: { value: CourseCoverage }) {
+  const { t } = useI18n();
   return (
     <span
       className={`rounded-full px-3 py-1 text-xs font-bold ${value === "covered" ? "bg-emerald-100 text-emerald-800" : value === "not_covered" ? "bg-rose-100 text-rose-800" : "bg-zinc-100 text-zinc-600"}`}
     >
       {value === "covered"
-        ? "Covered"
+        ? t("coverage.covered")
         : value === "not_covered"
-          ? "Not covered"
-          : "Not classified"}
+          ? t("coverage.notCovered")
+          : t("coverage.unknown")}
     </span>
   );
 }
@@ -944,6 +1008,7 @@ function MoveButtons({
     topicStableId?: string,
   ) => Promise<void>;
 }) {
+  const { t } = useI18n();
   const action =
     kind === "topic" ? moveCourseTopicAction : moveCourseSubtopicAction;
   const fieldName = kind === "topic" ? "topicId" : "subtopicId";
@@ -957,7 +1022,12 @@ function MoveButtons({
       <button
         name="direction"
         value="up"
-        aria-label={`Move ${kind} up`}
+        aria-label={t("curriculum.moveUp", {
+          kind:
+            kind === "topic"
+              ? t("curriculum.topicNoun")
+              : t("curriculum.subtopicNoun"),
+        })}
         className={secondaryButtonClass}
       >
         ↑
@@ -965,7 +1035,12 @@ function MoveButtons({
       <button
         name="direction"
         value="down"
-        aria-label={`Move ${kind} down`}
+        aria-label={t("curriculum.moveDown", {
+          kind:
+            kind === "topic"
+              ? t("curriculum.topicNoun")
+              : t("curriculum.subtopicNoun"),
+        })}
         className={secondaryButtonClass}
       >
         ↓
@@ -990,15 +1065,20 @@ function CourseIdentity({
 }
 
 function TopicSkeleton() {
+  const { t } = useI18n();
   return (
-    <div aria-label="Loading topic" role="status" className="space-y-3">
+    <div
+      aria-label={t("curriculum.loadingTopic")}
+      role="status"
+      className="space-y-3"
+    >
       {[0, 1, 2].map((item) => (
         <div
           key={item}
           className="h-24 animate-pulse rounded-2xl bg-zinc-100 motion-reduce:animate-none"
         />
       ))}
-      <span className="sr-only">Loading topic…</span>
+      <span className="sr-only">{t("curriculum.loadingTopic")}</span>
     </div>
   );
 }

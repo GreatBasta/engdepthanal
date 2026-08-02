@@ -3,6 +3,7 @@ import {
   type CurriculumView,
 } from "@/lib/courses/curriculum";
 import type { CurriculumTopicSummary } from "@/lib/courses/curriculum-contract";
+import { getI18n } from "@/lib/i18n/server";
 
 import { CurriculumAccordion } from "./curriculum-accordion";
 
@@ -26,16 +27,18 @@ export async function CurriculumPanel({
   viewerStudentId?: string | null;
 }) {
   const view: CurriculumView = canEdit ? "draft" : "published";
-  const curriculum = await getCourseCurriculumOutline(coursePageId, view);
+  const [curriculum, i18n] = await Promise.all([
+    getCourseCurriculumOutline(coursePageId, view),
+    getI18n(),
+  ]);
+  const { t } = i18n;
 
   if (!curriculum) {
     return (
       <section className="rounded-2xl border border-dashed border-zinc-300 bg-white/60 p-10 text-center">
-        <h2 className="text-xl font-semibold">Curriculum not available</h2>
+        <h2 className="text-xl font-semibold">{t("curriculum.unavailable")}</h2>
         <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-zinc-600">
-          {canEdit
-            ? "The editable curriculum could not be loaded. Reload the page or return to the course."
-            : "The course Owner has not applied curriculum content yet."}
+          {canEdit ? t("curriculum.applyFailed") : t("common.notFound")}
         </p>
       </section>
     );

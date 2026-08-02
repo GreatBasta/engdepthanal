@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 
+import { useI18n } from "@/components/locale-provider";
 import { OrganizationCombobox } from "@/components/organization-combobox";
 import { completeOnboarding, type OnboardingFormState } from "./actions";
 
@@ -20,6 +21,7 @@ export function OnboardingForm({
 }: {
   programs: { slug: string; name: string }[];
 }) {
+  const { t } = useI18n();
   const [state, dispatch, pending] = useActionState(
     completeOnboarding,
     initialState,
@@ -27,14 +29,14 @@ export function OnboardingForm({
 
   return (
     <form action={dispatch} className="space-y-5">
-      <OrganizationCombobox label="Your university" />
+      <OrganizationCombobox label={t("onboarding.yourUniversity")} />
 
       <label className="block">
         <span className="mb-1 block text-sm font-medium">
-          Your course (engineering discipline)
+          {t("onboarding.degree")}
         </span>
         <select name="programSlug" required className={inputClass}>
-          <option value="">Pick your course…</option>
+          <option value="">{t("onboarding.pickDegree")}</option>
           {programs.map((p) => (
             <option key={p.slug} value={p.slug}>
               {p.name}
@@ -45,7 +47,7 @@ export function OnboardingForm({
 
       <label className="block">
         <span className="mb-1 block text-sm font-medium">
-          First-year intake
+          {t("onboarding.intake")}
         </span>
         <select
           name="intakeYear"
@@ -63,7 +65,7 @@ export function OnboardingForm({
 
       <fieldset>
         <legend className="mb-2 block text-sm font-medium">
-          Are you starting first year, or actively attending it?
+          {t("onboarding.phaseQuestion")}
         </legend>
         <div className="space-y-2">
           <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-zinc-300 p-3 transition has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50/50 has-[:checked]:ring-1 has-[:checked]:ring-indigo-500 dark:border-zinc-700 dark:has-[:checked]:bg-indigo-950/30">
@@ -76,11 +78,10 @@ export function OnboardingForm({
             />
             <span>
               <span className="block text-sm font-medium">
-                I&apos;m starting
+                {t("onboarding.starting")}
               </span>
               <span className="block text-xs text-zinc-600 dark:text-zinc-400">
-                Get the full outlook of every topic and subtopic you&apos;ll
-                need to learn, and how deep each one goes.
+                {t("onboarding.startingHelp")}
               </span>
             </span>
           </label>
@@ -94,11 +95,10 @@ export function OnboardingForm({
             />
             <span>
               <span className="block text-sm font-medium">
-                I&apos;m actively attending
+                {t("onboarding.attending")}
               </span>
               <span className="block text-xs text-zinc-600 dark:text-zinc-400">
-                Track what you&apos;ve covered — and when you finish a subject,
-                help map what your university really teaches.
+                {t("onboarding.attendingHelp")}
               </span>
             </span>
           </label>
@@ -114,7 +114,7 @@ export function OnboardingForm({
         disabled={pending}
         className="w-full rounded-lg bg-indigo-600 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-500 disabled:opacity-50"
       >
-        {pending ? "Setting up…" : "Unlock the first-year database"}
+        {pending ? t("onboarding.submitting") : t("onboarding.submit")}
       </button>
     </form>
   );

@@ -11,13 +11,33 @@ test("home is usable without horizontal overflow", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: /Find your actual course/i }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "Find your course" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Find your course" }),
+  ).toBeVisible();
 
   const widths = await page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
     content: document.documentElement.scrollWidth,
   }));
   expect(widths.content).toBeLessThanOrEqual(widths.viewport);
+});
+
+test("Italian preference updates html language and persists", async ({
+  page,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== "desktop",
+    "Locale persistence runs once",
+  );
+  await page.goto("/");
+  await page.getByRole("combobox", { name: "Language" }).selectOption("it");
+  await expect(
+    page.getByRole("heading", { name: /Trova il tuo vero corso/i }),
+  ).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "it");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("lang", "it");
+  await expect(page.getByRole("link", { name: "Scopri" })).toBeVisible();
 });
 
 test("mobile navigation has four labelled one-handed targets", async ({
@@ -56,7 +76,9 @@ test("legal and removal routes are public", async ({ page }) => {
 test("dedicated admin login is unavailable", async ({ page }) => {
   await page.goto("/admin/login");
   await expect(page).toHaveURL(/\/login\?next=(%2F|\/)admin/);
-  await expect(page.getByRole("heading", { name: "Course Atlas" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Course Atlas" }),
+  ).toBeVisible();
 });
 
 test("health endpoint reports the isolated preview database", async ({
@@ -83,7 +105,9 @@ test("invalid credentials fail without account enumeration", async ({
     );
   await form.getByLabel("Password").fill("WrongPassword123");
   await form.getByRole("button", { name: "Sign in" }).click();
-  await expect(page.getByText("Wrong email or password.", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Wrong email or password.", { exact: true }),
+  ).toBeVisible();
 });
 
 test("writing fields remain readable with a dark system preference", async ({

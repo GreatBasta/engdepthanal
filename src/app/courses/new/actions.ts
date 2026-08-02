@@ -16,6 +16,7 @@ import { coursePages } from "@/lib/db/schema";
 import { getPrimaryEnrollmentForStudent } from "@/lib/enrollment";
 import { persistOrganizationProgramSelection } from "@/lib/organizations/persistence";
 import { parseOrganizationSelection } from "@/lib/organizations/schema";
+import { getI18n } from "@/lib/i18n/server";
 
 export interface CreateCourseState {
   error: string | null;
@@ -54,7 +55,8 @@ export async function createCourseAction(
   _previous: CreateCourseState,
   formData: FormData,
 ): Promise<CreateCourseState> {
-  const studentId = await currentStudentId();
+  const [studentId, i18n] = await Promise.all([currentStudentId(), getI18n()]);
+  const { t } = i18n;
   if (!studentId) redirect("/login?next=/courses/new");
 
   const parsed = createCourseSchema.safeParse({
@@ -71,7 +73,7 @@ export async function createCourseAction(
   });
   if (!parsed.success) {
     return {
-      error: parsed.error.issues[0]?.message ?? "Check the course details.",
+      error: t("create.invalid"),
       duplicates: [],
     };
   }
@@ -89,7 +91,7 @@ export async function createCourseAction(
       .safeParse(formData.get("programSlug"));
     if (!organization || !programSlug.success) {
       return {
-        error: "Select a verified university and degree program.",
+        error: t("create.selectOrganization"),
         duplicates: [],
       };
     }
@@ -101,7 +103,7 @@ export async function createCourseAction(
       universityProgramId = selection.universityProgramId;
     } catch {
       return {
-        error: "That university or degree program is unavailable.",
+        error: t("create.organizationUnavailable"),
         duplicates: [],
       };
     }
@@ -117,7 +119,7 @@ export async function createCourseAction(
       submittedProgram.data !== primary.universityProgramId
     ) {
       return {
-        error: "Your primary university context changed. Reload and try again.",
+        error: t("create.contextChanged"),
         duplicates: [],
       };
     }
@@ -138,7 +140,7 @@ export async function createCourseAction(
     );
   if (Number(recent?.value ?? 0) >= 10) {
     return {
-      error: "You have created several courses recently. Try again in an hour.",
+      error: t("create.rateLimited"),
       duplicates: [],
     };
   }
@@ -160,7 +162,7 @@ export async function createCourseAction(
   } catch (error) {
     console.error("course creation failed", error);
     return {
-      error: "The course could not be created. Please try again.",
+      error: t("create.failed"),
       duplicates: [],
     };
   }

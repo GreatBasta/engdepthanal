@@ -7,6 +7,7 @@ import { currentStudentId } from "@/auth";
 import { getCourseBySlugForViewer } from "@/lib/courses/data";
 import { db } from "@/lib/db/client";
 import { courseCoownershipRequests, coursePages } from "@/lib/db/schema";
+import { getI18n } from "@/lib/i18n/server";
 
 import { joinCourseAction } from "./actions";
 import {
@@ -18,14 +19,8 @@ import { CurriculumPanel } from "./curriculum-panel";
 import { ExamPanel } from "./exam-panel";
 import { ResourcesPanel } from "./resources-panel";
 
-const TABS = [
-  ["overview", "Overview"],
-  ["curriculum", "Curriculum"],
-  ["resources", "Resources"],
-  ["exam", "Exam"],
-] as const;
-
-type CourseTab = (typeof TABS)[number][0];
+const TAB_KEYS = ["overview", "curriculum", "resources", "exam"] as const;
+type CourseTab = (typeof TAB_KEYS)[number];
 
 export async function generateMetadata({
   params,
@@ -33,6 +28,7 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
+  const { t } = await getI18n();
   const [course] = await db
     .select({
       name: coursePages.localName,
@@ -42,13 +38,13 @@ export async function generateMetadata({
     .from(coursePages)
     .where(eq(coursePages.slug, slug))
     .limit(1);
-  if (!course) return { title: "Course not found", robots: { index: false } };
+  if (!course) return { title: t("course.notFound"), robots: { index: false } };
   const indexable = course.visibility === "public";
   return {
-    title: indexable ? course.name : "Shared course",
+    title: indexable ? course.name : t("course.shared"),
     description: indexable
-      ? (course.description ?? "Student-contributed university course page.")
-      : "A non-public student-contributed course page.",
+      ? (course.description ?? t("course.publicDescription"))
+      : t("course.privateDescription"),
     alternates: {
       canonical: indexable ? `/courses/${slug}` : undefined,
     },
@@ -71,11 +67,19 @@ export default async function CoursePage({
     coownership?: string;
   }>;
 }) {
-  const [{ slug }, query, studentId] = await Promise.all([
+  const [{ slug }, query, studentId, i18n] = await Promise.all([
     params,
     searchParams,
     currentStudentId(),
+    getI18n(),
   ]);
+  const { t } = i18n;
+  const tabs: Array<[CourseTab, string]> = [
+    ["overview", t("course.overview")],
+    ["curriculum", t("course.curriculum")],
+    ["resources", t("course.resources")],
+    ["exam", t("course.exam")],
+  ];
   const detail = await getCourseBySlugForViewer(slug, studentId, {
     templates: true,
   });
@@ -95,7 +99,7 @@ export default async function CoursePage({
           .limit(1)
       : [];
 
-  const tab: CourseTab = TABS.some(([key]) => key === query.tab)
+  const tab: CourseTab = TAB_KEYS.some((key) => key === query.tab)
     ? (query.tab as CourseTab)
     : "overview";
   return (
@@ -107,17 +111,17 @@ export default async function CoursePage({
               href={studentId ? "/" : "/courses"}
               className="text-sm font-medium text-indigo-600 hover:underline dark:text-indigo-400"
             >
-              ← {studentId ? "Home" : "Course directory"}
+              ← {studentId ? t("course.home") : t("course.directory")}
             </Link>
             <div className="flex items-center gap-2">
               <VisibilityBadge visibility={detail.course.visibility} />
               {detail.permissions.role ? (
                 <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
                   {detail.permissions.role === "coowner"
-                    ? "Co-owner"
+                    ? t("roles.coowner")
                     : detail.permissions.role === "owner"
-                      ? "Owner"
-                      : "Visitor"}
+                      ? t("roles.owner")
+                      : t("roles.visitor")}
                 </span>
               ) : null}
             </div>
@@ -136,7 +140,9 @@ export default async function CoursePage({
               ) : null}
               <span>{detail.course.academicYear}</span>
               {detail.course.semester ? (
-                <span>Semester {detail.course.semester}</span>
+                <span>
+                  {t("course.semester")} {detail.course.semester}
+                </span>
               ) : null}
               {detail.course.professorName ? (
                 <span>Prof. {detail.course.professorName}</span>
@@ -146,11 +152,11 @@ export default async function CoursePage({
         </div>
 
         <nav
-          aria-label="Course sections"
+          aria-label={t("course.sections")}
           className="mx-auto max-w-6xl overflow-x-auto px-4 sm:px-6"
         >
           <div className="flex min-w-max gap-1">
-            {TABS.map(([key, label]) => (
+            {tabs.map(([key, label]) => (
               <Link
                 key={key}
                 href={`/courses/${slug}?tab=${key}`}
@@ -210,7 +216,7 @@ export default async function CoursePage({
   );
 }
 
-function Overview({
+async function Overview({
   detail,
   pendingCoownershipRequest,
   requestStatus,
@@ -219,36 +225,44 @@ function Overview({
   pendingCoownershipRequest: { id: string } | null;
   requestStatus: string | undefined;
 }) {
+  const { t, formatDate } = await getI18n();
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <p className="text-sm font-semibold uppercase tracking-[0.15em] text-indigo-600 dark:text-indigo-400">
-          About this course
+          {t("course.about")}
         </p>
         <p className="mt-4 leading-7 text-zinc-700 dark:text-zinc-300">
-          {detail.course.description ||
-            "No local description has been added yet."}
+          {detail.course.description || t("course.noDescription")}
         </p>
         <dl className="mt-7 grid gap-4 border-t border-zinc-200 pt-6 text-sm dark:border-zinc-800 sm:grid-cols-2">
-          <Metadata label="Academic year" value={detail.course.academicYear} />
           <Metadata
-            label="Cohort"
-            value={detail.course.cohortYear?.toString() || "Not specified"}
+            label={t("course.academicYear")}
+            value={detail.course.academicYear}
           />
           <Metadata
-            label="Semester"
-            value={detail.course.semester?.toString() || "Not specified"}
+            label={t("course.cohort")}
+            value={
+              detail.course.cohortYear?.toString() || t("course.notSpecified")
+            }
           />
           <Metadata
-            label="Professor"
-            value={detail.course.professorName || "Not specified"}
+            label={t("course.semester")}
+            value={
+              detail.course.semester?.toString() || t("course.notSpecified")
+            }
           />
-          <Metadata label="Created by" value={detail.course.creatorName} />
           <Metadata
-            label="Curriculum last updated"
-            value={new Intl.DateTimeFormat(undefined, {
-              dateStyle: "medium",
-            }).format(detail.course.updatedAt)}
+            label={t("course.professor")}
+            value={detail.course.professorName || t("course.notSpecified")}
+          />
+          <Metadata
+            label={t("course.createdBy")}
+            value={detail.course.creatorName}
+          />
+          <Metadata
+            label={t("course.lastUpdated")}
+            value={formatDate(detail.course.updatedAt)}
           />
         </dl>
       </section>
@@ -259,14 +273,14 @@ function Overview({
             role="status"
             className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800"
           >
-            Your co-ownership request is pending Owner review.
+            {t("course.requestSubmitted")}
           </p>
         ) : requestStatus === "cancelled" ? (
           <p
             role="status"
             className="rounded-xl bg-slate-100 p-3 text-sm text-slate-700"
           >
-            Co-ownership request cancelled.
+            {t("course.requestCancelled")}
           </p>
         ) : null}
         {!detail.permissions.role ? (
@@ -277,17 +291,17 @@ function Overview({
             <input type="hidden" name="coursePageId" value={detail.course.id} />
             <input type="hidden" name="courseSlug" value={detail.course.slug} />
             <label className="block text-sm font-semibold text-indigo-950">
-              Attendance
+              {t("course.attendance")}
               <select
                 name="attendance"
                 className="mt-1 min-h-11 w-full rounded-xl border border-indigo-200 bg-white px-3"
               >
-                <option value="not_attended">Not attended</option>
-                <option value="attended">Attended</option>
+                <option value="not_attended">{t("course.notAttended")}</option>
+                <option value="attended">{t("course.attended")}</option>
               </select>
             </label>
             <button className="mt-3 min-h-11 w-full rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white">
-              Join course
+              {t("course.join")}
             </button>
           </form>
         ) : null}
@@ -307,12 +321,14 @@ function Overview({
                 name="courseSlug"
                 value={detail.course.slug}
               />
-              <p className="font-bold text-amber-950">Request pending</p>
+              <p className="font-bold text-amber-950">
+                {t("course.requestPending")}
+              </p>
               <p className="mt-1 text-sm leading-6 text-amber-900">
-                Only the course Owner can accept or reject this request.
+                {t("course.requestPendingHelp")}
               </p>
               <button className="mt-3 min-h-11 rounded-xl border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-950">
-                Cancel request
+                {t("course.cancelRequest")}
               </button>
             </form>
           ) : (
@@ -331,14 +347,13 @@ function Overview({
                 value={detail.course.slug}
               />
               <h2 className="font-bold text-indigo-950">
-                Request co-ownership
+                {t("course.requestCoownership")}
               </h2>
               <p className="mt-1 text-sm leading-6 text-indigo-900">
-                Co-owners can edit and apply curriculum changes. The Owner must
-                approve.
+                {t("course.requestHelp")}
               </p>
               <label className="mt-3 block text-sm font-semibold text-indigo-950">
-                Message (optional)
+                {t("course.messageOptional")}
                 <textarea
                   name="message"
                   maxLength={800}
@@ -347,7 +362,7 @@ function Overview({
                 />
               </label>
               <button className="mt-3 min-h-11 w-full rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white">
-                Request co-ownership
+                {t("course.requestCoownership")}
               </button>
             </form>
           )
@@ -359,24 +374,21 @@ function Overview({
           >
             <input type="hidden" name="coursePageId" value={detail.course.id} />
             <input type="hidden" name="courseSlug" value={detail.course.slug} />
-            <p className="text-sm text-slate-600">
-              You can return to Visitor without leaving the course.
-            </p>
+            <p className="text-sm text-slate-600">{t("course.leaveHelp")}</p>
             <button className="mt-3 min-h-11 rounded-xl border border-slate-300 px-4 text-sm font-semibold">
-              Leave co-ownership
+              {t("course.leaveCoownership")}
             </button>
           </form>
         ) : null}
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="font-semibold">Curriculum sources</h2>
+          <h2 className="font-semibold">{t("course.sources")}</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {detail.templates.map((template) => (
               <li key={template.id}>{template.name}</li>
             ))}
           </ul>
           <p className="mt-3 text-xs leading-5 text-zinc-500">
-            Canonical templates keep the course structure consistent while local
-            curriculum changes remain course-specific.
+            {t("course.sourcesHelp")}
           </p>
         </section>
 
@@ -385,7 +397,7 @@ function Overview({
             href={`/courses/${detail.course.slug}/settings/curriculum`}
             className="flex w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-500"
           >
-            Edit curriculum
+            {t("course.editCurriculum")}
           </Link>
         ) : null}
         {detail.permissions.canManageCourseSettings ? (
@@ -393,7 +405,7 @@ function Overview({
             href={`/courses/${detail.course.slug}/settings`}
             className="flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold"
           >
-            Course settings
+            {t("course.settings")}
           </Link>
         ) : null}
       </aside>
@@ -410,14 +422,20 @@ function Metadata({ label, value }: { label: string; value: string }) {
   );
 }
 
-function VisibilityBadge({
+async function VisibilityBadge({
   visibility,
 }: {
   visibility: "public" | "unlisted" | "private";
 }) {
+  const { t } = await getI18n();
+  const label = {
+    public: t("course.public"),
+    unlisted: t("course.unlisted"),
+    private: t("course.private"),
+  }[visibility];
   return (
-    <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium capitalize text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-      {visibility}
+    <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+      {label}
     </span>
   );
 }

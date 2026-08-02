@@ -1,12 +1,5 @@
 import Link from "next/link";
-import {
-  and,
-  count,
-  desc,
-  eq,
-  inArray,
-  isNull,
-} from "drizzle-orm";
+import { and, count, desc, eq, inArray, isNull } from "drizzle-orm";
 
 import { getCourseCurriculumIndex } from "@/lib/courses/curriculum";
 import { db } from "@/lib/db/client";
@@ -17,6 +10,8 @@ import {
   courseResources,
   students,
 } from "@/lib/db/schema";
+import { getI18n } from "@/lib/i18n/server";
+import type { TranslationKey } from "@/lib/i18n/messages";
 
 import { AttachmentForm } from "./attachment-form";
 import {
@@ -33,11 +28,20 @@ type ReactionKind = "like" | "helpful" | "insightful";
 
 const reactionLabels: Record<
   ReactionKind,
-  { emoji: string; label: string }
+  { emoji: string; key: TranslationKey }
 > = {
-  like: { emoji: "👍", label: "Useful" },
-  helpful: { emoji: "✅", label: "Helpful" },
-  insightful: { emoji: "💡", label: "Insightful" },
+  like: { emoji: "👍", key: "resources.useful" },
+  helpful: { emoji: "✅", key: "resources.helpful" },
+  insightful: { emoji: "💡", key: "resources.insightful" },
+};
+
+const resourceTypeKeys: Record<string, TranslationKey> = {
+  text_note: "resources.textNote",
+  study_tip: "resources.studyTip",
+  correction: "resources.correction",
+  link: "resources.link",
+  personal_notes: "resources.personalNotes",
+  permitted_material: "resources.permittedMaterial",
 };
 
 export async function ResourcesPanel({
@@ -55,6 +59,7 @@ export async function ResourcesPanel({
   page?: number;
   selectedSubtopic?: string;
 }) {
+  const { t } = await getI18n();
   const safePage = Math.max(1, Math.floor(page));
   const filters = [
     eq(courseResources.coursePageId, coursePageId),
@@ -62,12 +67,7 @@ export async function ResourcesPanel({
     isNull(courseResources.deletedAt),
   ];
   if (selectedSubtopic) {
-    filters.push(
-      eq(
-        courseResources.courseSubtopicStableId,
-        selectedSubtopic,
-      ),
-    );
+    filters.push(eq(courseResources.courseSubtopicStableId, selectedSubtopic));
   }
 
   const [curriculum, resources] = await Promise.all([
@@ -169,10 +169,7 @@ export async function ResourcesPanel({
       `${subtopic.topicName} · ${subtopic.name}`,
     ]),
   );
-  const commentsByResource = new Map<
-    string,
-    (typeof comments)[number][]
-  >();
+  const commentsByResource = new Map<string, (typeof comments)[number][]>();
   for (const comment of comments) {
     const values = commentsByResource.get(comment.resourceId) ?? [];
     values.push(comment);
@@ -200,25 +197,24 @@ export async function ResourcesPanel({
       <section className="min-w-0">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black">Resources</h2>
+            <h2 className="text-2xl font-black">{t("resources.title")}</h2>
             <p className="mt-1 text-sm text-slate-600">
-              Notes and permitted materials stay attached to their course,
-              topic, subtopic, or exam context.
+              {t("resources.subtitle")}
             </p>
           </div>
-          <span className="text-xs text-slate-500">Newest first · 20 per page</span>
+          <span className="text-xs text-slate-500">{t("resources.sort")}</span>
         </div>
 
         {selectedSubtopicInfo ? (
           <div
             role="region"
-            aria-label="Selected subtopic resources"
+            aria-label={t("resources.selectedSubtopic")}
             className="sticky top-16 z-20 mt-5 rounded-2xl border border-indigo-200 bg-indigo-50 p-4 shadow-sm"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-indigo-700">
-                  Subtopic resources
+                  {t("resources.subtopicResources")}
                 </p>
                 <h3 className="mt-1 font-bold text-indigo-950">
                   {selectedSubtopicInfo.name}
@@ -231,7 +227,7 @@ export async function ResourcesPanel({
                 href={`/courses/${courseSlug}?tab=resources`}
                 className="inline-flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-indigo-800"
               >
-                Close
+                {t("resources.close")}
               </Link>
             </div>
           </div>
@@ -246,12 +242,14 @@ export async function ResourcesPanel({
                 attachmentsByResource.get(resource.id) ?? [];
               const contextLabel =
                 resource.context === "topic" && resource.topicStableId
-                  ? topicByStableId.get(resource.topicStableId) ?? "Topic"
-                  : resource.context === "subtopic" &&
-                      resource.subtopicStableId
-                    ? subtopicByStableId.get(resource.subtopicStableId) ??
-                      "Subtopic"
-                    : resource.context;
+                  ? (topicByStableId.get(resource.topicStableId) ??
+                    t("resources.topic"))
+                  : resource.context === "subtopic" && resource.subtopicStableId
+                    ? (subtopicByStableId.get(resource.subtopicStableId) ??
+                      t("resources.subtopic"))
+                    : resource.context === "exam"
+                      ? t("course.exam")
+                      : t("resources.wholeCourse");
               return (
                 <li
                   key={resource.id}
@@ -259,7 +257,9 @@ export async function ResourcesPanel({
                 >
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="rounded-full bg-indigo-50 px-2.5 py-1 font-semibold capitalize text-indigo-700">
-                      {resource.type.replaceAll("_", " ")}
+                      {t(
+                        resourceTypeKeys[resource.type] ?? "resources.textNote",
+                      )}
                     </span>
                     <span className="min-w-0 break-words text-slate-500">
                       {contextLabel}
@@ -281,70 +281,71 @@ export async function ResourcesPanel({
                       rel="noopener noreferrer nofollow"
                       className="mt-3 inline-flex min-h-11 max-w-full items-center break-all text-sm font-semibold text-indigo-700 underline"
                     >
-                      Open link
+                      {t("resources.openLink")}
                     </Link>
                   ) : null}
                   {resourceAttachments.map((attachment) => (
-                      <div
-                        key={attachment.id}
-                        className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center"
+                    <div
+                      key={attachment.id}
+                      className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center"
+                    >
+                      <a
+                        href={`/api/courses/${coursePageId}/attachments/${attachment.id}`}
+                        className="flex min-h-11 min-w-0 flex-1 items-center break-all rounded-xl bg-slate-100 px-3 text-sm font-semibold text-indigo-700"
                       >
-                        <a
-                          href={`/api/courses/${coursePageId}/attachments/${attachment.id}`}
-                          className="flex min-h-11 min-w-0 flex-1 items-center break-all rounded-xl bg-slate-100 px-3 text-sm font-semibold text-indigo-700"
-                        >
-                          {attachment.fileName} ·{" "}
-                          {Math.ceil(attachment.sizeBytes / 1024)} KB
-                        </a>
-                        {canModerate ? (
-                          <form action={moderateCourseContentAction}>
-                            <input
-                              type="hidden"
-                              name="coursePageId"
-                              value={coursePageId}
-                            />
-                            <input
-                              type="hidden"
-                              name="courseSlug"
-                              value={courseSlug}
-                            />
-                            <input
-                              type="hidden"
-                              name="targetType"
-                              value="attachment"
-                            />
-                            <input
-                              type="hidden"
-                              name="targetId"
-                              value={attachment.id}
-                            />
-                            <input
-                              type="hidden"
-                              name="reason"
-                              value="Hidden by course Owner"
-                            />
-                            <button
-                              type="submit"
-                              name="action"
-                              value="hide"
-                              className="min-h-11 rounded-xl border border-rose-200 px-3 text-xs font-semibold text-rose-700"
-                            >
-                              Hide attachment
-                            </button>
-                          </form>
-                        ) : null}
-                      </div>
-                    ))}
+                        {attachment.fileName} ·{" "}
+                        {Math.ceil(attachment.sizeBytes / 1024)} KB
+                      </a>
+                      {canModerate ? (
+                        <form action={moderateCourseContentAction}>
+                          <input
+                            type="hidden"
+                            name="coursePageId"
+                            value={coursePageId}
+                          />
+                          <input
+                            type="hidden"
+                            name="courseSlug"
+                            value={courseSlug}
+                          />
+                          <input
+                            type="hidden"
+                            name="targetType"
+                            value="attachment"
+                          />
+                          <input
+                            type="hidden"
+                            name="targetId"
+                            value={attachment.id}
+                          />
+                          <input
+                            type="hidden"
+                            name="reason"
+                            value="Hidden by course Owner"
+                          />
+                          <button
+                            type="submit"
+                            name="action"
+                            value="hide"
+                            className="min-h-11 rounded-xl border border-rose-200 px-3 text-xs font-semibold text-rose-700"
+                          >
+                            {t("resources.hideAttachment")}
+                          </button>
+                        </form>
+                      ) : null}
+                    </div>
+                  ))}
 
                   <div
-                    aria-label="Resource reactions"
+                    aria-label={t("resources.reactions")}
                     className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3"
                   >
                     {(Object.keys(reactionLabels) as ReactionKind[]).map(
                       (kind) => {
                         const value =
                           reactionCountByKey.get(`${resource.id}:${kind}`) ?? 0;
-                        const label = reactionLabels[kind];
+                        const reaction = reactionLabels[kind];
+                        const label = t(reaction.key);
                         return canPost ? (
                           <form
                             key={kind}
@@ -359,10 +360,13 @@ export async function ResourcesPanel({
                               type="submit"
                               name="kind"
                               value={kind}
-                              aria-label={`${label.label}; ${value} reactions`}
+                              aria-label={t("resources.reactionCount", {
+                                label,
+                                count: value,
+                              })}
                               className="min-h-11 rounded-full bg-slate-100 px-3 text-xs hover:bg-indigo-100"
                             >
-                              <span aria-hidden>{label.emoji}</span>{" "}
+                              <span aria-hidden>{reaction.emoji}</span>{" "}
                               {value || ""}
                             </button>
                           </form>
@@ -370,9 +374,13 @@ export async function ResourcesPanel({
                           <span
                             key={kind}
                             className="inline-flex min-h-11 items-center rounded-full bg-slate-100 px-3 text-xs"
-                            aria-label={`${label.label}; ${value} reactions`}
+                            aria-label={t("resources.reactionCount", {
+                              label,
+                              count: value,
+                            })}
                           >
-                            <span aria-hidden>{label.emoji}</span>&nbsp;{value}
+                            <span aria-hidden>{reaction.emoji}</span>&nbsp;
+                            {value}
                           </span>
                         ) : null;
                       },
@@ -381,7 +389,9 @@ export async function ResourcesPanel({
 
                   <details className="mt-3 rounded-xl bg-slate-50 p-3">
                     <summary className="cursor-pointer text-sm font-semibold">
-                      Comments {resourceComments.length || ""}
+                      {t("resources.comments", {
+                        count: resourceComments.length || "",
+                      })}
                     </summary>
                     {resourceComments.length ? (
                       <ul className="mt-3 space-y-2">
@@ -401,7 +411,7 @@ export async function ResourcesPanel({
                       </ul>
                     ) : (
                       <p className="mt-3 text-xs text-slate-500">
-                        No comments yet.
+                        {t("resources.noComments")}
                       </p>
                     )}
                     {canPost ? (
@@ -414,19 +424,22 @@ export async function ResourcesPanel({
                           courseSlug={courseSlug}
                           resourceId={resource.id}
                         />
-                        <label className="sr-only" htmlFor={`comment-${resource.id}`}>
-                          Short comment
+                        <label
+                          className="sr-only"
+                          htmlFor={`comment-${resource.id}`}
+                        >
+                          {t("resources.shortComment")}
                         </label>
                         <input
                           id={`comment-${resource.id}`}
                           name="body"
                           required
                           maxLength={1_000}
-                          placeholder="Add a short comment"
+                          placeholder={t("resources.commentPlaceholder")}
                           className="min-h-11 min-w-0 flex-1 rounded-xl border border-slate-300 px-3 text-sm"
                         />
                         <button className="min-h-11 rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white">
-                          Comment
+                          {t("resources.comment")}
                         </button>
                       </form>
                     ) : null}
@@ -454,11 +467,11 @@ export async function ResourcesPanel({
         ) : (
           <div className="mt-5 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-600">
             {selectedSubtopicInfo
-              ? "No resources have been shared for this subtopic."
-              : "No contextual resources yet."}
+              ? t("resources.emptySubtopic")
+              : t("resources.emptyContextual")}
           </div>
         )}
-        <nav aria-label="Resource pages" className="mt-5 flex gap-3">
+        <nav aria-label={t("resources.pages")} className="mt-5 flex gap-3">
           {safePage > 1 ? (
             <Link
               href={resourcePageHref(
@@ -468,7 +481,7 @@ export async function ResourcesPanel({
               )}
               className="min-h-11 px-3 py-2 font-semibold text-indigo-700"
             >
-              Previous
+              {t("common.previous")}
             </Link>
           ) : null}
           {resources.length === 20 ? (
@@ -480,7 +493,7 @@ export async function ResourcesPanel({
               )}
               className="min-h-11 px-3 py-2 font-semibold text-indigo-700"
             >
-              Next
+              {t("common.next")}
             </Link>
           ) : null}
         </nav>
@@ -497,7 +510,7 @@ export async function ResourcesPanel({
           />
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-600">
-            Join this course to contribute resources, comments, or reactions.
+            {t("resources.joinHelp")}
           </div>
         )}
       </aside>
@@ -505,7 +518,7 @@ export async function ResourcesPanel({
   );
 }
 
-function ResourceComposer({
+async function ResourceComposer({
   coursePageId,
   courseSlug,
   topics,
@@ -518,16 +531,17 @@ function ResourceComposer({
   subtopics: Array<{ stableId: string; name: string; topicName: string }>;
   selectedSubtopic?: string;
 }) {
+  const { t } = await getI18n();
   return (
     <form
       action={createResourceAction}
       className="sticky top-24 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
     >
-      <h2 className="font-bold">Add a resource</h2>
+      <h2 className="font-bold">{t("resources.add")}</h2>
       <input type="hidden" name="coursePageId" value={coursePageId} />
       <input type="hidden" name="courseSlug" value={courseSlug} />
       <label className="mt-4 block text-sm font-semibold">
-        Attach to
+        {t("resources.attachTo")}
         <select
           name="contextTarget"
           defaultValue={
@@ -535,16 +549,16 @@ function ResourceComposer({
           }
           className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3"
         >
-          <option value="course">Whole course</option>
-          <option value="exam">Exam</option>
-          <optgroup label="Topics">
+          <option value="course">{t("resources.wholeCourse")}</option>
+          <option value="exam">{t("course.exam")}</option>
+          <optgroup label={t("resources.topics")}>
             {topics.map((topic) => (
               <option key={topic.stableId} value={`topic:${topic.stableId}`}>
                 {topic.name}
               </option>
             ))}
           </optgroup>
-          <optgroup label="Subtopics">
+          <optgroup label={t("resources.subtopics")}>
             {subtopics.map((subtopic) => (
               <option
                 key={subtopic.stableId}
@@ -557,21 +571,23 @@ function ResourceComposer({
         </select>
       </label>
       <label className="mt-3 block text-sm font-semibold">
-        Type
+        {t("resources.type")}
         <select
           name="type"
           className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 px-3"
         >
-          <option value="text_note">Text note</option>
-          <option value="study_tip">Study tip</option>
-          <option value="correction">Correction</option>
-          <option value="link">Link</option>
-          <option value="personal_notes">Personal notes</option>
-          <option value="permitted_material">Permitted material</option>
+          <option value="text_note">{t("resources.textNote")}</option>
+          <option value="study_tip">{t("resources.studyTip")}</option>
+          <option value="correction">{t("resources.correction")}</option>
+          <option value="link">{t("resources.link")}</option>
+          <option value="personal_notes">{t("resources.personalNotes")}</option>
+          <option value="permitted_material">
+            {t("resources.permittedMaterial")}
+          </option>
         </select>
       </label>
       <label className="mt-3 block text-sm font-semibold">
-        Title
+        {t("resources.titleField")}
         <input
           name="title"
           maxLength={180}
@@ -579,7 +595,7 @@ function ResourceComposer({
         />
       </label>
       <label className="mt-3 block text-sm font-semibold">
-        Note
+        {t("resources.note")}
         <textarea
           name="body"
           rows={5}
@@ -588,7 +604,7 @@ function ResourceComposer({
         />
       </label>
       <label className="mt-3 block text-sm font-semibold">
-        Link
+        {t("resources.link")}
         <input
           name="linkUrl"
           type="url"
@@ -602,10 +618,10 @@ function ResourceComposer({
           value="yes"
           className="mt-1"
         />
-        I confirm I am allowed to share this material.
+        {t("resources.permission")}
       </label>
       <button className="mt-4 min-h-11 w-full rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white">
-        Publish resource
+        {t("resources.publish")}
       </button>
     </form>
   );
@@ -629,7 +645,7 @@ function ResourceIdentity({
   );
 }
 
-function ResourceReportForm({
+async function ResourceReportForm({
   coursePageId,
   courseSlug,
   resourceId,
@@ -638,9 +654,12 @@ function ResourceReportForm({
   courseSlug: string;
   resourceId: string;
 }) {
+  const { t } = await getI18n();
   return (
     <details className="mt-3 text-xs">
-      <summary className="cursor-pointer text-slate-500">Report resource</summary>
+      <summary className="cursor-pointer text-slate-500">
+        {t("resources.report")}
+      </summary>
       <form
         action={reportCourseContentAction}
         className="mt-2 grid gap-2 rounded-xl border border-slate-200 p-3"
@@ -650,43 +669,41 @@ function ResourceReportForm({
         <input type="hidden" name="targetType" value="course_resource" />
         <input type="hidden" name="targetId" value={resourceId} />
         <label>
-          Reason
+          {t("resources.reason")}
           <select
             name="reason"
             className="mt-1 min-h-11 w-full rounded-lg border border-slate-300 px-2"
           >
-            <option value="spam">Spam</option>
-            <option value="harassment">Harassment</option>
-            <option value="personal_info">Personal information</option>
-            <option value="copyright">Copyright</option>
+            <option value="spam">{t("resources.spam")}</option>
+            <option value="harassment">{t("resources.harassment")}</option>
+            <option value="personal_info">{t("resources.personalInfo")}</option>
+            <option value="copyright">{t("resources.copyright")}</option>
             <option value="unauthorized_exam_material">
-              Unauthorized exam material
+              {t("resources.unauthorizedExam")}
             </option>
-            <option value="incorrect_info">Incorrect information</option>
-            <option value="inappropriate">Inappropriate</option>
-            <option value="other">Other</option>
+            <option value="incorrect_info">{t("resources.incorrect")}</option>
+            <option value="inappropriate">
+              {t("resources.inappropriate")}
+            </option>
+            <option value="other">{t("resources.other")}</option>
           </select>
         </label>
         <textarea
           name="details"
           rows={2}
           maxLength={2_000}
-          aria-label="Report details"
+          aria-label={t("resources.reportDetails")}
           className="rounded-lg border border-slate-300 p-2"
         />
         <button className="min-h-11 rounded-lg border border-slate-300 font-semibold">
-          Submit report
+          {t("resources.submitReport")}
         </button>
       </form>
     </details>
   );
 }
 
-function resourcePageHref(
-  courseSlug: string,
-  page: number,
-  subtopic?: string,
-) {
+function resourcePageHref(courseSlug: string, page: number, subtopic?: string) {
   const params = new URLSearchParams({ tab: "resources", page: String(page) });
   if (subtopic) params.set("subtopic", subtopic);
   return `/courses/${courseSlug}?${params.toString()}`;

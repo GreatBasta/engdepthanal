@@ -23,6 +23,7 @@ import {
   courseSubtopics,
   courseTopics,
 } from "@/lib/db/schema";
+import { getI18n } from "@/lib/i18n/server";
 
 const courseIdentitySchema = z.object({
   coursePageId: z.string().uuid(),
@@ -444,13 +445,10 @@ export async function applyCurriculumChangesAction(input: {
   courseSlug: string;
   changes: CurriculumCoverageChange[];
 }): Promise<CurriculumApplyResult> {
+  const { t } = await getI18n();
   const parsed = curriculumApplySchema.safeParse(input);
   if (!parsed.success) {
-    return {
-      ok: false,
-      code: "invalid",
-      message: "Check the pending changes and try again.",
-    };
+    return { ok: false, code: "invalid", message: t("curriculum.invalid") };
   }
   if (
     new Set(parsed.data.changes.map((change) => change.subtopicStableId))
@@ -459,7 +457,7 @@ export async function applyCurriculumChangesAction(input: {
     return {
       ok: false,
       code: "invalid",
-      message: "A subtopic was submitted more than once.",
+      message: t("curriculum.duplicate"),
     };
   }
 
@@ -468,7 +466,7 @@ export async function applyCurriculumChangesAction(input: {
     return {
       ok: false,
       code: "forbidden",
-      message: "Sign in to apply curriculum changes.",
+      message: t("curriculum.signIn"),
     };
   }
   const context = await loadCoursePermissionContext(
@@ -479,7 +477,7 @@ export async function applyCurriculumChangesAction(input: {
     return {
       ok: false,
       code: "forbidden",
-      message: "Only the Owner or a Co-owner can edit the curriculum.",
+      message: t("curriculum.forbidden"),
     };
   }
 
@@ -501,7 +499,7 @@ export async function applyCurriculumChangesAction(input: {
       if (!course) {
         throw new CurriculumApplyError(
           "cross_course",
-          "The submitted course identity does not match this curriculum.",
+          t("curriculum.identityMismatch"),
         );
       }
 
@@ -519,10 +517,7 @@ export async function applyCurriculumChangesAction(input: {
         )
         .limit(1);
       if (!draft) {
-        throw new CurriculumApplyError(
-          "failed",
-          "The editable curriculum is unavailable. Reload and try again.",
-        );
+        throw new CurriculumApplyError("failed", t("curriculum.unavailable"));
       }
 
       if (parsed.data.changes.length) {
@@ -550,7 +545,7 @@ export async function applyCurriculumChangesAction(input: {
         ) {
           throw new CurriculumApplyError(
             "cross_course",
-            "One or more subtopics do not belong to this course.",
+            t("curriculum.crossCourse"),
           );
         }
         const values = sql.join(
@@ -727,7 +722,7 @@ export async function applyCurriculumChangesAction(input: {
     revalidatePath(`/courses/${parsed.data.courseSlug}/settings/curriculum`);
     return {
       ok: true,
-      message: "Curriculum changes applied.",
+      message: t("curriculum.applied"),
       updatedAt: updatedAt.toISOString(),
     };
   } catch (error) {
@@ -737,8 +732,7 @@ export async function applyCurriculumChangesAction(input: {
     return {
       ok: false,
       code: "failed",
-      message:
-        "The curriculum could not be applied. Your pending changes are still available.",
+      message: t("curriculum.applyFailed"),
     };
   }
 }

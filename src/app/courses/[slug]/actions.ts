@@ -5,9 +5,12 @@ import { and, count, eq, gt, gte, sql } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { getI18n } from "@/lib/i18n/server";
 
 import { currentStudentId } from "@/auth";
 import { courseDuplicateKey } from "@/lib/courses/core";
+import { persistOrganizationProgramSelection } from "@/lib/organizations/persistence";
+import { parseOrganizationSelection } from "@/lib/organizations/schema";
 import {
   archiveOwnedCourse,
   permanentlyDeleteOwnedCourse,
@@ -110,16 +113,39 @@ export async function updateCourseSettingsAction(formData: FormData) {
   if (!context || !canManageCourseSettings(context)) return;
 
   const { coursePageId, courseSlug, returnTo, ...course } = parsed.data;
+  let universityProgramId = course.universityProgramId;
+  if (returnTo === "general") {
+    const organization = parseOrganizationSelection(
+      formData.get("organizationSelection"),
+    );
+    const programSlug = z
+      .string()
+      .trim()
+      .min(1)
+      .max(120)
+      .safeParse(formData.get("programSlug"));
+    if (!organization || !programSlug.success) return;
+    try {
+      const selection = await persistOrganizationProgramSelection(
+        organization,
+        programSlug.data,
+      );
+      universityProgramId = selection.universityProgramId;
+    } catch {
+      return;
+    }
+  }
+  const updatedCourse = { ...course, universityProgramId };
   await db
     .update(coursePages)
     .set({
-      ...course,
-      courseCode: course.courseCode ?? null,
-      professorName: course.professorName ?? null,
-      cohortYear: course.cohortYear ?? null,
-      semester: course.semester ?? null,
-      description: course.description ?? null,
-      duplicateKey: courseDuplicateKey(course),
+      ...updatedCourse,
+      courseCode: updatedCourse.courseCode ?? null,
+      professorName: updatedCourse.professorName ?? null,
+      cohortYear: updatedCourse.cohortYear ?? null,
+      semester: updatedCourse.semester ?? null,
+      description: updatedCourse.description ?? null,
+      duplicateKey: courseDuplicateKey(updatedCourse),
       updatedAt: new Date(),
     })
     .where(
@@ -249,6 +275,7 @@ export async function inviteMemberAction(
   _previous: InviteMemberState,
   formData: FormData,
 ): Promise<InviteMemberState> {
+  const { t } = await getI18n();
   const parsed = inviteSchema.safeParse({
     coursePageId: formData.get("coursePageId"),
     courseSlug: formData.get("courseSlug"),
@@ -257,7 +284,7 @@ export async function inviteMemberAction(
   });
   if (!parsed.success) {
     return {
-      error: parsed.error.issues[0]?.message ?? "Check the invitation.",
+      error: t("members.inviteInvalid"),
       message: null,
       inviteUrl: null,
     };
@@ -268,7 +295,7 @@ export async function inviteMemberAction(
     managerId = await requireMemberManager(parsed.data.coursePageId);
   } catch {
     return {
-      error: "You do not have permission to invite course members.",
+      error: t("members.inviteDenied"),
       message: null,
       inviteUrl: null,
     };
@@ -285,7 +312,7 @@ export async function inviteMemberAction(
     );
   if (Number(recent?.value ?? 0) >= 20) {
     return {
-      error: "Invitation limit reached. Try again in an hour.",
+      error: t("members.inviteLimited"),
       message: null,
       inviteUrl: null,
     };
@@ -309,7 +336,7 @@ export async function inviteMemberAction(
       .limit(1);
     if (membership) {
       return {
-        error: "This student is already a course member.",
+        error: t("members.alreadyMember"),
         message: null,
         inviteUrl: null,
       };
@@ -326,7 +353,7 @@ export async function inviteMemberAction(
     revalidatePath(`/courses/${parsed.data.courseSlug}`);
     return {
       error: null,
-      message: "The existing account was added to the course.",
+      message: t("members.accountAdded"),
       inviteUrl: null,
     };
   }
@@ -346,7 +373,7 @@ export async function inviteMemberAction(
 
   return {
     error: null,
-    message: "Share this one-time invitation link. It expires in 7 days.",
+    message: t("members.shareInvite"),
     inviteUrl: `/courses/invitations/${rawToken}`,
   };
 }

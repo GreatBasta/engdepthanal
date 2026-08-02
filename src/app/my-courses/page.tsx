@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { currentStudentId } from "@/auth";
@@ -21,18 +22,24 @@ import {
   permanentlyDeleteCourseAction,
   restoreCourseAction,
 } from "@/app/courses/[slug]/actions";
+import { getI18n } from "@/lib/i18n/server";
 
-export const metadata = { title: "My courses" };
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getI18n();
+  return { title: t("myCourses.title") };
+}
 
 export default async function MyCoursesPage({
   searchParams,
 }: {
   searchParams: Promise<{ status?: string; error?: string }>;
 }) {
-  const [studentId, query] = await Promise.all([
+  const [studentId, query, i18n] = await Promise.all([
     currentStudentId(),
     searchParams,
+    getI18n(),
   ]);
+  const { t, formatDate } = i18n;
   if (!studentId) redirect("/login?next=/my-courses");
 
   const [courses, archivedCourses] = await Promise.all([
@@ -124,43 +131,48 @@ export default async function MyCoursesPage({
       .orderBy(desc(coursePages.archivedAt)),
   ]);
   const groupedCourses = Array.from(
-    courses.reduce((groups, course) => {
-      const role = effectiveCourseRole(course.role);
-      if (!role) return groups;
-      const normalized = { ...course, role };
-      const existing = groups.get(course.organizationId);
-      if (existing) {
-        if (role === "visitor") existing.visiting.push(normalized);
-        else existing.ownedAndCoowned.push(normalized);
-      } else {
-        groups.set(course.organizationId, {
-          id: course.organizationId,
-          name: course.organizationName ?? course.organizationFallbackName,
-          city: course.organizationCity,
-          country: course.organizationCountry ?? course.organizationCountryCode,
-          ownedAndCoowned: role === "visitor" ? [] : [normalized],
-          visiting: role === "visitor" ? [normalized] : [],
-        });
-      }
-      return groups;
-    }, new Map<string, MyCourseGroup>()).values(),
+    courses
+      .reduce((groups, course) => {
+        const role = effectiveCourseRole(course.role);
+        if (!role) return groups;
+        const normalized = { ...course, role };
+        const existing = groups.get(course.organizationId);
+        if (existing) {
+          if (role === "visitor") existing.visiting.push(normalized);
+          else existing.ownedAndCoowned.push(normalized);
+        } else {
+          groups.set(course.organizationId, {
+            id: course.organizationId,
+            name: course.organizationName ?? course.organizationFallbackName,
+            city: course.organizationCity,
+            country:
+              course.organizationCountry ?? course.organizationCountryCode,
+            ownedAndCoowned: role === "visitor" ? [] : [normalized],
+            visiting: role === "visitor" ? [normalized] : [],
+          });
+        }
+        return groups;
+      }, new Map<string, MyCourseGroup>())
+      .values(),
   );
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-8 sm:px-6">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm font-semibold text-indigo-700">Your learning space</p>
-          <h1 className="mt-1 text-3xl font-black tracking-tight">My courses</h1>
-          <p className="mt-2 text-slate-600">
-            Course coverage is shared. Your learning progress stays private.
+          <p className="text-sm font-semibold text-indigo-700">
+            {t("myCourses.kicker")}
           </p>
+          <h1 className="mt-1 text-3xl font-black tracking-tight">
+            {t("myCourses.title")}
+          </h1>
+          <p className="mt-2 text-slate-600">{t("myCourses.subtitle")}</p>
         </div>
         <Link
           href="/courses/new"
           className="inline-flex min-h-11 items-center rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500"
         >
-          Create course
+          {t("common.createCourse")}
         </Link>
       </header>
 
@@ -169,7 +181,7 @@ export default async function MyCoursesPage({
           role="status"
           className="mt-6 rounded-xl bg-emerald-50 p-4 text-sm font-medium text-emerald-800"
         >
-          Course archived. You can restore or permanently delete it below.
+          {t("myCourses.archivedStatus")}
         </p>
       ) : null}
       {query.status === "deleted" ? (
@@ -177,7 +189,7 @@ export default async function MyCoursesPage({
           role="status"
           className="mt-6 rounded-xl bg-emerald-50 p-4 text-sm font-medium text-emerald-800"
         >
-          Course and its stored data were permanently deleted.
+          {t("myCourses.deletedStatus")}
         </p>
       ) : null}
       {query.error ? (
@@ -186,19 +198,25 @@ export default async function MyCoursesPage({
           className="mt-6 rounded-xl bg-rose-50 p-4 text-sm font-medium text-rose-800"
         >
           {query.error === "confirmation"
-            ? "The course name did not match. Nothing was deleted."
+            ? t("myCourses.confirmationError")
             : query.error === "delete"
-              ? "Deletion could not be completed. The course remains archived."
-              : "The course lifecycle action could not be completed."}
+              ? t("myCourses.deleteError")
+              : t("myCourses.actionError")}
         </p>
       ) : null}
 
       {groupedCourses.length ? (
         <div className="mt-8 space-y-7">
           {groupedCourses.map((group) => (
-            <section key={group.id} aria-labelledby={`organization-${group.id}`}>
+            <section
+              key={group.id}
+              aria-labelledby={`organization-${group.id}`}
+            >
               <div>
-                <h2 id={`organization-${group.id}`} className="text-xl font-black">
+                <h2
+                  id={`organization-${group.id}`}
+                  className="text-xl font-black"
+                >
                   {group.name}
                 </h2>
                 <p className="mt-1 text-sm text-slate-600">
@@ -206,36 +224,40 @@ export default async function MyCoursesPage({
                 </p>
               </div>
               {group.ownedAndCoowned.length ? (
-                <CourseSection title="Owned and co-owned" courses={group.ownedAndCoowned} />
+                <CourseSection
+                  title={t("myCourses.ownedCoowned")}
+                  courses={group.ownedAndCoowned}
+                />
               ) : null}
               {group.visiting.length ? (
-                <CourseSection title="Visiting" courses={group.visiting} />
+                <CourseSection
+                  title={t("myCourses.visiting")}
+                  courses={group.visiting}
+                />
               ) : null}
             </section>
           ))}
         </div>
       ) : (
         <section className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
-          <h2 className="font-bold">No joined courses yet</h2>
+          <h2 className="font-bold">{t("myCourses.empty")}</h2>
           <p className="mt-2 text-sm text-slate-600">
-            Discover an existing course or create its collaborative page.
+            {t("myCourses.emptyHelp")}
           </p>
           <Link
             href="/courses"
             className="mt-5 inline-flex min-h-11 items-center font-semibold text-indigo-700"
           >
-            Discover courses
+            {t("myCourses.discover")}
           </Link>
         </section>
       )}
 
       {archivedCourses.length ? (
         <section className="mt-12 border-t border-slate-200 pt-8">
-          <h2 className="text-xl font-black">Archived courses</h2>
+          <h2 className="text-xl font-black">{t("myCourses.archived")}</h2>
           <p className="mt-1 text-sm text-slate-600">
-            Only course owners can see this section. Restore a course, or type
-            its exact name to permanently delete its curriculum, resources,
-            exam data, memberships, and attachments.
+            {t("myCourses.archivedHelp")}
           </p>
           <ul className="mt-5 grid gap-4 sm:grid-cols-2">
             {archivedCourses.map((course) => (
@@ -246,8 +268,12 @@ export default async function MyCoursesPage({
                 <h3 className="font-bold">{course.name}</h3>
                 <p className="mt-1 text-sm text-slate-500">
                   {course.code ? `${course.code} · ` : ""}
-                  {course.year} · archived{" "}
-                  {course.archivedAt?.toLocaleDateString("en")}
+                  {course.year} ·{" "}
+                  {t("myCourses.archivedOn", {
+                    date: course.archivedAt
+                      ? formatDate(course.archivedAt)
+                      : t("course.notSpecified"),
+                  })}
                 </p>
                 <div className="mt-4 flex flex-wrap items-start gap-2">
                   <form action={restoreCourseAction}>
@@ -257,12 +283,12 @@ export default async function MyCoursesPage({
                       value={course.id}
                     />
                     <button className="min-h-11 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white">
-                      Restore course
+                      {t("myCourses.restore")}
                     </button>
                   </form>
                   <details className="rounded-xl border border-rose-300">
                     <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-semibold text-rose-800">
-                      Delete permanently
+                      {t("myCourses.delete")}
                     </summary>
                     <form
                       action={permanentlyDeleteCourseAction}
@@ -274,7 +300,7 @@ export default async function MyCoursesPage({
                         value={course.id}
                       />
                       <label className="block text-xs font-semibold text-slate-700">
-                        Type “{course.name}” to confirm
+                        {t("myCourses.typeToConfirm", { name: course.name })}
                         <input
                           name="confirmation"
                           required
@@ -283,7 +309,7 @@ export default async function MyCoursesPage({
                         />
                       </label>
                       <button className="mt-3 min-h-11 w-full rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white">
-                        Delete all course data
+                        {t("myCourses.deleteAll")}
                       </button>
                     </form>
                   </details>
@@ -327,7 +353,14 @@ type MyCourseGroup = {
   visiting: MyCourse[];
 };
 
-function CourseSection({ title, courses }: { title: string; courses: MyCourse[] }) {
+async function CourseSection({
+  title,
+  courses,
+}: {
+  title: string;
+  courses: MyCourse[];
+}) {
+  const { t, formatDate } = await getI18n();
   return (
     <div className="mt-4">
       <h3 className="text-sm font-bold text-slate-600">{title}</h3>
@@ -341,12 +374,14 @@ function CourseSection({ title, courses }: { title: string; courses: MyCourse[] 
               <div className="flex items-start justify-between gap-3">
                 <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
                   {course.role === "owner"
-                    ? "Owner"
+                    ? t("roles.owner")
                     : course.role === "coowner"
-                      ? "Co-owner"
-                      : "Visitor"}
+                      ? t("roles.coowner")
+                      : t("roles.visitor")}
                 </span>
-                <span className="text-xs capitalize text-slate-500">{course.visibility}</span>
+                <span className="text-xs text-slate-500">
+                  {t(`course.${course.visibility}`)}
+                </span>
               </div>
               <h4 className="mt-4 text-lg font-bold">{course.name}</h4>
               <p className="mt-1 text-sm text-slate-600">
@@ -354,14 +389,19 @@ function CourseSection({ title, courses }: { title: string; courses: MyCourse[] 
               </p>
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
                 <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                  Curriculum {Number(course.curriculumClassified)}/{Number(course.curriculumTotal)}
+                  {t("myCourses.curriculum", {
+                    classified: Number(course.curriculumClassified),
+                    total: Number(course.curriculumTotal),
+                  })}
                 </span>
                 <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                  Exam {Number(course.examActivityCount)}
+                  {t("myCourses.exam", {
+                    count: Number(course.examActivityCount),
+                  })}
                 </span>
               </div>
               <p className="mt-3 text-xs text-slate-500">
-                Updated {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(course.updatedAt)}
+                {t("common.updated", { date: formatDate(course.updatedAt) })}
               </p>
             </Link>
           </li>

@@ -6,6 +6,7 @@ import { getCourseBySlugForViewer } from "@/lib/courses/data";
 import { effectiveCourseRole } from "@/lib/courses/permissions";
 import { db } from "@/lib/db/client";
 import { courseCoownershipRequests, students } from "@/lib/db/schema";
+import { getI18n } from "@/lib/i18n/server";
 
 import { updateCourseMemberAction } from "../../actions";
 import { reviewCoownershipRequestAction } from "../../coownership-actions";
@@ -18,11 +19,13 @@ export default async function MemberSettings({
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ review?: string }>;
 }) {
-  const [{ slug }, query, studentId] = await Promise.all([
+  const [{ slug }, query, studentId, i18n] = await Promise.all([
     params,
     searchParams,
     currentStudentId(),
+    getI18n(),
   ]);
+  const { t, formatDate } = i18n;
   const detail = await getCourseBySlugForViewer(slug, studentId, {
     members: true,
   });
@@ -37,10 +40,7 @@ export default async function MemberSettings({
       requestedAt: courseCoownershipRequests.requestedAt,
     })
     .from(courseCoownershipRequests)
-    .innerJoin(
-      students,
-      eq(courseCoownershipRequests.requesterId, students.id),
-    )
+    .innerJoin(students, eq(courseCoownershipRequests.requesterId, students.id))
     .where(
       and(
         eq(courseCoownershipRequests.coursePageId, detail.course.id),
@@ -62,18 +62,18 @@ export default async function MemberSettings({
             }`}
           >
             {query.review === "accepted"
-              ? "The Visitor is now a Co-owner."
+              ? t("members.acceptedStatus")
               : query.review === "rejected"
-                ? "The request was rejected; the Visitor role is unchanged."
-                : "The request could not be decided. Reload and try again."}
+                ? t("members.rejectedStatus")
+                : t("members.failedStatus")}
           </p>
         ) : null}
 
         <section>
           <div className="flex items-center justify-between gap-3">
-            <h2 className="font-bold">Co-ownership requests</h2>
+            <h2 className="font-bold">{t("members.requests")}</h2>
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold">
-              {pendingRequests.length} pending
+              {t("members.pending", { count: pendingRequests.length })}
             </span>
           </div>
           {pendingRequests.length ? (
@@ -87,10 +87,9 @@ export default async function MemberSettings({
                     {request.requesterName}
                   </p>
                   <p className="mt-1 text-xs text-amber-800">
-                    Requested{" "}
-                    {new Intl.DateTimeFormat("en", {
-                      dateStyle: "medium",
-                    }).format(request.requestedAt)}
+                    {t("members.requested", {
+                      date: formatDate(request.requestedAt),
+                    })}
                   </p>
                   {request.message ? (
                     <p className="mt-3 text-sm leading-6 text-amber-950">
@@ -108,11 +107,7 @@ export default async function MemberSettings({
                           name="coursePageId"
                           value={detail.course.id}
                         />
-                        <input
-                          type="hidden"
-                          name="courseSlug"
-                          value={slug}
-                        />
+                        <input type="hidden" name="courseSlug" value={slug} />
                         <input
                           type="hidden"
                           name="requestId"
@@ -127,7 +122,9 @@ export default async function MemberSettings({
                               : "border border-amber-300 bg-white text-amber-950"
                           }`}
                         >
-                          {decision === "accepted" ? "Accept" : "Reject"}
+                          {decision === "accepted"
+                            ? t("members.accept")
+                            : t("members.reject")}
                         </button>
                       </form>
                     ))}
@@ -137,13 +134,13 @@ export default async function MemberSettings({
             </ul>
           ) : (
             <p className="mt-3 rounded-xl border border-dashed border-slate-300 p-4 text-sm text-slate-600">
-              No Visitors are waiting for Owner review.
+              {t("members.none")}
             </p>
           )}
         </section>
 
         <section>
-          <h2 className="font-bold">Members</h2>
+          <h2 className="font-bold">{t("members.title")}</h2>
           <ul className="mt-4 space-y-3">
             {detail.members.map((member) => {
               const role = effectiveCourseRole(member.role);
@@ -157,10 +154,10 @@ export default async function MemberSettings({
                       <p className="font-semibold">{member.name}</p>
                       <p className="mt-1 text-sm text-slate-600">
                         {role === "owner"
-                          ? "Owner"
+                          ? t("roles.owner")
                           : role === "coowner"
-                            ? "Co-owner"
-                            : "Visitor"}
+                            ? t("roles.coowner")
+                            : t("roles.visitor")}
                       </p>
                     </div>
                     {role === "coowner" ? (
@@ -170,11 +167,7 @@ export default async function MemberSettings({
                           name="coursePageId"
                           value={detail.course.id}
                         />
-                        <input
-                          type="hidden"
-                          name="courseSlug"
-                          value={slug}
-                        />
+                        <input type="hidden" name="courseSlug" value={slug} />
                         <input
                           type="hidden"
                           name="studentId"
@@ -190,7 +183,7 @@ export default async function MemberSettings({
                           value="visitor"
                           className="min-h-11 rounded-xl border border-slate-300 px-3 text-sm font-semibold"
                         >
-                          Demote to Visitor
+                          {t("members.demote")}
                         </button>
                       </form>
                     ) : null}
