@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import { currentStudentId } from "@/auth";
@@ -9,25 +9,16 @@ import { db } from "@/lib/db/client";
 import {
   enrollments,
   programs,
-  universities,
   universityPrograms,
 } from "@/lib/db/schema";
+import { persistOrganizationSelection } from "@/lib/organizations/persistence";
+import { organizationResultSchema } from "@/lib/organizations/schema";
 
 export interface OnboardingFormState {
   error: string | null;
 }
 
 const onboardingSchema = z.object({
-  universityName: z
-    .string()
-    .trim()
-    .min(2, "Please enter your university's name")
-    .max(200),
-  countryCode: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .length(2, "Please pick a country"),
   programSlug: z.string().trim().min(1, "Please pick your course"),
   intakeYear: z.coerce
     .number()
@@ -38,6 +29,16 @@ const onboardingSchema = z.object({
     message: "Please tell us whether you are starting or attending",
   }),
 });
+
+function parseOrganizationSelection(value: FormDataEntryValue | null) {
+  if (typeof value !== "string" || !value) return null;
+  try {
+    const parsed = organizationResultSchema.safeParse(JSON.parse(value));
+    return parsed.success ? parsed.data : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Onboarding: the student names their university and course; if the
@@ -52,9 +53,13 @@ export async function completeOnboarding(
   const studentId = await currentStudentId();
   if (!studentId) redirect("/login");
 
+  const organization = parseOrganizationSelection(
+    formData.get("organizationSelection"),
+  );
+  if (!organization) {
+    return { error: "Select a verified university from the search results." };
+  }
   const parsed = onboardingSchema.safeParse({
-    universityName: formData.get("universityName"),
-    countryCode: formData.get("countryCode"),
     programSlug: formData.get("programSlug"),
     intakeYear: formData.get("intakeYear"),
     phase: formData.get("phase"),
@@ -62,8 +67,7 @@ export async function completeOnboarding(
   if (!parsed.success) {
     return { error: parsed.error.issues[0].message };
   }
-  const { universityName, countryCode, programSlug, intakeYear, phase } =
-    parsed.data;
+  const { programSlug, intakeYear, phase } = parsed.data;
 
   const [program] = await db
     .select({ id: programs.id })
@@ -72,28 +76,7 @@ export async function completeOnboarding(
     .limit(1);
   if (!program) return { error: "Unknown course — please pick from the list." };
 
-  // Resolve or add the university (case-insensitive on name + country).
-  let [university] = await db
-    .select({ id: universities.id })
-    .from(universities)
-    .where(
-      and(
-        sql`lower(${universities.name}) = lower(${universityName})`,
-        eq(universities.countryCode, countryCode),
-      ),
-    )
-    .limit(1);
-  university ??= (
-    await db
-      .insert(universities)
-      .values({
-        name: universityName,
-        countryCode,
-        status: "unverified",
-        addedBy: studentId,
-      })
-      .returning({ id: universities.id })
-  )[0];
+  const organizationId = await persistOrganizationSelection(organization);
 
   // Resolve or add the university × program pair.
   let [uniProgram] = await db
@@ -101,7 +84,7 @@ export async function completeOnboarding(
     .from(universityPrograms)
     .where(
       and(
-        eq(universityPrograms.universityId, university.id),
+        eq(universityPrograms.universityId, organizationId),
         eq(universityPrograms.programId, program.id),
       ),
     )
@@ -110,22 +93,36 @@ export async function completeOnboarding(
     await db
       .insert(universityPrograms)
       .values({
-        universityId: university.id,
+        universityId: organizationId,
         programId: program.id,
-        status: "unverified",
+        status: organization.verified ? "verified" : "unverified",
       })
       .returning({ id: universityPrograms.id })
   )[0];
 
-  await db
-    .insert(enrollments)
-    .values({
-      studentId,
-      universityProgramId: uniProgram.id,
-      intakeYear,
-      phase,
-    })
-    .onConflictDoNothing();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(enrollments)
+      .set({ isPrimary: false, updatedAt: new Date() })
+      .where(eq(enrollments.studentId, studentId));
+    await tx
+      .insert(enrollments)
+      .values({
+        studentId,
+        universityProgramId: uniProgram.id,
+        intakeYear,
+        phase,
+        isPrimary: true,
+      })
+      .onConflictDoUpdate({
+        target: [
+          enrollments.studentId,
+          enrollments.universityProgramId,
+          enrollments.intakeYear,
+        ],
+        set: { phase, isPrimary: true, updatedAt: new Date() },
+      });
+  });
 
-  redirect("/dashboard");
+  redirect("/");
 }

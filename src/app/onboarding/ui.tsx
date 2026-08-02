@@ -2,52 +2,10 @@
 
 import { useActionState } from "react";
 
+import { OrganizationCombobox } from "@/components/organization-combobox";
 import { completeOnboarding, type OnboardingFormState } from "./actions";
 
 const initialState: OnboardingFormState = { error: null };
-
-const COUNTRIES: [string, string][] = [
-  ["AT", "Austria"],
-  ["AU", "Australia"],
-  ["BE", "Belgium"],
-  ["BR", "Brazil"],
-  ["CA", "Canada"],
-  ["CH", "Switzerland"],
-  ["CN", "China"],
-  ["CZ", "Czechia"],
-  ["DE", "Germany"],
-  ["DK", "Denmark"],
-  ["EG", "Egypt"],
-  ["ES", "Spain"],
-  ["FI", "Finland"],
-  ["FR", "France"],
-  ["GB", "United Kingdom"],
-  ["GR", "Greece"],
-  ["HU", "Hungary"],
-  ["ID", "Indonesia"],
-  ["IE", "Ireland"],
-  ["IN", "India"],
-  ["IR", "Iran"],
-  ["IT", "Italy"],
-  ["JP", "Japan"],
-  ["KR", "South Korea"],
-  ["MX", "Mexico"],
-  ["MY", "Malaysia"],
-  ["NG", "Nigeria"],
-  ["NL", "Netherlands"],
-  ["NO", "Norway"],
-  ["NZ", "New Zealand"],
-  ["PK", "Pakistan"],
-  ["PL", "Poland"],
-  ["PT", "Portugal"],
-  ["RO", "Romania"],
-  ["SA", "Saudi Arabia"],
-  ["SE", "Sweden"],
-  ["SG", "Singapore"],
-  ["TR", "Türkiye"],
-  ["US", "United States"],
-  ["ZA", "South Africa"],
-];
 
 const THIS_YEAR = new Date().getFullYear();
 const INTAKE_YEARS = [THIS_YEAR + 1, THIS_YEAR, THIS_YEAR - 1, THIS_YEAR - 2];
@@ -58,10 +16,8 @@ const inputClass =
   "dark:border-zinc-700 dark:bg-zinc-950";
 
 export function OnboardingForm({
-  universities,
   programs,
 }: {
-  universities: { name: string; countryCode: string }[];
   programs: { slug: string; name: string }[];
 }) {
   const [state, dispatch, pending] = useActionState(
@@ -71,36 +27,7 @@ export function OnboardingForm({
 
   return (
     <form action={dispatch} className="space-y-5">
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium">Your university</span>
-        <input
-          name="universityName"
-          type="text"
-          required
-          list="university-suggestions"
-          placeholder="Start typing…"
-          className={inputClass}
-        />
-        <datalist id="university-suggestions">
-          {universities.map((u) => (
-            <option key={`${u.name}|${u.countryCode}`} value={u.name}>
-              {u.countryCode}
-            </option>
-          ))}
-        </datalist>
-      </label>
-
-      <label className="block">
-        <span className="mb-1 block text-sm font-medium">Country</span>
-        <select name="countryCode" required className={inputClass}>
-          <option value="">Pick a country…</option>
-          {COUNTRIES.map(([code, name]) => (
-            <option key={code} value={code}>
-              {name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <OrganizationCombobox label="Your university" />
 
       <label className="block">
         <span className="mb-1 block text-sm font-medium">
