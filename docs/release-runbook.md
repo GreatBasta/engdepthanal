@@ -30,8 +30,9 @@ the branch as a preview; it does not justify a production migration or promote.
 
 ### Organization and membership rollout
 
-Apply the new migration files as three separate committed transactions, in
-their numbered order:
+Run `npm run db:migrate`. The repository's migration runner takes a PostgreSQL
+advisory lock and applies each numbered Drizzle migration in its own committed
+transaction. The new files must therefore run in their numbered order:
 
 1. `0006_add_course_member_roles.sql` adds the `coowner` and `visitor` enum
    values. PostgreSQL does not allow a newly-added enum value to be used until
@@ -45,8 +46,12 @@ their numbered order:
    to `visitor`). The application stops producing the deprecated roles, but the
    old enum values remain available for a later verified cleanup.
 
-Before any production run, take a verified backup and rehearse these exact
-files against its isolated restore. Record row counts before and after for
+Do not replace this command with `drizzle-kit migrate` for this release:
+Drizzle Kit wraps all pending PostgreSQL files in one transaction, which does
+not provide the required enum commit boundary.
+
+Before any production run, take a verified backup and rehearse this exact
+command against its isolated restore. Record row counts before and after for
 universities, students, enrollments, courses, memberships, and invites. Run the
 data-only migration a second time and verify that counts and primary enrollment
 selection remain stable.
