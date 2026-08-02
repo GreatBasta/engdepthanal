@@ -38,15 +38,20 @@ async function migrate() {
     for (const migration of migrations) {
       if (lastAppliedAt >= migration.folderMillis) continue;
 
-      await connection.begin(async (transaction) => {
+      await connection.unsafe("begin");
+      try {
         for (const statement of migration.sql) {
-          if (statement.trim()) await transaction.unsafe(statement);
+          if (statement.trim()) await connection.unsafe(statement);
         }
-        await transaction`
+        await connection`
           insert into "drizzle"."__drizzle_migrations" (hash, created_at)
           values (${migration.hash}, ${migration.folderMillis})
         `;
-      });
+        await connection.unsafe("commit");
+      } catch (error) {
+        await connection.unsafe("rollback");
+        throw error;
+      }
 
       lastAppliedAt = migration.folderMillis;
       console.log(`Applied migration ${migration.folderMillis}`);
