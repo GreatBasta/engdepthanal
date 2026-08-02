@@ -1,21 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useActionState,
-  useDeferredValue,
-  useMemo,
-  useState,
-} from "react";
+import { useActionState, useDeferredValue, useMemo, useState } from "react";
 
+import { OrganizationCombobox } from "@/components/organization-combobox";
+import { useI18n } from "@/components/locale-provider";
 import { curriculumCategories } from "@/lib/curriculum/taxonomy";
+import type { TranslationKey } from "@/lib/i18n/messages";
+import type { OrganizationResult } from "@/lib/organizations/schema";
 import { createCourseAction, type CreateCourseState } from "./actions";
 
 interface TemplateOption {
   id: string;
   name: string;
   description: string | null;
-  version: number;
   year: number;
   category: string;
   disciplineTags: string[];
@@ -24,12 +22,9 @@ interface TemplateOption {
   subtopicCount: number;
 }
 
-interface UniversityProgramOption {
-  id: string;
-  universityName: string;
-  countryCode: string;
-  programName: string;
-  localName: string | null;
+interface DegreeProgramOption {
+  slug: string;
+  name: string;
 }
 
 const initialState: CreateCourseState = { error: null, duplicates: [] };
@@ -38,7 +33,8 @@ const inputClass =
 
 export function CreateCourseForm({
   templates,
-  universityPrograms,
+  degreePrograms,
+  defaultOrganization,
   defaultUniversityProgramId,
   defaultCohortYear,
   defaultAcademicYear,
@@ -46,21 +42,26 @@ export function CreateCourseForm({
   defaultProgramSlug,
 }: {
   templates: TemplateOption[];
-  universityPrograms: UniversityProgramOption[];
+  degreePrograms: DegreeProgramOption[];
+  defaultOrganization: OrganizationResult;
   defaultUniversityProgramId: string;
   defaultCohortYear: number;
   defaultAcademicYear: string;
   defaultAttendance: "attended" | "not_attended";
   defaultProgramSlug: string;
 }) {
-  const [state, action, pending] = useActionState(createCourseAction, initialState);
+  const { t } = useI18n();
+  const [state, action, pending] = useActionState(
+    createCourseAction,
+    initialState,
+  );
   const [step, setStep] = useState(1);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const [useDifferentOrganization, setUseDifferentOrganization] =
+    useState(false);
   const deferredQuery = useDeferredValue(query);
-  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>(
-    [],
-  );
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
   const groupedTemplates = useMemo(
     () =>
       curriculumCategories.flatMap((macroCategory) => {
@@ -74,12 +75,10 @@ export function CreateCourseForm({
                 .includes(deferredQuery.toLowerCase()),
           )
           .toSorted((left, right) => {
-            const leftRecommended = left.recommendedDegreePrograms.includes(
-              defaultProgramSlug,
-            );
-            const rightRecommended = right.recommendedDegreePrograms.includes(
-              defaultProgramSlug,
-            );
+            const leftRecommended =
+              left.recommendedDegreePrograms.includes(defaultProgramSlug);
+            const rightRecommended =
+              right.recommendedDegreePrograms.includes(defaultProgramSlug);
             return (
               Number(rightRecommended) - Number(leftRecommended) ||
               left.year - right.year ||
@@ -87,15 +86,27 @@ export function CreateCourseForm({
             );
           });
         return matches.length
-          ? [{ ...macroCategory, templates: matches }]
+          ? [
+              {
+                ...macroCategory,
+                label: t(`category.${macroCategory.key}` as TranslationKey),
+                description: t(
+                  `category.${macroCategory.key}Help` as TranslationKey,
+                ),
+                templates: matches,
+              },
+            ]
           : [];
       }),
-    [templates, deferredQuery, category, defaultProgramSlug],
+    [templates, deferredQuery, category, defaultProgramSlug, t],
   );
   const resultCount = groupedTemplates.reduce(
     (total, group) => total + group.templates.length,
     0,
   );
+  const defaultProgramName =
+    degreePrograms.find((program) => program.slug === defaultProgramSlug)
+      ?.name ?? defaultProgramSlug;
 
   return (
     <form action={action} className="space-y-6">
@@ -107,37 +118,97 @@ export function CreateCourseForm({
           value={templateId}
         />
       ))}
-      <ol aria-label="Course creation progress" className="grid grid-cols-3 gap-2">
-        {["Course", "Templates", "Privacy"].map((label, index) => (
-          <li
-            key={label}
-            aria-current={step === index + 1 ? "step" : undefined}
-            className={`rounded-xl px-3 py-2 text-center text-xs font-semibold ${
-              step === index + 1 ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-600"
-            }`}
-          >
-            {index + 1}. {label}
-          </li>
-        ))}
+      <input
+        type="hidden"
+        name="universityProgramId"
+        value={defaultUniversityProgramId}
+      />
+      <ol aria-label={t("create.progress")} className="grid grid-cols-3 gap-2">
+        {[t("create.course"), t("create.templates"), t("create.privacy")].map(
+          (label, index) => (
+            <li
+              key={label}
+              aria-current={step === index + 1 ? "step" : undefined}
+              className={`rounded-xl px-3 py-2 text-center text-xs font-semibold ${
+                step === index + 1
+                  ? "bg-indigo-600 text-white"
+                  : "bg-slate-200 text-slate-600"
+              }`}
+            >
+              {index + 1}. {label}
+            </li>
+          ),
+        )}
       </ol>
 
-      <section className={step === 1 ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7" : "hidden"}>
-        <p className="text-sm font-semibold text-indigo-700">Step 1 of 3</p>
-        <h2 className="mt-1 text-xl font-bold">Which real course is this?</h2>
+      <section
+        className={
+          step === 1
+            ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
+            : "hidden"
+        }
+      >
+        <p className="text-sm font-semibold text-indigo-700">
+          {t("create.step", { step: 1 })}
+        </p>
+        <h2 className="mt-1 text-xl font-bold">{t("create.identityTitle")}</h2>
         <div className="mt-5 grid gap-5">
-          <label className="text-sm font-semibold">
-            University and degree
-            <select name="universityProgramId" defaultValue={defaultUniversityProgramId} required className={`${inputClass} mt-1`}>
-              {universityPrograms.map((option) => (
-                <option key={option.id} value={option.id}>
-                  {option.universityName} · {option.localName || option.programName} ({option.countryCode})
-                </option>
-              ))}
-            </select>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {t("create.universityDegree")}
+            </p>
+            <p className="mt-1 font-bold text-slate-950">
+              {defaultOrganization.displayName}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">{defaultProgramName}</p>
+          </div>
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-slate-200 px-3 text-sm font-semibold">
+            <input
+              type="checkbox"
+              name="useDifferentOrganization"
+              value="yes"
+              checked={useDifferentOrganization}
+              onChange={(event) =>
+                setUseDifferentOrganization(event.target.checked)
+              }
+              className="size-5 accent-indigo-600"
+            />
+            {t("create.changeUniversity")}
           </label>
+          {useDifferentOrganization ? (
+            <div className="space-y-4 rounded-xl border border-indigo-200 bg-indigo-50/40 p-4">
+              <OrganizationCombobox
+                label={t("create.anotherUniversity")}
+                name="organizationSelection"
+                defaultOrganization={null}
+              />
+              <label className="block text-sm font-semibold">
+                {t("create.degree")}
+                <select
+                  name="programSlug"
+                  defaultValue={defaultProgramSlug}
+                  required
+                  className={`${inputClass} mt-1`}
+                >
+                  {degreePrograms.map((program) => (
+                    <option key={program.slug} value={program.slug}>
+                      {program.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          ) : null}
           <label className="text-sm font-semibold">
-            Local course name
-            <input name="localName" required minLength={2} maxLength={180} placeholder="e.g. Mathematical Analysis I" className={`${inputClass} mt-1`} />
+            {t("create.localName")}
+            <input
+              name="localName"
+              required
+              minLength={2}
+              maxLength={180}
+              placeholder={t("create.localNamePlaceholder")}
+              className={`${inputClass} mt-1`}
+            />
           </label>
         </div>
         <input type="hidden" name="academicYear" value={defaultAcademicYear} />
@@ -145,27 +216,57 @@ export function CreateCourseForm({
         <input type="hidden" name="attendance" value={defaultAttendance} />
       </section>
 
-      <fieldset className={step === 2 ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7" : "hidden"}>
-        <legend className="px-1 text-xl font-bold">Step 2 · Choose curriculum templates</legend>
+      <fieldset
+        className={
+          step === 2
+            ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
+            : "hidden"
+        }
+      >
+        <legend className="px-1 text-xl font-bold">
+          {t("create.step", { step: 2 })} · {t("create.templateTitle")}
+        </legend>
         <p className="mt-1 text-sm text-slate-600">
-          Pick one or more immutable foundations. The course receives an editable local snapshot.
+          {t("create.templateHelp")}
         </p>
         <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_14rem]">
-          <label className="sr-only" htmlFor="template-search">Search templates</label>
-          <input id="template-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search templates or disciplines" className={inputClass} />
-          <label className="sr-only" htmlFor="template-category">Category</label>
-          <select id="template-category" value={category} onChange={(event) => setCategory(event.target.value)} className={inputClass}>
-            <option value="all">All categories</option>
+          <label className="sr-only" htmlFor="template-search">
+            {t("create.searchTemplates")}
+          </label>
+          <input
+            id="template-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t("create.searchPlaceholder")}
+            className={inputClass}
+          />
+          <label className="sr-only" htmlFor="template-category">
+            {t("create.category")}
+          </label>
+          <select
+            id="template-category"
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            className={inputClass}
+          >
+            <option value="all">{t("create.allCategories")}</option>
             {curriculumCategories.map((item) => (
               <option key={item.key} value={item.key}>
-                {item.label}
+                {t(`category.${item.key}` as TranslationKey)}
               </option>
             ))}
           </select>
         </div>
-        <p className="mt-4 text-xs font-medium text-slate-500" aria-live="polite">
-          {resultCount} matching {resultCount === 1 ? "template" : "templates"} ·{" "}
-          {selectedTemplateIds.length} selected
+        <p
+          className="mt-4 text-xs font-medium text-slate-500"
+          aria-live="polite"
+        >
+          {resultCount === 1
+            ? t("create.matchOne", { selected: selectedTemplateIds.length })
+            : t("create.matches", {
+                count: resultCount,
+                selected: selectedTemplateIds.length,
+              })}
         </p>
         <div className="mt-3 max-h-[34rem] space-y-5 overflow-y-auto pr-1">
           {groupedTemplates.map((group) => (
@@ -175,7 +276,10 @@ export function CreateCourseForm({
               className="render-lazy rounded-2xl border border-slate-200 bg-slate-50/70 p-3"
             >
               <div className="px-1 pb-3">
-                <h3 id={`category-${group.key}`} className="font-bold text-slate-950">
+                <h3
+                  id={`category-${group.key}`}
+                  className="font-bold text-slate-950"
+                >
                   {group.label}
                 </h3>
                 <p className="mt-1 text-xs leading-5 text-slate-600">
@@ -211,20 +315,19 @@ export function CreateCourseForm({
                         />
                         <span>
                           <span className="font-bold">{template.name}</span>
-                          <span className="ml-2 text-xs text-slate-500">
-                            v{template.version}
-                          </span>
                           {recommended ? (
                             <span className="mt-1 block w-fit rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                              Recommended for your degree
+                              {t("create.recommended")}
                             </span>
                           ) : null}
                           <span className="mt-2 line-clamp-2 block text-sm text-slate-600">
                             {template.description}
                           </span>
                           <span className="mt-2 block text-xs text-slate-500">
-                            {template.topicCount} topics ·{" "}
-                            {template.subtopicCount} subtopics
+                            {t("create.topicCounts", {
+                              topics: template.topicCount,
+                              subtopics: template.subtopicCount,
+                            })}
                           </span>
                         </span>
                       </span>
@@ -236,23 +339,41 @@ export function CreateCourseForm({
           ))}
           {resultCount === 0 ? (
             <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-600">
-              No templates match this macro category and search.
+              {t("create.noTemplates")}
             </p>
           ) : null}
         </div>
       </fieldset>
 
-      <section className={step === 3 ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7" : "hidden"}>
-        <p className="text-sm font-semibold text-indigo-700">Step 3 of 3</p>
-        <h2 className="mt-1 text-xl font-bold">Choose visibility and confirm</h2>
+      <section
+        className={
+          step === 3
+            ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
+            : "hidden"
+        }
+      >
+        <p className="text-sm font-semibold text-indigo-700">
+          {t("create.step", { step: 3 })}
+        </p>
+        <h2 className="mt-1 text-xl font-bold">
+          {t("create.visibilityTitle")}
+        </h2>
         <div className="mt-5 grid gap-3">
           {[
-            ["private", "Private", "Only members can open the course."],
-            ["unlisted", "Unlisted", "Anyone with the link can view; omitted from search."],
-            ["public", "Public", "Listed in Discover and visible to everyone."],
+            ["private", t("course.private"), t("create.privateHelp")],
+            ["unlisted", t("course.unlisted"), t("create.unlistedHelp")],
+            ["public", t("course.public"), t("create.publicHelp")],
           ].map(([value, title, detail]) => (
-            <label key={value} className="flex min-h-16 cursor-pointer gap-3 rounded-xl border border-slate-200 p-4 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50">
-              <input type="radio" name="visibility" value={value} defaultChecked={value === "private"} />
+            <label
+              key={value}
+              className="flex min-h-16 cursor-pointer gap-3 rounded-xl border border-slate-200 p-4 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50"
+            >
+              <input
+                type="radio"
+                name="visibility"
+                value={value}
+                defaultChecked={value === "private"}
+              />
               <span>
                 <span className="block font-bold">{title}</span>
                 <span className="block text-sm text-slate-600">{detail}</span>
@@ -261,33 +382,58 @@ export function CreateCourseForm({
           ))}
         </div>
         <p className="mt-5 rounded-xl bg-slate-100 p-4 text-sm leading-6 text-slate-600">
-          Code, professor, semester, description and cohort can be added later in course settings.
+          {t("create.detailsLater")}
         </p>
       </section>
 
       {state.duplicates.length ? (
-        <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950">
-          <h2 className="font-bold">Likely duplicate found</h2>
+        <section
+          role="alert"
+          className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950"
+        >
+          <h2 className="font-bold">{t("create.duplicateTitle")}</h2>
           <ul className="mt-2 space-y-2 text-sm">
             {state.duplicates.map((duplicate) => (
               <li key={duplicate.slug}>
-                <Link href={`/courses/${duplicate.slug}`} target="_blank" className="font-semibold underline">
+                <Link
+                  href={`/courses/${duplicate.slug}`}
+                  target="_blank"
+                  className="font-semibold underline"
+                >
                   {duplicate.localName}
                 </Link>{" "}
                 · {duplicate.academicYear}
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs">Review these matches. You may still create a genuinely different course.</p>
+          <p className="mt-2 text-xs">{t("create.duplicateHelp")}</p>
         </section>
       ) : null}
-      {state.error ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{state.error}</p> : null}
+      {state.error ? (
+        <p
+          role="alert"
+          className="rounded-xl bg-red-50 p-3 text-sm text-red-800"
+        >
+          {state.error}
+        </p>
+      ) : null}
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
         {step === 1 ? (
-          <Link href="/my-courses" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold">Cancel</Link>
+          <Link
+            href="/my-courses"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold"
+          >
+            {t("common.cancel")}
+          </Link>
         ) : (
-          <button type="button" onClick={() => setStep((value) => value - 1)} className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-semibold">Back</button>
+          <button
+            type="button"
+            onClick={() => setStep((value) => value - 1)}
+            className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-semibold"
+          >
+            {t("create.back")}
+          </button>
         )}
         {step < 3 ? (
           <button
@@ -296,7 +442,7 @@ export function CreateCourseForm({
             disabled={step === 2 && selectedTemplateIds.length === 0}
             className="min-h-11 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Continue
+            {t("common.continue")}
           </button>
         ) : (
           <button
@@ -306,7 +452,11 @@ export function CreateCourseForm({
             disabled={pending}
             className="min-h-11 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white disabled:opacity-60"
           >
-            {pending ? "Creating course…" : state.duplicates.length ? "Create different course" : "Create course"}
+            {pending
+              ? t("create.creating")
+              : state.duplicates.length
+                ? t("create.createDifferent")
+                : t("common.createCourse")}
           </button>
         )}
       </div>

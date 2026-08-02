@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { useI18n } from "@/components/locale-provider";
 
 import { signInAction, signUpAction, type AuthFormState } from "./actions";
 
@@ -16,6 +17,7 @@ const buttonClass =
   "shadow-sm transition hover:bg-indigo-500 disabled:opacity-50";
 
 export function AuthForms({ next }: { next: string }) {
+  const { t } = useI18n();
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [signInState, signInDispatch, signInPending] = useActionState(
     signInAction,
@@ -43,7 +45,7 @@ export function AuthForms({ next }: { next: string }) {
                 : "text-zinc-600 dark:text-zinc-400"
             }`}
           >
-            {m === "signin" ? "Sign in" : "Create account"}
+            {m === "signin" ? t("auth.title") : t("auth.createAccount")}
           </button>
         ))}
       </div>
@@ -55,7 +57,9 @@ export function AuthForms({ next }: { next: string }) {
         <input type="hidden" name="next" value={next} />
         {mode === "signup" && (
           <label className="block">
-            <span className="mb-1 block text-sm font-medium">Your name</span>
+            <span className="mb-1 block text-sm font-medium">
+              {t("auth.name")}
+            </span>
             <input
               name="displayName"
               type="text"
@@ -66,7 +70,9 @@ export function AuthForms({ next }: { next: string }) {
           </label>
         )}
         <label className="block">
-          <span className="mb-1 block text-sm font-medium">Email</span>
+          <span className="mb-1 block text-sm font-medium">
+            {t("auth.email")}
+          </span>
           <input
             name="email"
             type="email"
@@ -76,7 +82,9 @@ export function AuthForms({ next }: { next: string }) {
           />
         </label>
         <label className="block">
-          <span className="mb-1 block text-sm font-medium">Password</span>
+          <span className="mb-1 block text-sm font-medium">
+            {t("auth.password")}
+          </span>
           <input
             name="password"
             type="password"
@@ -89,8 +97,11 @@ export function AuthForms({ next }: { next: string }) {
             className={inputClass}
           />
           {mode === "signup" && (
-            <span id="password-help" className="mt-1 block text-xs text-zinc-500">
-              At least 10 characters with uppercase, lowercase, and a number.
+            <span
+              id="password-help"
+              className="mt-1 block text-xs text-zinc-500"
+            >
+              {t("auth.passwordHelp")}
             </span>
           )}
         </label>
@@ -103,10 +114,10 @@ export function AuthForms({ next }: { next: string }) {
 
         <button type="submit" disabled={pending} className={buttonClass}>
           {pending
-            ? "Working…"
+            ? t("auth.working")
             : mode === "signin"
-              ? "Sign in"
-              : "Create account"}
+              ? t("auth.title")
+              : t("auth.createAccount")}
         </button>
       </form>
     </div>

@@ -10,6 +10,7 @@ import { students } from "@/lib/db/schema";
 import { hashPassword } from "@/lib/password";
 import { verifyPassword } from "@/lib/password";
 import { consumeRateLimit } from "@/lib/rate-limit";
+import { getI18n } from "@/lib/i18n/server";
 
 export interface AuthFormState {
   error: string | null;
@@ -40,20 +41,29 @@ function safeNext(formData: FormData): string {
     !next.startsWith("//") &&
     !next.includes("\\")
     ? next
-    : "/dashboard";
+    : "/";
 }
 
 export async function signUpAction(
   _prev: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  const { t } = await getI18n();
   const parsed = signUpSchema.safeParse({
     displayName: formData.get("displayName"),
     email: formData.get("email"),
     password: formData.get("password"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0].message };
+    const field = parsed.error.issues[0]?.path[0];
+    return {
+      error:
+        field === "displayName"
+          ? t("auth.enterName")
+          : field === "email"
+            ? t("auth.validEmail")
+            : t("auth.passwordRequirements"),
+    };
   }
   const { displayName, email, password } = parsed.data;
   if (
@@ -64,7 +74,7 @@ export async function signUpAction(
       windowMinutes: 60,
     }))
   ) {
-    return { error: "Too many attempts. Try again later." };
+    return { error: t("auth.tooMany") };
   }
 
   const [existing] = await db
@@ -74,8 +84,7 @@ export async function signUpAction(
     .limit(1);
   if (existing) {
     return {
-      error:
-        "The account could not be created. Try signing in or use account recovery.",
+      error: t("auth.accountFailed"),
     };
   }
 
@@ -94,12 +103,18 @@ export async function signInAction(
   _prev: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
+  const { t } = await getI18n();
   const parsed = signInSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
   });
   if (!parsed.success) {
-    return { error: parsed.error.issues[0].message };
+    return {
+      error:
+        parsed.error.issues[0]?.path[0] === "email"
+          ? t("auth.validEmail")
+          : t("auth.enterPassword"),
+    };
   }
 
   if (
@@ -110,7 +125,7 @@ export async function signInAction(
       windowMinutes: 15,
     }))
   ) {
-    return { error: "Too many attempts. Try again in a few minutes." };
+    return { error: t("auth.tooManyLogin") };
   }
 
   const [student] = await db
@@ -122,7 +137,7 @@ export async function signInAction(
     !student?.passwordHash ||
     !(await verifyPassword(parsed.data.password, student.passwordHash))
   ) {
-    return { error: "Wrong email or password." };
+    return { error: t("auth.wrongCredentials") };
   }
 
   try {
@@ -132,7 +147,7 @@ export async function signInAction(
     });
   } catch (err) {
     if (err instanceof AuthError) {
-      return { error: "Wrong email or password." };
+      return { error: t("auth.wrongCredentials") };
     }
     throw err; // NEXT_REDIRECT on success — let Next.js handle it
   }

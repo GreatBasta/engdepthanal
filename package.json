@@ -12,10 +12,10 @@
     "curriculum:generate": "node scripts/generate-curriculum-catalog.mjs",
     "curriculum:validate": "node --import tsx scripts/validate-curriculum.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx scripts/migrate.ts",
     "db:seed": "tsx src/lib/db/seed.ts",
     "db:seed:demo": "tsx src/lib/db/seed-demo.ts",
-    "db:setup": "drizzle-kit migrate && tsx src/lib/db/seed.ts",
+    "db:setup": "npm run db:migrate && tsx src/lib/db/seed.ts",
     "db:verify": "tsx src/lib/db/verify.ts",
     "aggregate": "tsx src/lib/aggregate-run.ts",
     "db:deploy": "tsx src/lib/db/deploy.ts"

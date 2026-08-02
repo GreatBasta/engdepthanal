@@ -101,7 +101,19 @@ export const courseMemberRole = pgEnum("course_member_role", [
   "editor",
   "contributor",
   "viewer",
+  "coowner",
+  "visitor",
 ]);
+
+export const coownershipRequestStatus = pgEnum(
+  "coownership_request_status",
+  ["pending", "accepted", "rejected", "cancelled"],
+);
+
+export const organizationRequestStatus = pgEnum(
+  "organization_request_status",
+  ["pending", "matched", "approved", "rejected"],
+);
 
 /**
  * Kept separate from authorization roles so future states such as
@@ -233,15 +245,41 @@ export const universities = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
+    rorId: text("ror_id"),
+    canonicalName: text("canonical_name"),
+    displayName: text("display_name"),
+    normalizedName: text("normalized_name"),
+    aliases: jsonb("aliases").$type<string[]>().notNull().default([]),
+    acronyms: jsonb("acronyms").$type<string[]>().notNull().default([]),
+    organizationType: text("organization_type"),
     countryCode: char("country_code", { length: 2 }).notNull(),
+    countryName: text("country_name"),
     city: text("city"),
+    region: text("region"),
+    domains: jsonb("domains").$type<string[]>().notNull().default([]),
+    primaryDomain: text("primary_domain"),
+    websiteUrl: text("website_url"),
+    externalSource: text("external_source"),
+    externalUpdatedAt: timestamp("external_updated_at", { withTimezone: true }),
     status: verificationStatus("status").notNull().default("unverified"),
     addedBy: uuid("added_by"), // student who added it, if any
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
-  (t) => [unique().on(t.name, t.countryCode)],
+  (t) => [
+    unique().on(t.name, t.countryCode),
+    uniqueIndex("uq_universities_ror_id")
+      .on(t.rorId)
+      .where(sql`${t.rorId} is not null`),
+    index("idx_universities_normalized_name").on(t.normalizedName),
+    index("idx_universities_country").on(t.countryCode),
+    index("idx_universities_type").on(t.organizationType),
+    index("idx_universities_domain").on(t.primaryDomain),
+  ],
 );
 
 /** Engineering disciplines: mechanical, electrical, civil, computer, ... */
@@ -272,7 +310,10 @@ export const universityPrograms = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [unique().on(t.universityId, t.programId)],
+  (t) => [
+    unique().on(t.universityId, t.programId),
+    index("idx_university_programs_organization").on(t.universityId),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -378,11 +419,46 @@ export const students = pgTable("students", {
   passwordHash: text("password_hash"), // null when OAuth-only
   adminRole: boolean("admin_role").notNull().default(false),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  preferredLocale: text("preferred_locale").notNull().default("en"),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
+
+/** Student-submitted institution lookups and possible ROR matches for review. */
+export const organizationRequests = pgTable(
+  "organization_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id),
+    requestedName: text("requested_name").notNull(),
+    countryCode: char("country_code", { length: 2 }),
+    city: text("city"),
+    websiteUrl: text("website_url"),
+    localOrganizationId: uuid("local_organization_id").references(
+      () => universities.id,
+    ),
+    candidateRorId: text("candidate_ror_id"),
+    status: organizationRequestStatus("status").notNull().default("pending"),
+    reviewedBy: uuid("reviewed_by").references(() => students.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_organization_requests_queue").on(t.status, t.createdAt),
+    index("idx_organization_requests_student").on(t.studentId, t.status),
+  ],
+);
 
 /** Short-lived hashed rate-limit buckets; never stores raw email or IP. */
 export const rateLimitBuckets = pgTable(
@@ -412,13 +488,20 @@ export const enrollments = pgTable(
       .references(() => universityPrograms.id),
     intakeYear: smallint("intake_year").notNull(), // cohort; curricula change
     phase: enrollmentPhase("phase").notNull(),
+    isPrimary: boolean("is_primary").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
     unique().on(t.studentId, t.universityProgramId, t.intakeYear),
     index("idx_enrollments_student").on(t.studentId),
+    uniqueIndex("uq_enrollments_one_primary")
+      .on(t.studentId)
+      .where(sql`${t.isPrimary} = true`),
   ],
 );
 
@@ -806,7 +889,7 @@ export const courseMembers = pgTable(
     studentId: uuid("student_id")
       .notNull()
       .references(() => students.id),
-    role: courseMemberRole("role").notNull().default("viewer"),
+    role: courseMemberRole("role").notNull().default("visitor"),
     attendance: courseAttendance("attendance")
       .notNull()
       .default("not_attended"),
@@ -831,7 +914,7 @@ export const courseInvites = pgTable(
       .notNull()
       .references(() => coursePages.id),
     email: text("email").notNull(),
-    role: courseMemberRole("role").notNull().default("viewer"),
+    role: courseMemberRole("role").notNull().default("visitor"),
     attendance: courseAttendance("attendance")
       .notNull()
       .default("not_attended"),
@@ -850,6 +933,41 @@ export const courseInvites = pgTable(
   (t) => [
     index("idx_course_invites_email").on(t.email, t.status),
     index("idx_course_invites_course").on(t.coursePageId, t.status),
+  ],
+);
+
+/** Visitor-initiated requests which only the original owner may decide. */
+export const courseCoownershipRequests = pgTable(
+  "course_coownership_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    requesterId: uuid("requester_id")
+      .notNull()
+      .references(() => students.id),
+    message: text("message"),
+    status: coownershipRequestStatus("status").notNull().default("pending"),
+    reviewerId: uuid("reviewer_id").references(() => students.id),
+    requestedAt: timestamp("requested_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("uq_course_coownership_pending")
+      .on(t.coursePageId, t.requesterId)
+      .where(sql`${t.status} = 'pending'`),
+    index("idx_course_coownership_owner_queue").on(
+      t.coursePageId,
+      t.status,
+      t.requestedAt,
+    ),
+    index("idx_course_coownership_requester").on(t.requesterId, t.status),
   ],
 );
 
