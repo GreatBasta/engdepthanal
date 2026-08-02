@@ -1,10 +1,22 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { and, desc, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { currentStudentId } from "@/auth";
+import { effectiveCourseRole } from "@/lib/courses/permissions";
 import { db } from "@/lib/db/client";
-import { courseMembers, coursePages } from "@/lib/db/schema";
+import {
+  courseCurriculumVersions,
+  courseMembers,
+  coursePages,
+  courseSubtopics,
+  courseTopics,
+  examExperiences,
+  examQuestions,
+  programs,
+  universities,
+  universityPrograms,
+} from "@/lib/db/schema";
 import {
   permanentlyDeleteCourseAction,
   restoreCourseAction,
@@ -34,16 +46,63 @@ export default async function MyCoursesPage({
         visibility: coursePages.visibility,
         role: courseMembers.role,
         updatedAt: coursePages.updatedAt,
+        organizationId: universities.id,
+        organizationName: universities.displayName,
+        organizationFallbackName: universities.name,
+        organizationCity: universities.city,
+        organizationCountry: universities.countryName,
+        organizationCountryCode: universities.countryCode,
+        programName: programs.name,
+        curriculumTotal: sql<number>`(
+          select count(*) from ${courseSubtopics}
+          inner join ${courseTopics}
+            on ${courseSubtopics.courseTopicId} = ${courseTopics.id}
+          inner join ${courseCurriculumVersions}
+            on ${courseTopics.curriculumVersionId} = ${courseCurriculumVersions.id}
+          where ${courseCurriculumVersions.coursePageId} = ${coursePages.id}
+            and ${courseCurriculumVersions.status} = 'published'
+            and ${courseSubtopics.hiddenAt} is null
+        )`,
+        curriculumClassified: sql<number>`(
+          select count(*) from ${courseSubtopics}
+          inner join ${courseTopics}
+            on ${courseSubtopics.courseTopicId} = ${courseTopics.id}
+          inner join ${courseCurriculumVersions}
+            on ${courseTopics.curriculumVersionId} = ${courseCurriculumVersions.id}
+          where ${courseCurriculumVersions.coursePageId} = ${coursePages.id}
+            and ${courseCurriculumVersions.status} = 'published'
+            and ${courseSubtopics.hiddenAt} is null
+            and ${courseSubtopics.coverage} <> 'unknown'
+        )`,
+        examActivityCount: sql<number>`(
+          (select count(*) from ${examQuestions}
+            where ${examQuestions.coursePageId} = ${coursePages.id}
+              and ${examQuestions.status} = 'active'
+              and ${examQuestions.hiddenAt} is null)
+          +
+          (select count(*) from ${examExperiences}
+            where ${examExperiences.coursePageId} = ${coursePages.id}
+              and ${examExperiences.hiddenAt} is null)
+        )`,
       })
       .from(courseMembers)
       .innerJoin(coursePages, eq(courseMembers.coursePageId, coursePages.id))
+      .innerJoin(
+        universityPrograms,
+        eq(coursePages.universityProgramId, universityPrograms.id),
+      )
+      .innerJoin(
+        universities,
+        eq(universityPrograms.universityId, universities.id),
+      )
+      .innerJoin(programs, eq(universityPrograms.programId, programs.id))
       .where(
         and(
           eq(courseMembers.studentId, studentId),
           isNull(coursePages.archivedAt),
         ),
       )
-      .orderBy(desc(coursePages.updatedAt)),
+      .orderBy(asc(universities.name), desc(coursePages.updatedAt)),
     db
       .select({
         id: coursePages.id,
@@ -64,6 +123,28 @@ export default async function MyCoursesPage({
       )
       .orderBy(desc(coursePages.archivedAt)),
   ]);
+  const groupedCourses = Array.from(
+    courses.reduce((groups, course) => {
+      const role = effectiveCourseRole(course.role);
+      if (!role) return groups;
+      const normalized = { ...course, role };
+      const existing = groups.get(course.organizationId);
+      if (existing) {
+        if (role === "visitor") existing.visiting.push(normalized);
+        else existing.ownedAndCoowned.push(normalized);
+      } else {
+        groups.set(course.organizationId, {
+          id: course.organizationId,
+          name: course.organizationName ?? course.organizationFallbackName,
+          city: course.organizationCity,
+          country: course.organizationCountry ?? course.organizationCountryCode,
+          ownedAndCoowned: role === "visitor" ? [] : [normalized],
+          visiting: role === "visitor" ? [normalized] : [],
+        });
+      }
+      return groups;
+    }, new Map<string, MyCourseGroup>()).values(),
+  );
 
   return (
     <main className="mx-auto min-h-screen max-w-6xl px-4 py-8 sm:px-6">
@@ -112,35 +193,27 @@ export default async function MyCoursesPage({
         </p>
       ) : null}
 
-      {courses.length ? (
-        <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {courses.map((course) => (
-            <li key={course.slug}>
-              <Link
-                href={`/courses/${course.slug}`}
-                className="block min-h-40 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-300 hover:shadow-md"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold capitalize text-indigo-700">
-                    {course.role === "contributor"
-                      ? "Editor"
-                      : course.role === "viewer"
-                        ? "Member"
-                        : course.role}
-                  </span>
-                  <span className="text-xs capitalize text-slate-500">
-                    {course.visibility}
-                  </span>
-                </div>
-                <h2 className="mt-4 text-lg font-bold">{course.name}</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {course.code ? `${course.code} · ` : ""}
-                  {course.year}
+      {groupedCourses.length ? (
+        <div className="mt-8 space-y-7">
+          {groupedCourses.map((group) => (
+            <section key={group.id} aria-labelledby={`organization-${group.id}`}>
+              <div>
+                <h2 id={`organization-${group.id}`} className="text-xl font-black">
+                  {group.name}
+                </h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  {[group.city, group.country].filter(Boolean).join(", ")}
                 </p>
-              </Link>
-            </li>
+              </div>
+              {group.ownedAndCoowned.length ? (
+                <CourseSection title="Owned and co-owned" courses={group.ownedAndCoowned} />
+              ) : null}
+              {group.visiting.length ? (
+                <CourseSection title="Visiting" courses={group.visiting} />
+              ) : null}
+            </section>
           ))}
-        </ul>
+        </div>
       ) : (
         <section className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center">
           <h2 className="font-bold">No joined courses yet</h2>
@@ -221,5 +294,79 @@ export default async function MyCoursesPage({
         </section>
       ) : null}
     </main>
+  );
+}
+
+type MyCourse = {
+  id: string;
+  slug: string;
+  name: string;
+  code: string | null;
+  year: string;
+  visibility: "public" | "unlisted" | "private";
+  role: "owner" | "coowner" | "visitor";
+  updatedAt: Date;
+  organizationId: string;
+  organizationName: string | null;
+  organizationFallbackName: string;
+  organizationCity: string | null;
+  organizationCountry: string | null;
+  organizationCountryCode: string;
+  programName: string;
+  curriculumTotal: number;
+  curriculumClassified: number;
+  examActivityCount: number;
+};
+
+type MyCourseGroup = {
+  id: string;
+  name: string;
+  city: string | null;
+  country: string;
+  ownedAndCoowned: MyCourse[];
+  visiting: MyCourse[];
+};
+
+function CourseSection({ title, courses }: { title: string; courses: MyCourse[] }) {
+  return (
+    <div className="mt-4">
+      <h3 className="text-sm font-bold text-slate-600">{title}</h3>
+      <ul className="mt-2 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {courses.map((course) => (
+          <li key={course.slug}>
+            <Link
+              href={`/courses/${course.slug}`}
+              className="block h-full min-h-44 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-indigo-300 hover:shadow-md"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">
+                  {course.role === "owner"
+                    ? "Owner"
+                    : course.role === "coowner"
+                      ? "Co-owner"
+                      : "Visitor"}
+                </span>
+                <span className="text-xs capitalize text-slate-500">{course.visibility}</span>
+              </div>
+              <h4 className="mt-4 text-lg font-bold">{course.name}</h4>
+              <p className="mt-1 text-sm text-slate-600">
+                {course.programName} · {course.year}
+              </p>
+              <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
+                <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                  Curriculum {Number(course.curriculumClassified)}/{Number(course.curriculumTotal)}
+                </span>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                  Exam {Number(course.examActivityCount)}
+                </span>
+              </div>
+              <p className="mt-3 text-xs text-slate-500">
+                Updated {new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(course.updatedAt)}
+              </p>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

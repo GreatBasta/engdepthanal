@@ -1,6 +1,7 @@
 import "server-only";
 
 import { and, asc, eq, ilike, or } from "drizzle-orm";
+import { z } from "zod";
 
 import { db } from "@/lib/db/client";
 import { universities } from "@/lib/db/schema";
@@ -81,6 +82,62 @@ export async function searchLocalOrganizations(query: string, country?: string) 
         : null,
     }),
   );
+}
+
+export async function getLocalOrganizationByIdentifier(identifier: string) {
+  const id = z.string().uuid().safeParse(identifier);
+  const [row] = await db
+    .select({
+      id: universities.id,
+      name: universities.name,
+      rorId: universities.rorId,
+      canonicalName: universities.canonicalName,
+      displayName: universities.displayName,
+      aliases: universities.aliases,
+      acronyms: universities.acronyms,
+      organizationType: universities.organizationType,
+      countryCode: universities.countryCode,
+      countryName: universities.countryName,
+      city: universities.city,
+      region: universities.region,
+      domains: universities.domains,
+      primaryDomain: universities.primaryDomain,
+      websiteUrl: universities.websiteUrl,
+      externalUpdatedAt: universities.externalUpdatedAt,
+      status: universities.status,
+    })
+    .from(universities)
+    .where(
+      id.success
+        ? eq(universities.id, id.data)
+        : eq(universities.rorId, identifier),
+    )
+    .limit(1);
+  if (!row) return null;
+  return organizationResultSchema.parse({
+    localId: row.id,
+    rorId: row.rorId,
+    canonicalName: row.canonicalName ?? row.name,
+    displayName: row.displayName ?? row.name,
+    aliases: row.aliases,
+    acronyms: row.acronyms,
+    organizationType: row.organizationType ?? "education",
+    city: row.city,
+    region: row.region,
+    countryCode: row.countryCode,
+    countryName: row.countryName,
+    domains: row.domains.length
+      ? row.domains
+      : row.primaryDomain
+        ? [row.primaryDomain]
+        : [],
+    websiteUrl: row.websiteUrl,
+    source: "local",
+    verified: row.status === "verified",
+    externalUpdatedAt: row.externalUpdatedAt
+      ? row.externalUpdatedAt.toISOString().slice(0, 10)
+      : null,
+  });
 }
 
 export async function searchRorOrganizations(

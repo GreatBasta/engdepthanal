@@ -22,6 +22,7 @@ export function OrganizationCombobox({
   defaultOrganization = null,
   required = true,
   requestEnabled = true,
+  onSelectionChange,
 }: {
   name?: string;
   label?: string;
@@ -29,6 +30,7 @@ export function OrganizationCombobox({
   defaultOrganization?: OrganizationResult | null;
   required?: boolean;
   requestEnabled?: boolean;
+  onSelectionChange?: (organization: OrganizationResult | null) => void;
 }) {
   const inputId = useId();
   const listboxId = useId();
@@ -100,6 +102,7 @@ export function OrganizationCombobox({
     setState("idle");
     setActiveIndex(-1);
     setRequestOpen(false);
+    onSelectionChange?.(result);
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
@@ -168,7 +171,10 @@ export function OrganizationCombobox({
         autoComplete="off"
         onChange={(event) => {
           setQuery(event.target.value);
-          if (event.target.value !== selected?.displayName) setSelected(null);
+          if (selected && event.target.value !== selected.displayName) {
+            setSelected(null);
+            onSelectionChange?.(null);
+          }
           setRequestOpen(false);
           setRequestStatus("idle");
         }}
