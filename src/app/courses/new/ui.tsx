@@ -1,12 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useActionState,
-  useDeferredValue,
-  useMemo,
-  useState,
-} from "react";
+import { useActionState, useDeferredValue, useMemo, useState } from "react";
 
 import { OrganizationCombobox } from "@/components/organization-combobox";
 import { curriculumCategories } from "@/lib/curriculum/taxonomy";
@@ -53,16 +48,17 @@ export function CreateCourseForm({
   defaultAttendance: "attended" | "not_attended";
   defaultProgramSlug: string;
 }) {
-  const [state, action, pending] = useActionState(createCourseAction, initialState);
+  const [state, action, pending] = useActionState(
+    createCourseAction,
+    initialState,
+  );
   const [step, setStep] = useState(1);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [useDifferentOrganization, setUseDifferentOrganization] =
     useState(false);
   const deferredQuery = useDeferredValue(query);
-  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>(
-    [],
-  );
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
   const groupedTemplates = useMemo(
     () =>
       curriculumCategories.flatMap((macroCategory) => {
@@ -76,21 +72,17 @@ export function CreateCourseForm({
                 .includes(deferredQuery.toLowerCase()),
           )
           .toSorted((left, right) => {
-            const leftRecommended = left.recommendedDegreePrograms.includes(
-              defaultProgramSlug,
-            );
-            const rightRecommended = right.recommendedDegreePrograms.includes(
-              defaultProgramSlug,
-            );
+            const leftRecommended =
+              left.recommendedDegreePrograms.includes(defaultProgramSlug);
+            const rightRecommended =
+              right.recommendedDegreePrograms.includes(defaultProgramSlug);
             return (
               Number(rightRecommended) - Number(leftRecommended) ||
               left.year - right.year ||
               left.name.localeCompare(right.name)
             );
           });
-        return matches.length
-          ? [{ ...macroCategory, templates: matches }]
-          : [];
+        return matches.length ? [{ ...macroCategory, templates: matches }] : [];
       }),
     [templates, deferredQuery, category, defaultProgramSlug],
   );
@@ -117,13 +109,18 @@ export function CreateCourseForm({
         name="universityProgramId"
         value={defaultUniversityProgramId}
       />
-      <ol aria-label="Course creation progress" className="grid grid-cols-3 gap-2">
+      <ol
+        aria-label="Course creation progress"
+        className="grid grid-cols-3 gap-2"
+      >
         {["Course", "Templates", "Privacy"].map((label, index) => (
           <li
             key={label}
             aria-current={step === index + 1 ? "step" : undefined}
             className={`rounded-xl px-3 py-2 text-center text-xs font-semibold ${
-              step === index + 1 ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-600"
+              step === index + 1
+                ? "bg-indigo-600 text-white"
+                : "bg-slate-200 text-slate-600"
             }`}
           >
             {index + 1}. {label}
@@ -131,7 +128,13 @@ export function CreateCourseForm({
         ))}
       </ol>
 
-      <section className={step === 1 ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7" : "hidden"}>
+      <section
+        className={
+          step === 1
+            ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
+            : "hidden"
+        }
+      >
         <p className="text-sm font-semibold text-indigo-700">Step 1 of 3</p>
         <h2 className="mt-1 text-xl font-bold">Which real course is this?</h2>
         <div className="mt-5 grid gap-5">
@@ -183,7 +186,14 @@ export function CreateCourseForm({
           ) : null}
           <label className="text-sm font-semibold">
             Local course name
-            <input name="localName" required minLength={2} maxLength={180} placeholder="e.g. Mathematical Analysis I" className={`${inputClass} mt-1`} />
+            <input
+              name="localName"
+              required
+              minLength={2}
+              maxLength={180}
+              placeholder="e.g. Mathematical Analysis I"
+              className={`${inputClass} mt-1`}
+            />
           </label>
         </div>
         <input type="hidden" name="academicYear" value={defaultAcademicYear} />
@@ -191,16 +201,40 @@ export function CreateCourseForm({
         <input type="hidden" name="attendance" value={defaultAttendance} />
       </section>
 
-      <fieldset className={step === 2 ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7" : "hidden"}>
-        <legend className="px-1 text-xl font-bold">Step 2 · Choose curriculum templates</legend>
+      <fieldset
+        className={
+          step === 2
+            ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
+            : "hidden"
+        }
+      >
+        <legend className="px-1 text-xl font-bold">
+          Step 2 · Choose curriculum templates
+        </legend>
         <p className="mt-1 text-sm text-slate-600">
-          Pick one or more immutable foundations. The course receives an editable local snapshot.
+          Pick one or more canonical foundations, then adapt coverage to the
+          local course.
         </p>
         <div className="mt-5 grid gap-3 sm:grid-cols-[1fr_14rem]">
-          <label className="sr-only" htmlFor="template-search">Search templates</label>
-          <input id="template-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search templates or disciplines" className={inputClass} />
-          <label className="sr-only" htmlFor="template-category">Category</label>
-          <select id="template-category" value={category} onChange={(event) => setCategory(event.target.value)} className={inputClass}>
+          <label className="sr-only" htmlFor="template-search">
+            Search templates
+          </label>
+          <input
+            id="template-search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search templates or disciplines"
+            className={inputClass}
+          />
+          <label className="sr-only" htmlFor="template-category">
+            Category
+          </label>
+          <select
+            id="template-category"
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
+            className={inputClass}
+          >
             <option value="all">All categories</option>
             {curriculumCategories.map((item) => (
               <option key={item.key} value={item.key}>
@@ -209,9 +243,12 @@ export function CreateCourseForm({
             ))}
           </select>
         </div>
-        <p className="mt-4 text-xs font-medium text-slate-500" aria-live="polite">
-          {resultCount} matching {resultCount === 1 ? "template" : "templates"} ·{" "}
-          {selectedTemplateIds.length} selected
+        <p
+          className="mt-4 text-xs font-medium text-slate-500"
+          aria-live="polite"
+        >
+          {resultCount} matching {resultCount === 1 ? "template" : "templates"}{" "}
+          · {selectedTemplateIds.length} selected
         </p>
         <div className="mt-3 max-h-[34rem] space-y-5 overflow-y-auto pr-1">
           {groupedTemplates.map((group) => (
@@ -221,7 +258,10 @@ export function CreateCourseForm({
               className="render-lazy rounded-2xl border border-slate-200 bg-slate-50/70 p-3"
             >
               <div className="px-1 pb-3">
-                <h3 id={`category-${group.key}`} className="font-bold text-slate-950">
+                <h3
+                  id={`category-${group.key}`}
+                  className="font-bold text-slate-950"
+                >
                   {group.label}
                 </h3>
                 <p className="mt-1 text-xs leading-5 text-slate-600">
@@ -285,17 +325,37 @@ export function CreateCourseForm({
         </div>
       </fieldset>
 
-      <section className={step === 3 ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7" : "hidden"}>
+      <section
+        className={
+          step === 3
+            ? "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7"
+            : "hidden"
+        }
+      >
         <p className="text-sm font-semibold text-indigo-700">Step 3 of 3</p>
-        <h2 className="mt-1 text-xl font-bold">Choose visibility and confirm</h2>
+        <h2 className="mt-1 text-xl font-bold">
+          Choose visibility and confirm
+        </h2>
         <div className="mt-5 grid gap-3">
           {[
             ["private", "Private", "Only members can open the course."],
-            ["unlisted", "Unlisted", "Anyone with the link can view; omitted from search."],
+            [
+              "unlisted",
+              "Unlisted",
+              "Anyone with the link can view; omitted from search.",
+            ],
             ["public", "Public", "Listed in Discover and visible to everyone."],
           ].map(([value, title, detail]) => (
-            <label key={value} className="flex min-h-16 cursor-pointer gap-3 rounded-xl border border-slate-200 p-4 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50">
-              <input type="radio" name="visibility" value={value} defaultChecked={value === "private"} />
+            <label
+              key={value}
+              className="flex min-h-16 cursor-pointer gap-3 rounded-xl border border-slate-200 p-4 has-[:checked]:border-indigo-500 has-[:checked]:bg-indigo-50"
+            >
+              <input
+                type="radio"
+                name="visibility"
+                value={value}
+                defaultChecked={value === "private"}
+              />
               <span>
                 <span className="block font-bold">{title}</span>
                 <span className="block text-sm text-slate-600">{detail}</span>
@@ -304,33 +364,62 @@ export function CreateCourseForm({
           ))}
         </div>
         <p className="mt-5 rounded-xl bg-slate-100 p-4 text-sm leading-6 text-slate-600">
-          Code, professor, semester, description and cohort can be added later in course settings.
+          Code, professor, semester, description and cohort can be added later
+          in course settings.
         </p>
       </section>
 
       {state.duplicates.length ? (
-        <section role="alert" className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950">
+        <section
+          role="alert"
+          className="rounded-2xl border border-amber-300 bg-amber-50 p-5 text-amber-950"
+        >
           <h2 className="font-bold">Likely duplicate found</h2>
           <ul className="mt-2 space-y-2 text-sm">
             {state.duplicates.map((duplicate) => (
               <li key={duplicate.slug}>
-                <Link href={`/courses/${duplicate.slug}`} target="_blank" className="font-semibold underline">
+                <Link
+                  href={`/courses/${duplicate.slug}`}
+                  target="_blank"
+                  className="font-semibold underline"
+                >
                   {duplicate.localName}
                 </Link>{" "}
                 · {duplicate.academicYear}
               </li>
             ))}
           </ul>
-          <p className="mt-2 text-xs">Review these matches. You may still create a genuinely different course.</p>
+          <p className="mt-2 text-xs">
+            Review these matches. You may still create a genuinely different
+            course.
+          </p>
         </section>
       ) : null}
-      {state.error ? <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{state.error}</p> : null}
+      {state.error ? (
+        <p
+          role="alert"
+          className="rounded-xl bg-red-50 p-3 text-sm text-red-800"
+        >
+          {state.error}
+        </p>
+      ) : null}
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
         {step === 1 ? (
-          <Link href="/my-courses" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold">Cancel</Link>
+          <Link
+            href="/my-courses"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold"
+          >
+            Cancel
+          </Link>
         ) : (
-          <button type="button" onClick={() => setStep((value) => value - 1)} className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-semibold">Back</button>
+          <button
+            type="button"
+            onClick={() => setStep((value) => value - 1)}
+            className="min-h-11 rounded-xl border border-slate-300 px-5 text-sm font-semibold"
+          >
+            Back
+          </button>
         )}
         {step < 3 ? (
           <button
@@ -349,7 +438,11 @@ export function CreateCourseForm({
             disabled={pending}
             className="min-h-11 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white disabled:opacity-60"
           >
-            {pending ? "Creating course…" : state.duplicates.length ? "Create different course" : "Create course"}
+            {pending
+              ? "Creating course…"
+              : state.duplicates.length
+                ? "Create different course"
+                : "Create course"}
           </button>
         )}
       </div>

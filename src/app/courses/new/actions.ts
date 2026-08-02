@@ -169,5 +169,5 @@ export async function createCourseAction(
   revalidatePath("/");
   revalidatePath("/my-courses");
   revalidateTag("course-directory");
-  redirect(`/courses/${course.slug}?tab=curriculum`);
+  redirect(`/courses/${course.slug}/settings/curriculum`);
 }

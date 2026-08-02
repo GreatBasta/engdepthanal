@@ -5,9 +5,12 @@ import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { db } from "@/lib/db/client";
 import {
   courseCurriculumVersions,
+  courseSubtopicProgress,
   courseSubtopics,
   courseTopics,
 } from "@/lib/db/schema";
+
+import type { CurriculumTopicPayload } from "./curriculum-contract";
 
 export type CurriculumView = "draft" | "published";
 
@@ -20,6 +23,7 @@ export async function getCourseCurriculum(
       id: courseCurriculumVersions.id,
       version: courseCurriculumVersions.version,
       status: courseCurriculumVersions.status,
+      createdAt: courseCurriculumVersions.createdAt,
       updatedAt: courseCurriculumVersions.updatedAt,
       publishedAt: courseCurriculumVersions.publishedAt,
     })
@@ -44,8 +48,7 @@ export async function getCourseCurriculum(
         id: courseSubtopics.id,
         courseTopicId: courseSubtopics.courseTopicId,
         stableId: courseSubtopics.stableId,
-        sourceTemplateSubtopicId:
-          courseSubtopics.sourceTemplateSubtopicId,
+        sourceTemplateSubtopicId: courseSubtopics.sourceTemplateSubtopicId,
         provenance: courseSubtopics.provenance,
         slug: courseSubtopics.slug,
         name: courseSubtopics.name,
@@ -57,15 +60,15 @@ export async function getCourseCurriculum(
         hiddenAt: courseSubtopics.hiddenAt,
       })
       .from(courseSubtopics)
-      .innerJoin(courseTopics, eq(courseSubtopics.courseTopicId, courseTopics.id))
+      .innerJoin(
+        courseTopics,
+        eq(courseSubtopics.courseTopicId, courseTopics.id),
+      )
       .where(eq(courseTopics.curriculumVersionId, version.id))
       .orderBy(asc(courseTopics.position), asc(courseSubtopics.position)),
   ]);
 
-  const subtopicsByTopic = new Map<
-    string,
-    (typeof subtopicRows)[number][]
-  >();
+  const subtopicsByTopic = new Map<string, (typeof subtopicRows)[number][]>();
   for (const subtopic of subtopicRows) {
     const list = subtopicsByTopic.get(subtopic.courseTopicId) ?? [];
     list.push(subtopic);
@@ -96,6 +99,7 @@ export async function getCourseCurriculumOutline(
       id: courseCurriculumVersions.id,
       version: courseCurriculumVersions.version,
       status: courseCurriculumVersions.status,
+      createdAt: courseCurriculumVersions.createdAt,
       updatedAt: courseCurriculumVersions.updatedAt,
       publishedAt: courseCurriculumVersions.publishedAt,
     })
@@ -122,6 +126,9 @@ export async function getCourseCurriculumOutline(
       position: courseTopics.position,
       hiddenAt: courseTopics.hiddenAt,
       subtopicCount: sql<number>`count(${courseSubtopics.id})::int`,
+      classifiedCount: sql<number>`count(${courseSubtopics.id}) filter (where ${courseSubtopics.coverage} <> 'unknown')::int`,
+      coveredCount: sql<number>`count(${courseSubtopics.id}) filter (where ${courseSubtopics.coverage} = 'covered')::int`,
+      notCoveredCount: sql<number>`count(${courseSubtopics.id}) filter (where ${courseSubtopics.coverage} = 'not_covered')::int`,
     })
     .from(courseTopics)
     .leftJoin(
@@ -144,8 +151,7 @@ export async function getCourseCurriculumOutline(
           id: courseSubtopics.id,
           courseTopicId: courseSubtopics.courseTopicId,
           stableId: courseSubtopics.stableId,
-          sourceTemplateSubtopicId:
-            courseSubtopics.sourceTemplateSubtopicId,
+          sourceTemplateSubtopicId: courseSubtopics.sourceTemplateSubtopicId,
           provenance: courseSubtopics.provenance,
           slug: courseSubtopics.slug,
           name: courseSubtopics.name,
@@ -167,6 +173,124 @@ export async function getCourseCurriculumOutline(
       ...topic,
       subtopics: topic.id === selectedTopic?.id ? selectedSubtopics : [],
     })),
+  };
+}
+
+/** Loads one topic after local accordion expansion, keeping closed topics out of the client payload. */
+export async function getCourseCurriculumTopic(
+  coursePageId: string,
+  view: CurriculumView,
+  topicStableId: string,
+  studentId: string | null,
+): Promise<CurriculumTopicPayload | null> {
+  const [version] = await db
+    .select({ id: courseCurriculumVersions.id })
+    .from(courseCurriculumVersions)
+    .where(
+      and(
+        eq(courseCurriculumVersions.coursePageId, coursePageId),
+        eq(courseCurriculumVersions.status, view),
+      ),
+    )
+    .limit(1);
+  if (!version) return null;
+
+  const [topic] = await db
+    .select({
+      id: courseTopics.id,
+      stableId: courseTopics.stableId,
+      name: courseTopics.name,
+      description: courseTopics.description,
+      position: courseTopics.position,
+      provenance: courseTopics.provenance,
+      hiddenAt: courseTopics.hiddenAt,
+    })
+    .from(courseTopics)
+    .where(
+      and(
+        eq(courseTopics.curriculumVersionId, version.id),
+        eq(courseTopics.stableId, topicStableId),
+        view === "published" ? isNull(courseTopics.hiddenAt) : undefined,
+      ),
+    )
+    .limit(1);
+  if (!topic) return null;
+
+  const subtopics = await db
+    .select({
+      id: courseSubtopics.id,
+      stableId: courseSubtopics.stableId,
+      name: courseSubtopics.name,
+      description: courseSubtopics.description,
+      depthLevel: courseSubtopics.depthLevel,
+      estHours: courseSubtopics.estHours,
+      position: courseSubtopics.position,
+      provenance: courseSubtopics.provenance,
+      coverage: courseSubtopics.coverage,
+      hiddenAt: courseSubtopics.hiddenAt,
+    })
+    .from(courseSubtopics)
+    .where(
+      and(
+        eq(courseSubtopics.courseTopicId, topic.id),
+        view === "published" ? isNull(courseSubtopics.hiddenAt) : undefined,
+      ),
+    )
+    .orderBy(asc(courseSubtopics.position));
+
+  const progressRows =
+    studentId && subtopics.length
+      ? await db
+          .select({
+            stableId: courseSubtopicProgress.courseSubtopicStableId,
+            state: courseSubtopicProgress.state,
+          })
+          .from(courseSubtopicProgress)
+          .where(
+            and(
+              eq(courseSubtopicProgress.coursePageId, coursePageId),
+              eq(courseSubtopicProgress.studentId, studentId),
+            ),
+          )
+      : [];
+  const progressByStableId = new Map(
+    progressRows.map((row) => [row.stableId, row.state]),
+  );
+  const visibleSubtopics = subtopics.map((subtopic) => ({
+    id: subtopic.id,
+    stableId: subtopic.stableId,
+    name: subtopic.name,
+    description: subtopic.description,
+    depthLevel: subtopic.depthLevel,
+    estHours: subtopic.estHours,
+    position: subtopic.position,
+    provenance: subtopic.provenance,
+    coverage: subtopic.coverage,
+    hidden: subtopic.hiddenAt !== null,
+    progress: progressByStableId.get(subtopic.stableId) ?? null,
+  }));
+
+  return {
+    topic: {
+      id: topic.id,
+      stableId: topic.stableId,
+      name: topic.name,
+      description: topic.description,
+      position: topic.position,
+      provenance: topic.provenance,
+      hidden: topic.hiddenAt !== null,
+      subtopicCount: visibleSubtopics.length,
+      classifiedCount: visibleSubtopics.filter(
+        (subtopic) => subtopic.coverage !== "unknown",
+      ).length,
+      coveredCount: visibleSubtopics.filter(
+        (subtopic) => subtopic.coverage === "covered",
+      ).length,
+      notCoveredCount: visibleSubtopics.filter(
+        (subtopic) => subtopic.coverage === "not_covered",
+      ).length,
+    },
+    subtopics: visibleSubtopics,
   };
 }
 
@@ -212,15 +336,15 @@ export async function getCourseCurriculumIndex(
         hiddenAt: courseSubtopics.hiddenAt,
       })
       .from(courseSubtopics)
-      .innerJoin(courseTopics, eq(courseSubtopics.courseTopicId, courseTopics.id))
+      .innerJoin(
+        courseTopics,
+        eq(courseSubtopics.courseTopicId, courseTopics.id),
+      )
       .where(eq(courseTopics.curriculumVersionId, version.id))
       .orderBy(asc(courseTopics.position), asc(courseSubtopics.position)),
   ]);
 
-  const subtopicsByTopic = new Map<
-    string,
-    (typeof subtopicRows)[number][]
-  >();
+  const subtopicsByTopic = new Map<string, (typeof subtopicRows)[number][]>();
   for (const subtopic of subtopicRows) {
     const list = subtopicsByTopic.get(subtopic.courseTopicId) ?? [];
     list.push(subtopic);
@@ -234,4 +358,3 @@ export async function getCourseCurriculumIndex(
     })),
   };
 }
-

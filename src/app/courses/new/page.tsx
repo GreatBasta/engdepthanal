@@ -21,46 +21,42 @@ export default async function NewCoursePage() {
   const studentId = await currentStudentId();
   if (!studentId) redirect("/login?next=/courses/new");
 
-  const [templateRows, degreeProgramRows, enrollment] =
-    await Promise.all([
-      db
-        .select({
-          id: curriculumTemplates.id,
-          name: curriculumTemplates.name,
-          description: curriculumTemplates.description,
-          year: curriculumTemplates.year,
-          category: curriculumTemplates.category,
-          disciplineTags: curriculumTemplates.disciplineTags,
-          recommendedDegreePrograms:
-            curriculumTemplates.recommendedDegreePrograms,
-          topicCount: countDistinct(templateTopics.id),
-          subtopicCount: countDistinct(templateSubtopics.id),
-        })
-        .from(curriculumTemplates)
-        .leftJoin(
-          templateTopics,
-          eq(templateTopics.templateId, curriculumTemplates.id),
-        )
-        .leftJoin(
-          templateSubtopics,
-          eq(templateSubtopics.templateTopicId, templateTopics.id),
-        )
-        .where(eq(curriculumTemplates.isActive, true))
-        .groupBy(curriculumTemplates.id)
-        .orderBy(
-          asc(curriculumTemplates.year),
-          asc(curriculumTemplates.name),
-        ),
-      db
-        .select({
-          slug: programs.slug,
-          name: programs.name,
-        })
-        .from(programs)
-        .where(eq(programs.status, "verified"))
-        .orderBy(asc(programs.name)),
-      getPrimaryEnrollmentForStudent(studentId),
-    ]);
+  const [templateRows, degreeProgramRows, enrollment] = await Promise.all([
+    db
+      .select({
+        id: curriculumTemplates.id,
+        name: curriculumTemplates.name,
+        description: curriculumTemplates.description,
+        year: curriculumTemplates.year,
+        category: curriculumTemplates.category,
+        disciplineTags: curriculumTemplates.disciplineTags,
+        recommendedDegreePrograms:
+          curriculumTemplates.recommendedDegreePrograms,
+        topicCount: countDistinct(templateTopics.id),
+        subtopicCount: countDistinct(templateSubtopics.id),
+      })
+      .from(curriculumTemplates)
+      .leftJoin(
+        templateTopics,
+        eq(templateTopics.templateId, curriculumTemplates.id),
+      )
+      .leftJoin(
+        templateSubtopics,
+        eq(templateSubtopics.templateTopicId, templateTopics.id),
+      )
+      .where(eq(curriculumTemplates.isActive, true))
+      .groupBy(curriculumTemplates.id)
+      .orderBy(asc(curriculumTemplates.year), asc(curriculumTemplates.name)),
+    db
+      .select({
+        slug: programs.slug,
+        name: programs.name,
+      })
+      .from(programs)
+      .where(eq(programs.status, "verified"))
+      .orderBy(asc(programs.name)),
+    getPrimaryEnrollmentForStudent(studentId),
+  ]);
 
   if (!enrollment) redirect("/onboarding");
   const defaultOrganization =
@@ -82,7 +78,7 @@ export default async function NewCoursePage() {
           Turn the canonical curriculum into your course
         </h1>
         <p className="mt-3 max-w-2xl text-zinc-600 dark:text-zinc-400">
-          Choose one or more immutable templates. We will clone them into an
+          Choose one or more canonical templates. We will use them to create a
           editable curriculum, preserving where every topic came from.
         </p>
       </header>

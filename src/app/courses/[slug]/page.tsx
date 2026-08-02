@@ -47,7 +47,7 @@ export async function generateMetadata({
   return {
     title: indexable ? course.name : "Shared course",
     description: indexable
-      ? course.description ?? "Student-contributed university course page."
+      ? (course.description ?? "Student-contributed university course page.")
       : "A non-public student-contributed course page.",
     alternates: {
       canonical: indexable ? `/courses/${slug}` : undefined,
@@ -78,7 +78,6 @@ export default async function CoursePage({
   ]);
   const detail = await getCourseBySlugForViewer(slug, studentId, {
     templates: true,
-    versions: true,
   });
   if (!detail) notFound();
   const [pendingCoownershipRequest] =
@@ -99,10 +98,6 @@ export default async function CoursePage({
   const tab: CourseTab = TABS.some(([key]) => key === query.tab)
     ? (query.tab as CourseTab)
     : "overview";
-  const published = detail.versions.find(
-    (version) => version.status === "published",
-  );
-
   return (
     <main className="min-h-screen pb-16">
       <div className="border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
@@ -178,7 +173,6 @@ export default async function CoursePage({
           <Overview
             detail={detail}
             pendingCoownershipRequest={pendingCoownershipRequest ?? null}
-            publishedVersion={published?.version}
             requestStatus={query.request}
           />
         ) : null}
@@ -188,7 +182,7 @@ export default async function CoursePage({
             courseSlug={detail.course.slug}
             canEdit={detail.permissions.canEdit}
             canTrack={detail.permissions.role !== null}
-            preview={query.preview}
+            lastAppliedAt={detail.course.updatedAt}
             selectedTopic={query.topic}
             viewerStudentId={studentId}
           />
@@ -219,12 +213,10 @@ export default async function CoursePage({
 function Overview({
   detail,
   pendingCoownershipRequest,
-  publishedVersion,
   requestStatus,
 }: {
   detail: NonNullable<Awaited<ReturnType<typeof getCourseBySlugForViewer>>>;
   pendingCoownershipRequest: { id: string } | null;
-  publishedVersion: number | undefined;
   requestStatus: string | undefined;
 }) {
   return (
@@ -253,21 +245,27 @@ function Overview({
           />
           <Metadata label="Created by" value={detail.course.creatorName} />
           <Metadata
-            label="Published curriculum"
-            value={
-              publishedVersion ? `Version ${publishedVersion}` : "Not yet"
-            }
+            label="Curriculum last updated"
+            value={new Intl.DateTimeFormat(undefined, {
+              dateStyle: "medium",
+            }).format(detail.course.updatedAt)}
           />
         </dl>
       </section>
 
       <aside className="space-y-4">
         {requestStatus === "pending" || requestStatus === "already-pending" ? (
-          <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">
+          <p
+            role="status"
+            className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800"
+          >
             Your co-ownership request is pending Owner review.
           </p>
         ) : requestStatus === "cancelled" ? (
-          <p role="status" className="rounded-xl bg-slate-100 p-3 text-sm text-slate-700">
+          <p
+            role="status"
+            className="rounded-xl bg-slate-100 p-3 text-sm text-slate-700"
+          >
             Co-ownership request cancelled.
           </p>
         ) : null}
@@ -295,9 +293,20 @@ function Overview({
         ) : null}
         {detail.permissions.role === "visitor" ? (
           pendingCoownershipRequest ? (
-            <form action={cancelCoownershipRequestAction} className="rounded-2xl border border-amber-200 bg-amber-50 p-5">
-              <input type="hidden" name="coursePageId" value={detail.course.id} />
-              <input type="hidden" name="courseSlug" value={detail.course.slug} />
+            <form
+              action={cancelCoownershipRequestAction}
+              className="rounded-2xl border border-amber-200 bg-amber-50 p-5"
+            >
+              <input
+                type="hidden"
+                name="coursePageId"
+                value={detail.course.id}
+              />
+              <input
+                type="hidden"
+                name="courseSlug"
+                value={detail.course.slug}
+              />
               <p className="font-bold text-amber-950">Request pending</p>
               <p className="mt-1 text-sm leading-6 text-amber-900">
                 Only the course Owner can accept or reject this request.
@@ -307,16 +316,35 @@ function Overview({
               </button>
             </form>
           ) : (
-            <form action={requestCoownershipAction} className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5">
-              <input type="hidden" name="coursePageId" value={detail.course.id} />
-              <input type="hidden" name="courseSlug" value={detail.course.slug} />
-              <h2 className="font-bold text-indigo-950">Request co-ownership</h2>
+            <form
+              action={requestCoownershipAction}
+              className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5"
+            >
+              <input
+                type="hidden"
+                name="coursePageId"
+                value={detail.course.id}
+              />
+              <input
+                type="hidden"
+                name="courseSlug"
+                value={detail.course.slug}
+              />
+              <h2 className="font-bold text-indigo-950">
+                Request co-ownership
+              </h2>
               <p className="mt-1 text-sm leading-6 text-indigo-900">
-                Co-owners can edit and apply curriculum changes. The Owner must approve.
+                Co-owners can edit and apply curriculum changes. The Owner must
+                approve.
               </p>
               <label className="mt-3 block text-sm font-semibold text-indigo-950">
                 Message (optional)
-                <textarea name="message" maxLength={800} rows={3} className="mt-1 w-full rounded-xl border border-indigo-200 bg-white p-3" />
+                <textarea
+                  name="message"
+                  maxLength={800}
+                  rows={3}
+                  className="mt-1 w-full rounded-xl border border-indigo-200 bg-white p-3"
+                />
               </label>
               <button className="mt-3 min-h-11 w-full rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white">
                 Request co-ownership
@@ -325,46 +353,48 @@ function Overview({
           )
         ) : null}
         {detail.permissions.role === "coowner" ? (
-          <form action={leaveCoownershipAction} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <form
+            action={leaveCoownershipAction}
+            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+          >
             <input type="hidden" name="coursePageId" value={detail.course.id} />
             <input type="hidden" name="courseSlug" value={detail.course.slug} />
-            <p className="text-sm text-slate-600">You can return to Visitor without leaving the course.</p>
+            <p className="text-sm text-slate-600">
+              You can return to Visitor without leaving the course.
+            </p>
             <button className="mt-3 min-h-11 rounded-xl border border-slate-300 px-4 text-sm font-semibold">
               Leave co-ownership
             </button>
           </form>
         ) : null}
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="font-semibold">Source templates</h2>
+          <h2 className="font-semibold">Curriculum sources</h2>
           <ul className="mt-3 space-y-2 text-sm">
             {detail.templates.map((template) => (
-              <li key={template.id} className="flex justify-between gap-3">
-                <span>{template.name}</span>
-                <span className="text-zinc-500">v{template.version}</span>
-              </li>
+              <li key={template.id}>{template.name}</li>
             ))}
           </ul>
           <p className="mt-3 text-xs leading-5 text-zinc-500">
-            These versions are immutable. Course edits never change the
-            canonical source.
+            Canonical templates keep the course structure consistent while local
+            curriculum changes remain course-specific.
           </p>
         </section>
 
         {detail.permissions.canEdit ? (
-            <Link
-              href={`/courses/${detail.course.slug}/settings/curriculum`}
-              className="flex w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-500"
-            >
-              Edit curriculum
-            </Link>
+          <Link
+            href={`/courses/${detail.course.slug}/settings/curriculum`}
+            className="flex w-full items-center justify-center rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white hover:bg-indigo-500"
+          >
+            Edit curriculum
+          </Link>
         ) : null}
         {detail.permissions.canManageCourseSettings ? (
-            <Link
-              href={`/courses/${detail.course.slug}/settings`}
-              className="flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold"
-            >
-              Course settings
-            </Link>
+          <Link
+            href={`/courses/${detail.course.slug}/settings`}
+            className="flex min-h-11 w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold"
+          >
+            Course settings
+          </Link>
         ) : null}
       </aside>
     </div>
