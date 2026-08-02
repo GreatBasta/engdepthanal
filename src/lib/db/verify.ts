@@ -80,11 +80,11 @@ async function verify() {
     `),
     scalar(sql`
       select count(*) as value from (
-        select stable_id from (
-          select stable_id from template_topics
+        select stable_key from (
+          select stable_key from template_topics
           union all
-          select stable_id from template_subtopics
-        ) ids group by stable_id having count(*) > 1
+          select stable_key from template_subtopics
+        ) ids group by stable_key having count(*) > 1
       ) duplicates
     `),
     scalar(sql`
