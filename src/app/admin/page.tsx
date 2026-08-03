@@ -6,7 +6,9 @@ import { signOut } from "@/auth";
 import { currentAdmin } from "@/lib/admin";
 import { db } from "@/lib/db/client";
 import {
+  courseCandidateCorrections,
   curriculumSuggestions,
+  organizationCourseCandidates,
   universities,
   universityPrograms,
 } from "@/lib/db/schema";
@@ -19,7 +21,7 @@ export default async function AdminHome() {
   const admin = await currentAdmin();
   if (!admin) redirect("/admin/login");
 
-  const [[suggestions], [unis], [progs]] = await Promise.all([
+  const [[suggestions], [unis], [progs], [catalogCandidates], [catalogCorrections]] = await Promise.all([
     db
       .select({ n: count() })
       .from(curriculumSuggestions)
@@ -32,6 +34,14 @@ export default async function AdminHome() {
       .select({ n: count() })
       .from(universityPrograms)
       .where(eq(universityPrograms.status, "unverified")),
+    db
+      .select({ n: count() })
+      .from(organizationCourseCandidates)
+      .where(eq(organizationCourseCandidates.status, "candidate")),
+    db
+      .select({ n: count() })
+      .from(courseCandidateCorrections)
+      .where(eq(courseCandidateCorrections.status, "pending")),
   ]);
 
   return (
@@ -77,6 +87,12 @@ export default async function AdminHome() {
           title="University verification"
           count={unis.n + progs.n}
           blurb="Universities and courses students added during onboarding, pending verification."
+        />
+        <AdminCard
+          href="/admin/catalog"
+          title="Official catalog discovery"
+          count={catalogCandidates.n + catalogCorrections.n}
+          blurb="Approved boundaries, sources, scans, evidence, candidates, matches, and corrections."
         />
       </div>
     </main>

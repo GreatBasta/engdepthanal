@@ -9,6 +9,7 @@ import {
   coursePages,
   coursePageTemplates,
   curriculumTemplates,
+  officialCourseOfferings,
   programs,
   students,
   universities,
@@ -59,6 +60,9 @@ export async function getCourseBySlugForViewer(
       countryCode: universities.countryCode,
       programName: programs.name,
       creatorName: students.displayName,
+      officialSourceUrl: officialCourseOfferings.officialUrl,
+      officialSourceName: officialCourseOfferings.canonicalSourceName,
+      officialCredits: officialCourseOfferings.credits,
       viewerRole: courseMembers.role,
       viewerAttendance: courseMembers.attendance,
     })
@@ -70,6 +74,10 @@ export async function getCourseBySlugForViewer(
     .innerJoin(universities, eq(universityPrograms.universityId, universities.id))
     .innerJoin(programs, eq(universityPrograms.programId, programs.id))
     .innerJoin(students, eq(coursePages.createdBy, students.id))
+    .leftJoin(
+      officialCourseOfferings,
+      eq(coursePages.officialOfferingId, officialCourseOfferings.id),
+    )
     .leftJoin(
       courseMembers,
       studentId
@@ -163,6 +171,9 @@ export async function getCourseBySlugForViewer(
       countryCode: course.countryCode,
       programName: course.programName,
       creatorName: course.creatorName,
+      officialSourceUrl: course.officialSourceUrl,
+      officialSourceName: course.officialSourceName,
+      officialCredits: course.officialCredits,
     },
     templates,
     members: memberRows,

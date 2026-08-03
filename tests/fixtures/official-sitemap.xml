@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://catalog.example.edu/courses/BIO-101</loc></url>
+  <url><loc>https://catalog.example.edu/news/welcome</loc></url>
+  <url><loc>https://aggregator.invalid/courses/CHEM-100</loc></url>
+  <url><loc>https://catalog.example.edu/modules/CHEM-100</loc></url>
+</urlset>

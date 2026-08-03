@@ -12,12 +12,14 @@ import {
 } from "@/lib/db/schema";
 import { OrganizationCombobox } from "@/components/organization-combobox";
 import { getI18n } from "@/lib/i18n/server";
+import { getPendingCourseMetadataReviews } from "@/lib/catalog/review";
 
 import { archiveCourseAction, updateCourseSettingsAction } from "../actions";
 import {
   moderateCourseContentAction,
   permanentlyDeleteCourseAttachmentAction,
 } from "../community-actions";
+import { reviewOfficialMetadataAction } from "./metadata-review-actions";
 
 export default async function GeneralCourseSettings({
   params,
@@ -35,7 +37,7 @@ export default async function GeneralCourseSettings({
   const { t, formatDate } = i18n;
   const detail = await getCourseBySlugForViewer(slug, studentId);
   if (!detail?.permissions.canManageCourseSettings) notFound();
-  const [deletedAttachments, programOptions, organizationRows] =
+  const [deletedAttachments, programOptions, organizationRows, metadataReviews] =
     await Promise.all([
       db
         .select({
@@ -86,6 +88,7 @@ export default async function GeneralCourseSettings({
         .innerJoin(programs, eq(universityPrograms.programId, programs.id))
         .where(eq(universityPrograms.id, detail.course.universityProgramId))
         .limit(1),
+      getPendingCourseMetadataReviews(detail.course.id, studentId!),
     ]);
   const organization = organizationRows[0];
   if (!organization) notFound();
@@ -127,6 +130,41 @@ export default async function GeneralCourseSettings({
         >
           {t("settings.saved")}
         </p>
+      ) : null}
+      {metadataReviews.length ? (
+        <section className="rounded-2xl border border-indigo-200 bg-indigo-50/50 p-5">
+          <h2 className="text-lg font-bold">{t("settings.officialUpdates")}</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            {t("settings.officialUpdatesHelp")}
+          </p>
+          <ul className="mt-4 space-y-3">
+            {metadataReviews.map((review) => (
+              <li key={review.id} className="rounded-xl border border-indigo-100 bg-white p-4">
+                <p className="font-bold">{review.candidateName}</p>
+                <a href={review.sourceUrl} target="_blank" rel="noreferrer" className="mt-1 inline-block text-sm text-indigo-700 underline">
+                  {t("catalog.officialSource")}
+                </a>
+                <ul className="mt-3 space-y-1 text-xs text-slate-600">
+                  {review.changedFields.map((change) => (
+                    <li key={change.field}>
+                      <strong>{change.field}:</strong> {String(change.before ?? "—")} → {String(change.after ?? "—")}
+                    </li>
+                  ))}
+                </ul>
+                <form action={reviewOfficialMetadataAction} className="mt-3 flex gap-2">
+                  <input type="hidden" name="reviewId" value={review.id} />
+                  <input type="hidden" name="courseSlug" value={slug} />
+                  <button name="decision" value="accept" className="min-h-11 rounded-lg bg-indigo-600 px-3 text-xs font-bold text-white">
+                    {t("settings.acceptOfficial")}
+                  </button>
+                  <button name="decision" value="reject" className="min-h-11 rounded-lg border border-slate-300 px-3 text-xs font-bold">
+                    {t("settings.keepCommunity")}
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </section>
       ) : null}
       <form
         action={updateCourseSettingsAction}

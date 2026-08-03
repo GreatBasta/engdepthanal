@@ -49,6 +49,8 @@ const createCourseSchema = z.object({
   visibility: z.enum(["public", "unlisted", "private"]),
   attendance: z.enum(["attended", "not_attended"]),
   templateIds: z.array(z.string().uuid()).min(1).max(8),
+  officialOfferingId: z.string().uuid().optional(),
+  catalogCandidateId: z.string().uuid().optional(),
 });
 
 export async function createCourseAction(
@@ -70,6 +72,8 @@ export async function createCourseAction(
     visibility: formData.get("visibility"),
     attendance: formData.get("attendance"),
     templateIds: formData.getAll("templateIds"),
+    officialOfferingId: formData.get("officialOfferingId") || undefined,
+    catalogCandidateId: formData.get("catalogCandidateId") || undefined,
   });
   if (!parsed.success) {
     return {

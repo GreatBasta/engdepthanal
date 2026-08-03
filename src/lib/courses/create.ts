@@ -17,14 +17,18 @@ import {
   courseCurriculumVersions,
   courseMembers,
   coursePages,
+  courseCandidateMatches,
   coursePageTemplates,
   courseSubtopicPrerequisites,
   courseSubtopics,
   courseTopics,
   curriculumTemplates,
+  officialCourseOfferings,
+  organizationCourseCandidates,
   templateSubtopicPrerequisites,
   templateSubtopics,
   templateTopics,
+  universityPrograms,
 } from "@/lib/db/schema";
 
 import {
@@ -47,6 +51,8 @@ export interface CreateCourseInput {
   attendance: "attended" | "not_attended";
   templateIds: string[];
   createdBy: string;
+  officialOfferingId?: string | null;
+  catalogCandidateId?: string | null;
 }
 
 export interface DuplicateCourseWarning {
@@ -121,6 +127,42 @@ export async function createCourseFromTemplates(input: CreateCourseInput) {
   }
 
   return db.transaction(async (tx) => {
+    if (Boolean(input.officialOfferingId) !== Boolean(input.catalogCandidateId)) {
+      throw new Error("official offering and catalog candidate must be supplied together");
+    }
+    if (input.officialOfferingId && input.catalogCandidateId) {
+      const [verifiedImport] = await tx
+        .select({ id: officialCourseOfferings.id })
+        .from(officialCourseOfferings)
+        .innerJoin(
+          organizationCourseCandidates,
+          eq(
+            officialCourseOfferings.courseCandidateId,
+            organizationCourseCandidates.id,
+          ),
+        )
+        .innerJoin(
+          universityPrograms,
+          and(
+            eq(universityPrograms.id, input.universityProgramId),
+            eq(
+              universityPrograms.universityId,
+              officialCourseOfferings.organizationId,
+            ),
+          ),
+        )
+        .where(
+          and(
+            eq(officialCourseOfferings.id, input.officialOfferingId),
+            eq(organizationCourseCandidates.id, input.catalogCandidateId),
+            eq(organizationCourseCandidates.status, "confirmed"),
+          ),
+        )
+        .limit(1);
+      if (!verifiedImport) {
+        throw new Error("official catalog import is unavailable");
+      }
+    }
     const selectedTemplates = await tx
       .select()
       .from(curriculumTemplates)
@@ -153,6 +195,7 @@ export async function createCourseFromTemplates(input: CreateCourseInput) {
       .values({
         slug,
         universityProgramId: input.universityProgramId,
+        officialOfferingId: input.officialOfferingId ?? null,
         localName: input.localName,
         courseCode: input.courseCode || null,
         professorName: input.professorName || null,
@@ -165,6 +208,30 @@ export async function createCourseFromTemplates(input: CreateCourseInput) {
         createdBy: input.createdBy,
       })
       .returning({ id: coursePages.id, slug: coursePages.slug });
+
+    if (input.catalogCandidateId) {
+      await tx
+        .insert(courseCandidateMatches)
+        .values({
+          courseCandidateId: input.catalogCandidateId,
+          coursePageId: course.id,
+          score: "1",
+          reasons: ["created from confirmed official catalog candidate"],
+          status: "confirmed",
+          reviewedBy: input.createdBy,
+          reviewedAt: new Date(),
+        })
+        .onConflictDoNothing();
+      await tx
+        .update(organizationCourseCandidates)
+        .set({
+          status: "merged",
+          reviewedBy: input.createdBy,
+          reviewedAt: new Date(),
+          verificationMethod: "course_creator",
+        })
+        .where(eq(organizationCourseCandidates.id, input.catalogCandidateId));
+    }
 
     await tx.insert(courseMembers).values({
       coursePageId: course.id,
@@ -322,4 +389,3 @@ export async function createCourseFromTemplates(input: CreateCourseInput) {
     return course;
   });
 }
-

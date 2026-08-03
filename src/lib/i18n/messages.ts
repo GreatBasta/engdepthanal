@@ -5,7 +5,7 @@ export const en = {
   "metadata.description":
     "Find real university courses, compare curriculum, track private progress, and share contextual study resources.",
   "metadata.ogDescription":
-    "Collaborative, student-contributed course pages for engineering education.",
+    "Collaborative, student-contributed course pages across university disciplines.",
   "nav.home": "Home",
   "nav.myCourses": "My courses",
   "nav.discover": "Discover",
@@ -80,9 +80,9 @@ export const en = {
   "onboarding.subtitle":
     "Choose your university and degree so discovery and recommendations match your studies.",
   "onboarding.yourUniversity": "Your university",
-  "onboarding.degree": "Your course (engineering discipline)",
+  "onboarding.degree": "Degree programme or field of study",
   "onboarding.pickDegree": "Pick your course…",
-  "onboarding.intake": "First-year intake",
+  "onboarding.intake": "Intake year or academic context",
   "onboarding.phaseQuestion":
     "Are you starting first year, or actively attending it?",
   "onboarding.starting": "I'm starting",
@@ -91,7 +91,7 @@ export const en = {
   "onboarding.attending": "I'm actively attending",
   "onboarding.attendingHelp":
     "Track what you have covered and help map what your university really teaches.",
-  "onboarding.submit": "Unlock the first-year database",
+  "onboarding.submit": "Save study context",
   "onboarding.submitting": "Setting up…",
   "home.yourUniversity": "Your university",
   "home.changeUniversity": "Change university",
@@ -120,7 +120,7 @@ export const en = {
   "landing.title": "Find your actual course.",
   "landing.titleAccent": "Learn with context.",
   "landing.body":
-    "Compare a real syllabus with reusable engineering foundations, track your learning privately, share resources where they belong, and see recurring exam patterns with transparent confidence.",
+    "Compare a real course with reusable disciplinary knowledge, track your learning privately, share resources where they belong, and see recurring exam patterns with transparent confidence.",
   "landing.find": "Find your course",
   "landing.create": "Create a course page",
   "landing.coverageTitle": "Curriculum coverage",
@@ -160,6 +160,36 @@ export const en = {
   "discover.noMatchHelp":
     "Try broader filters or create the first accurate page for this university.",
   "discover.directoryPages": "Course directory pages",
+  "catalog.title": "Official course catalog",
+  "catalog.subtitle":
+    "Evidence-backed candidates discovered only from verified university sources.",
+  "catalog.confirmed": "Confirmed official courses",
+  "catalog.needsReview": "Courses requiring review",
+  "catalog.lastCheck": "Last catalog check",
+  "catalog.neverChecked": "Not checked yet",
+  "catalog.refresh": "Request refresh",
+  "catalog.refreshing": "Refresh requested…",
+  "catalog.refreshRequested": "Refresh requested",
+  "catalog.import": "Import from official catalog",
+  "catalog.officialSource": "Official source",
+  "catalog.studentConfirmed": "Student confirmed",
+  "catalog.needsReviewLabel": "Needs review",
+  "catalog.outdated": "Outdated",
+  "catalog.communityAvailable": "Community course page available",
+  "catalog.confirm": "Confirm candidate",
+  "catalog.reportOutdated": "Report outdated",
+  "catalog.proposeCorrection": "Propose correction",
+  "catalog.correctionPlaceholder":
+    "Describe the correction and cite what is visible on the official page.",
+  "catalog.sendCorrection": "Send correction",
+  "catalog.none": "No official course candidates have been confirmed yet.",
+  "catalog.scanRunning": "Catalog scan in progress",
+  "catalog.scanPartial": "Catalog scan completed with warnings",
+  "catalog.scanFailed": "Catalog scan failed",
+  "catalog.evidence": "Evidence",
+  "catalog.confidence": "Confidence {value}%",
+  "catalog.notAtlasPage":
+    "A catalog candidate is not a Course Atlas page until a user creates and curates one.",
   "myCourses.kicker": "Your learning space",
   "myCourses.title": "My courses",
   "myCourses.subtitle":
@@ -259,6 +289,48 @@ export const en = {
   "category.biomedical": "Biomedical engineering",
   "category.biomedicalHelp":
     "Biological systems, medical technology, biomaterials, and biomechanics.",
+  "category.health-medicine": "Health and Medicine",
+  "category.health-medicineHelp":
+    "Foundational, clinical, population-health, nursing, dental, and pharmaceutical subjects.",
+  "category.life-sciences": "Life Sciences",
+  "category.life-sciencesHelp":
+    "Biology from cells and molecules to organisms, evolution, ecology, and biotechnology.",
+  "category.architecture-design": "Architecture and Design",
+  "category.architecture-designHelp":
+    "Built environment, spatial thinking, design methods, representation, and material culture.",
+  "category.agriculture-veterinary": "Agriculture and Veterinary Sciences",
+  "category.agriculture-veterinaryHelp":
+    "Plant, animal, food, soil, agricultural systems, and veterinary subjects.",
+  "category.business-economics": "Business and Economics",
+  "category.business-economicsHelp":
+    "Economic reasoning, organizations, accounting, finance, management, and markets.",
+  "category.law": "Law",
+  "category.lawHelp":
+    "Legal systems, public and private law, legal reasoning, institutions, and rights.",
+  "category.social-sciences": "Social Sciences",
+  "category.social-sciencesHelp":
+    "Politics, society, culture, institutions, international relations, and social research.",
+  "category.psychology": "Psychology",
+  "category.psychologyHelp":
+    "Behaviour, cognition, development, social processes, and clinical foundations.",
+  "category.education": "Education",
+  "category.educationHelp":
+    "Learning, teaching, pedagogy, development, curriculum, and educational institutions.",
+  "category.humanities": "Humanities",
+  "category.humanitiesHelp":
+    "History, philosophy, ethics, ideas, sources, interpretation, and cultural inquiry.",
+  "category.languages-literature": "Languages and Literature",
+  "category.languages-literatureHelp":
+    "Language systems, literary traditions, textual analysis, theory, and translation.",
+  "category.arts-music": "Arts and Music",
+  "category.arts-musicHelp":
+    "Visual, performing, and musical practices, analysis, history, and production.",
+  "category.communication-media": "Communication and Media",
+  "category.communication-mediaHelp":
+    "Communication theory, media systems, journalism, audiences, and digital culture.",
+  "category.interdisciplinary": "Interdisciplinary Studies",
+  "category.interdisciplinaryHelp":
+    "Subjects that deliberately integrate methods and concepts across academic domains.",
   "profile.title": "Profile",
   "profile.subtitle": "Manage your public name and your account data.",
   "profile.saved": "Profile saved.",
@@ -300,6 +372,7 @@ export const en = {
   "course.cohort": "Cohort",
   "course.semester": "Semester",
   "course.professor": "Professor",
+  "course.credits": "credits",
   "course.createdBy": "Created by",
   "course.lastUpdated": "Curriculum last updated",
   "course.notSpecified": "Not specified",
@@ -445,6 +518,11 @@ export const en = {
   "settings.cohortYear": "Cohort year",
   "settings.description": "Description",
   "settings.save": "Save settings",
+  "settings.officialUpdates": "Official metadata updates",
+  "settings.officialUpdatesHelp":
+    "Review changed official metadata. Accepting never changes the community curriculum.",
+  "settings.acceptOfficial": "Accept official metadata",
+  "settings.keepCommunity": "Keep current metadata",
   "settings.hiddenAttachments": "Hidden attachments",
   "settings.hiddenHelp":
     "Moderated files remain recoverable until the Owner permanently removes both the private Blob object and its database metadata.",
@@ -682,7 +760,7 @@ export const it: Messages = {
   "metadata.description":
     "Trova corsi universitari reali, confronta i programmi, monitora i progressi privati e condividi risorse contestuali.",
   "metadata.ogDescription":
-    "Pagine collaborative dei corsi universitari, create dagli studenti per l’ingegneria.",
+    "Pagine collaborative dei corsi universitari, create dagli studenti in tutte le discipline.",
   "nav.home": "Home",
   "nav.myCourses": "I miei corsi",
   "nav.discover": "Scopri",
@@ -759,7 +837,7 @@ export const it: Messages = {
   "onboarding.subtitle":
     "Scegli università e corso di laurea per ricevere risultati e consigli pertinenti.",
   "onboarding.yourUniversity": "La tua università",
-  "onboarding.degree": "Il tuo corso (disciplina ingegneristica)",
+  "onboarding.degree": "Corso di laurea o ambito di studio",
   "onboarding.pickDegree": "Scegli il tuo corso…",
   "onboarding.intake": "Anno di immatricolazione",
   "onboarding.phaseQuestion":
@@ -770,7 +848,7 @@ export const it: Messages = {
   "onboarding.attending": "Sto già frequentando",
   "onboarding.attendingHelp":
     "Monitora ciò che hai studiato e aiuta a descrivere cosa insegna davvero la tua università.",
-  "onboarding.submit": "Apri il database del primo anno",
+  "onboarding.submit": "Salva il contesto di studio",
   "onboarding.submitting": "Configurazione…",
   "home.yourUniversity": "La tua università",
   "home.changeUniversity": "Cambia università",
@@ -800,7 +878,7 @@ export const it: Messages = {
   "landing.title": "Trova il tuo vero corso.",
   "landing.titleAccent": "Impara con il contesto.",
   "landing.body":
-    "Confronta il programma reale con basi ingegneristiche riutilizzabili, monitora privatamente l’apprendimento, condividi risorse nel punto giusto e scopri le domande d’esame ricorrenti.",
+    "Confronta un corso reale con conoscenze disciplinari riutilizzabili, monitora privatamente l’apprendimento, condividi risorse nel punto giusto e scopri le domande d’esame ricorrenti.",
   "landing.find": "Trova il tuo corso",
   "landing.create": "Crea una pagina corso",
   "landing.coverageTitle": "Copertura del programma",
@@ -841,6 +919,36 @@ export const it: Messages = {
   "discover.noMatchHelp":
     "Prova filtri più ampi o crea la prima pagina accurata per questa università.",
   "discover.directoryPages": "Pagine dell’elenco corsi",
+  "catalog.title": "Catalogo ufficiale dei corsi",
+  "catalog.subtitle":
+    "Candidati con evidenze, scoperti esclusivamente da fonti universitarie verificate.",
+  "catalog.confirmed": "Corsi ufficiali confermati",
+  "catalog.needsReview": "Corsi da revisionare",
+  "catalog.lastCheck": "Ultimo controllo del catalogo",
+  "catalog.neverChecked": "Non ancora controllato",
+  "catalog.refresh": "Richiedi aggiornamento",
+  "catalog.refreshing": "Aggiornamento richiesto…",
+  "catalog.refreshRequested": "Aggiornamento richiesto",
+  "catalog.import": "Importa dal catalogo ufficiale",
+  "catalog.officialSource": "Fonte ufficiale",
+  "catalog.studentConfirmed": "Confermato da uno studente",
+  "catalog.needsReviewLabel": "Da revisionare",
+  "catalog.outdated": "Non aggiornato",
+  "catalog.communityAvailable": "Pagina della community disponibile",
+  "catalog.confirm": "Conferma candidato",
+  "catalog.reportOutdated": "Segnala come non aggiornato",
+  "catalog.proposeCorrection": "Proponi correzione",
+  "catalog.correctionPlaceholder":
+    "Descrivi la correzione e cita ciò che è visibile nella pagina ufficiale.",
+  "catalog.sendCorrection": "Invia correzione",
+  "catalog.none": "Nessun candidato ufficiale è stato ancora confermato.",
+  "catalog.scanRunning": "Scansione del catalogo in corso",
+  "catalog.scanPartial": "Scansione completata con avvisi",
+  "catalog.scanFailed": "Scansione del catalogo non riuscita",
+  "catalog.evidence": "Evidenze",
+  "catalog.confidence": "Affidabilità {value}%",
+  "catalog.notAtlasPage":
+    "Un candidato del catalogo non è una pagina Course Atlas finché un utente non la crea e cura.",
   "myCourses.kicker": "Il tuo spazio di apprendimento",
   "myCourses.title": "I miei corsi",
   "myCourses.subtitle":
@@ -941,6 +1049,48 @@ export const it: Messages = {
   "category.biomedical": "Ingegneria biomedica",
   "category.biomedicalHelp":
     "Sistemi biologici, tecnologia medica, biomateriali e biomeccanica.",
+  "category.health-medicine": "Salute e Medicina",
+  "category.health-medicineHelp":
+    "Materie di base, cliniche, sanità pubblica, infermieristica, odontoiatria e farmacia.",
+  "category.life-sciences": "Scienze della vita",
+  "category.life-sciencesHelp":
+    "Biologia dalle cellule e molecole agli organismi, evoluzione, ecologia e biotecnologie.",
+  "category.architecture-design": "Architettura e Design",
+  "category.architecture-designHelp":
+    "Ambiente costruito, pensiero spaziale, metodi progettuali, rappresentazione e cultura materiale.",
+  "category.agriculture-veterinary": "Scienze agrarie e veterinarie",
+  "category.agriculture-veterinaryHelp":
+    "Piante, animali, alimenti, suolo, sistemi agricoli e materie veterinarie.",
+  "category.business-economics": "Economia e Gestione",
+  "category.business-economicsHelp":
+    "Ragionamento economico, organizzazioni, contabilità, finanza, gestione e mercati.",
+  "category.law": "Diritto",
+  "category.lawHelp":
+    "Sistemi giuridici, diritto pubblico e privato, ragionamento giuridico, istituzioni e diritti.",
+  "category.social-sciences": "Scienze sociali",
+  "category.social-sciencesHelp":
+    "Politica, società, cultura, istituzioni, relazioni internazionali e ricerca sociale.",
+  "category.psychology": "Psicologia",
+  "category.psychologyHelp":
+    "Comportamento, cognizione, sviluppo, processi sociali e fondamenti clinici.",
+  "category.education": "Scienze dell’educazione",
+  "category.educationHelp":
+    "Apprendimento, insegnamento, pedagogia, sviluppo, curricolo e istituzioni educative.",
+  "category.humanities": "Discipline umanistiche",
+  "category.humanitiesHelp":
+    "Storia, filosofia, etica, idee, fonti, interpretazione e ricerca culturale.",
+  "category.languages-literature": "Lingue e Letterature",
+  "category.languages-literatureHelp":
+    "Sistemi linguistici, tradizioni letterarie, analisi testuale, teoria e traduzione.",
+  "category.arts-music": "Arti e Musica",
+  "category.arts-musicHelp":
+    "Pratiche visive, performative e musicali, analisi, storia e produzione.",
+  "category.communication-media": "Comunicazione e Media",
+  "category.communication-mediaHelp":
+    "Teoria della comunicazione, sistemi mediali, giornalismo, pubblici e cultura digitale.",
+  "category.interdisciplinary": "Studi interdisciplinari",
+  "category.interdisciplinaryHelp":
+    "Materie che integrano intenzionalmente metodi e concetti di più ambiti accademici.",
   "profile.title": "Profilo",
   "profile.subtitle": "Gestisci il nome pubblico e i dati del tuo account.",
   "profile.saved": "Profilo salvato.",
@@ -982,6 +1132,7 @@ export const it: Messages = {
   "course.cohort": "Coorte",
   "course.semester": "Semestre",
   "course.professor": "Docente",
+  "course.credits": "crediti",
   "course.createdBy": "Creato da",
   "course.lastUpdated": "Ultimo aggiornamento del programma",
   "course.notSpecified": "Non specificato",
@@ -1129,6 +1280,11 @@ export const it: Messages = {
   "settings.cohortYear": "Anno della coorte",
   "settings.description": "Descrizione",
   "settings.save": "Salva impostazioni",
+  "settings.officialUpdates": "Aggiornamenti dei metadati ufficiali",
+  "settings.officialUpdatesHelp":
+    "Controlla i metadati ufficiali modificati. L’accettazione non cambia mai il programma della community.",
+  "settings.acceptOfficial": "Accetta metadati ufficiali",
+  "settings.keepCommunity": "Mantieni i metadati attuali",
   "settings.hiddenAttachments": "Allegati nascosti",
   "settings.hiddenHelp":
     "I file moderati restano recuperabili finché il Proprietario non rimuove definitivamente sia l’oggetto Blob privato sia i relativi metadati.",

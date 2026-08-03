@@ -40,6 +40,7 @@ export function CreateCourseForm({
   defaultAcademicYear,
   defaultAttendance,
   defaultProgramSlug,
+  importCandidate,
 }: {
   templates: TemplateOption[];
   degreePrograms: DegreeProgramOption[];
@@ -49,6 +50,22 @@ export function CreateCourseForm({
   defaultAcademicYear: string;
   defaultAttendance: "attended" | "not_attended";
   defaultProgramSlug: string;
+  importCandidate: {
+    candidateId: string;
+    officialOfferingId: string;
+    name: string | null;
+    canonicalName: string;
+    courseCode: string | null;
+    description: string | null;
+    credits: string | null;
+    degreeProgramme: string | null;
+    academicYear: string | null;
+    semester: string | null;
+    professorName: string | null;
+    officialUrl: string;
+    organization: OrganizationResult;
+    programSlug: string;
+  } | null;
 }) {
   const { t } = useI18n();
   const [state, action, pending] = useActionState(
@@ -59,7 +76,7 @@ export function CreateCourseForm({
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [useDifferentOrganization, setUseDifferentOrganization] =
-    useState(false);
+    useState(Boolean(importCandidate));
   const deferredQuery = useDeferredValue(query);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([]);
   const groupedTemplates = useMemo(
@@ -123,6 +140,12 @@ export function CreateCourseForm({
         name="universityProgramId"
         value={defaultUniversityProgramId}
       />
+      {importCandidate ? (
+        <>
+          <input type="hidden" name="officialOfferingId" value={importCandidate.officialOfferingId} />
+          <input type="hidden" name="catalogCandidateId" value={importCandidate.candidateId} />
+        </>
+      ) : null}
       <ol aria-label={t("create.progress")} className="grid grid-cols-3 gap-2">
         {[t("create.course"), t("create.templates"), t("create.privacy")].map(
           (label, index) => (
@@ -180,13 +203,13 @@ export function CreateCourseForm({
               <OrganizationCombobox
                 label={t("create.anotherUniversity")}
                 name="organizationSelection"
-                defaultOrganization={null}
+                defaultOrganization={importCandidate?.organization ?? null}
               />
               <label className="block text-sm font-semibold">
                 {t("create.degree")}
                 <select
                   name="programSlug"
-                  defaultValue={defaultProgramSlug}
+                  defaultValue={importCandidate?.programSlug ?? defaultProgramSlug}
                   required
                   className={`${inputClass} mt-1`}
                 >
@@ -207,11 +230,49 @@ export function CreateCourseForm({
               minLength={2}
               maxLength={180}
               placeholder={t("create.localNamePlaceholder")}
+              defaultValue={importCandidate?.name ?? importCandidate?.canonicalName ?? ""}
               className={`${inputClass} mt-1`}
             />
           </label>
+          {importCandidate ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/60 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-emerald-800">
+                {t("catalog.officialSource")}
+              </p>
+              <a href={importCandidate.officialUrl} target="_blank" rel="noreferrer" className="mt-1 block break-all text-sm font-semibold text-indigo-700 underline">
+                {importCandidate.officialUrl}
+              </a>
+              <p className="mt-2 text-xs text-slate-600">
+                {[importCandidate.degreeProgramme, importCandidate.credits ? `${importCandidate.credits} credits` : null]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="text-sm font-semibold">
+                  {t("settings.code")}
+                  <input name="courseCode" defaultValue={importCandidate.courseCode ?? ""} className={`${inputClass} mt-1`} />
+                </label>
+                <label className="text-sm font-semibold">
+                  {t("course.professor")}
+                  <input name="professorName" defaultValue={importCandidate.professorName ?? ""} className={`${inputClass} mt-1`} />
+                </label>
+                <label className="text-sm font-semibold">
+                  {t("course.academicYear")}
+                  <input name="academicYear" required defaultValue={importCandidate.academicYear ?? defaultAcademicYear} className={`${inputClass} mt-1`} />
+                </label>
+                <label className="text-sm font-semibold">
+                  {t("course.semester")}
+                  <input name="semester" type="number" min={1} max={12} defaultValue={importCandidate.semester?.match(/\b(1[0-2]|[1-9])\b/)?.[1] ?? ""} className={`${inputClass} mt-1`} />
+                </label>
+              </div>
+              <label className="mt-3 block text-sm font-semibold">
+                {t("settings.description")}
+                <textarea name="description" defaultValue={importCandidate.description ?? ""} maxLength={2_000} className={`${inputClass} mt-1 min-h-28 py-3`} />
+              </label>
+            </div>
+          ) : null}
         </div>
-        <input type="hidden" name="academicYear" value={defaultAcademicYear} />
+        {!importCandidate ? <input type="hidden" name="academicYear" value={defaultAcademicYear} /> : null}
         <input type="hidden" name="cohortYear" value={defaultCohortYear} />
         <input type="hidden" name="attendance" value={defaultAttendance} />
       </section>

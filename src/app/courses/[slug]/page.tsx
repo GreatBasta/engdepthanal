@@ -380,6 +380,27 @@ async function Overview({
             </button>
           </form>
         ) : null}
+        {detail.course.officialSourceUrl ? (
+          <section className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+            <h2 className="font-semibold text-emerald-950">
+              {t("catalog.officialSource")}
+            </h2>
+            <p className="mt-1 text-sm text-emerald-900">
+              {detail.course.officialSourceName}
+              {detail.course.officialCredits
+                ? ` · ${detail.course.officialCredits} ${t("course.credits")}`
+                : ""}
+            </p>
+            <a
+              href={detail.course.officialSourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-flex min-h-11 items-center text-sm font-bold text-indigo-700 underline"
+            >
+              {t("catalog.officialSource")}
+            </a>
+          </section>
+        ) : null}
         <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
           <h2 className="font-semibold">{t("course.sources")}</h2>
           <ul className="mt-3 space-y-2 text-sm">

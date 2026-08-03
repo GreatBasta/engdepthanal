@@ -16,6 +16,9 @@ import {
   organizationResultFromPrimaryEnrollment,
 } from "@/lib/enrollment";
 import { getI18n } from "@/lib/i18n/server";
+import { getCatalogCandidateForImport } from "@/lib/catalog/review";
+import { getLocalOrganizationByIdentifier } from "@/lib/organizations/search";
+import { searchAcademicTaxonomy } from "@/lib/academics/taxonomy";
 
 import { CreateCourseForm } from "./ui";
 
@@ -24,8 +27,16 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("create.title") };
 }
 
-export default async function NewCoursePage() {
-  const [studentId, i18n] = await Promise.all([currentStudentId(), getI18n()]);
+export default async function NewCoursePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ candidate?: string }>;
+}) {
+  const [studentId, i18n, query] = await Promise.all([
+    currentStudentId(),
+    getI18n(),
+    searchParams,
+  ]);
   const { t } = i18n;
   if (!studentId) redirect("/login?next=/courses/new");
 
@@ -69,6 +80,20 @@ export default async function NewCoursePage() {
   if (!enrollment) redirect("/onboarding");
   const defaultOrganization =
     organizationResultFromPrimaryEnrollment(enrollment);
+  const candidateId = /^[0-9a-f-]{36}$/i.test(query.candidate ?? "")
+    ? query.candidate!
+    : null;
+  const importCandidate = candidateId
+    ? await getCatalogCandidateForImport(candidateId)
+    : null;
+  const importOrganization = importCandidate
+    ? await getLocalOrganizationByIdentifier(importCandidate.organizationId)
+    : null;
+  const suggestedProgramSlug = importCandidate?.degreeProgramme
+    ? searchAcademicTaxonomy(importCandidate.degreeProgramme, i18n.locale).find(
+        (field) => degreeProgramRows.some((program) => program.slug === field.key),
+      )?.key
+    : null;
 
   return (
     <main className="mx-auto min-h-screen max-w-5xl px-4 py-8 sm:px-6 sm:py-12">
@@ -103,6 +128,15 @@ export default async function NewCoursePage() {
           enrollment.phase === "attending" ? "attended" : "not_attended"
         }
         defaultProgramSlug={enrollment.programSlug}
+        importCandidate={
+          importCandidate && importOrganization
+            ? {
+                ...importCandidate,
+                organization: importOrganization,
+                programSlug: suggestedProgramSlug ?? enrollment.programSlug,
+              }
+            : null
+        }
       />
     </main>
   );

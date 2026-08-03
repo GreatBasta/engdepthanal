@@ -22,7 +22,9 @@ import {
 } from "@/lib/enrollment";
 import { getLocalOrganizationByIdentifier } from "@/lib/organizations/search";
 import { getI18n } from "@/lib/i18n/server";
+import { getCatalogOverview } from "@/lib/catalog/repository";
 
+import { OfficialCatalogPanel } from "./catalog-panel";
 import { CourseOrganizationFilter } from "./organization-filter";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -176,7 +178,7 @@ export default async function CourseDirectoryPage({
       : undefined,
   ];
 
-  const [courseRows, organizationCounts, directoryOptions] = await Promise.all([
+  const [courseRows, organizationCounts, directoryOptions, catalogOverview] = await Promise.all([
     db
       .select({
         slug: coursePages.slug,
@@ -236,6 +238,7 @@ export default async function CourseDirectoryPage({
       .where(and(...directoryConditions))
       .groupBy(universities.id),
     getDirectoryOptions(),
+    organizationId ? getCatalogOverview(organizationId) : Promise.resolve(null),
   ]);
 
   const [programOptions, yearOptions, templateOptions] = directoryOptions;
@@ -359,6 +362,14 @@ export default async function CourseDirectoryPage({
             {t("discover.allUniversities")}
           </Link>
         </nav>
+      ) : null}
+
+      {organizationId && catalogOverview ? (
+        <OfficialCatalogPanel
+          organizationId={organizationId}
+          overview={catalogOverview}
+          canRefresh={Boolean(studentId)}
+        />
       ) : null}
 
       <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
