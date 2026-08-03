@@ -1,257 +1,214 @@
-# Publishable mobile v1 release report
+# Multidisciplinary official catalogs release report
 
-Status date: 2026-07-30  
-Release status: verified Preview candidate; draft PR remains intentionally
-unmerged and production has not been promoted
+Status date: 2026-08-03
+Release status: verified protected Preview; draft PR remains intentionally
+unmerged and production has not been migrated or promoted
 
 ## Delivery
 
 | Item | Value |
 |---|---|
-| Branch | `release/publishable-mobile-v1` |
-| Base | `main` at `967884a` |
-| Application head verified | `ed700c5` |
-| PR | [GreatBasta/engdepthanal#18](https://github.com/GreatBasta/engdepthanal/pull/18) (draft) |
-| Preview | `https://engdepthanal-marzobar-3689-ste11.vercel.app` |
-| Production | Not changed |
+| Branch | `feature/multidisciplinary-official-catalogs` |
+| Base | `main` at `7df6ba84388eec706068cfd63578fd2c286958fe` |
+| Application head verified | `c64b40b66598572394f0eaca907f219f47de0a49` |
+| PR | [GreatBasta/engdepthanal#20](https://github.com/GreatBasta/engdepthanal/pull/20) (draft) |
+| Final Preview | [engdepthanal-qq6ibu1j9-ste11.vercel.app](https://engdepthanal-qq6ibu1j9-ste11.vercel.app) |
+| Final deployment | `dpl_2r9NkV5ZA4UHGapeuZQ6JEJawAvA` |
 | Vercel team/project | `ste11` / `engdepthanal` |
-| Project ID | `prj_YtFAzAXZzgFyipPSJAfBgeXDW8PQ` |
-| Existing production aliases | `engdepthanal-coral.vercel.app`, `engdepthanal-ste11.vercel.app` |
+| Vercel project ID | `prj_YtFAzAXZzgFyipPSJAfBgeXDW8PQ` |
+| Production | Unchanged |
 
 Published logical commits:
 
-1. `6c1cec4` — canonical catalog and additive schema
-2. `05a0bea` — unified mobile course/curriculum workflows
-3. `7ea4b31` — contextual resources and confidence-aware exams
-4. `e4580b0` — auth/admin/legal/observability hardening
-5. `abb55e5` — release documentation and mobile E2E configuration
-6. `ec66cb9` — contextual resource discussion and exam duplicate suggestions
-7. `b96933e` — student-reported exam evidence and permitted materials
-8. `2cdaa9b` — private attachment lifecycle and mobile upload handling
-9. `d3a5dc6` / `69f6053` — bounded release tooling and deployment archive
-10. `775137d` / `0b245d7` — private-course and Blob lifecycle E2E
-11. `df95822` — persistent multi-template wizard selection
-12. `ed700c5` — application icon metadata
+1. `118db30` — merge the verified organization/localization/role foundation
+2. `a43e49f` — add the multidisciplinary academic model
+3. `f1fb897` — add safe official catalog discovery
+4. `8eeacac` — redesign multidisciplinary onboarding
+5. `c64b40` — expand the multidisciplinary curriculum library
 
-## Migrations and data
+## Academic model
 
-The complete additive migration chain was applied to an isolated Preview
-database:
+The data model keeps these concepts separate:
 
-- `drizzle/0000_nifty_stardust.sql`
-- `drizzle/0001_finished_guard_trigger.sql`
-- `drizzle/0002_mute_dreadnoughts.sql`
-- `drizzle/0003_outgoing_dakota_north.sql`
-- `drizzle/0004_flippant_red_skull.sql`
-- `drizzle/0005_overrated_bullseye.sql`
+- organization (the university or higher-education institution);
+- organizational unit (faculty, school, college, department, institute,
+  division, academy, campus, or another institution-specific unit);
+- degree programme;
+- official course offering;
+- collaborative Course Atlas course page;
+- reusable canonical curriculum template.
 
-New tables:
+The taxonomy contains 18 bilingual top-level domains and 73 normalized fields.
+Fields support domain, broad-field, discipline, subdiscipline and professional
+area levels; aliases and translations are JSON language maps so more languages
+can be added without schema changes. Programmes have many-to-many academic
+fields and support Bachelor, Master, single-cycle, doctoral, professional and
+other levels. Duration remains optional.
 
-- `course_subtopic_progress`
-- `course_resources`
-- `course_resource_comments`
-- `course_resource_reactions`
-- `rate_limit_buckets`
+The onboarding flow combines local institutional programmes, confirmed catalog
+candidates and global taxonomy search. It also stores optional organizational
+unit, intake year, academic context, preferred language and an explicit
+`Programme not found` request. A taxonomy choice remains a temporary fallback
+that can be refined later. Account setup commits before a stale catalog scan is
+scheduled with Next.js `after()`.
 
-Existing tables receive only nullable or defaulted columns and indexes. The
-migrations contain no `DROP`, truncation, delete, seed, or binary payload.
-Template seed IDs are deterministic and inserts are conflict-safe.
+## Official catalog discovery
 
-No migration, seed, cleanup, archive, or deletion was run against production.
-The canonical seed ran twice on the isolated Preview database with identical
-results: 10 programs, 47 templates, 306 topics, 1,173 subtopics, and 713
-prerequisites, with no duplicate template versions or orphan topics.
+The connector registry supports:
 
-E2E cleanup used a Preview-only database. PostgreSQL cascade behavior also
-removed the canonical templates because `curriculum_templates.created_by`
-references students; the deterministic canonical seed was immediately restored
-and reverified. The final Preview state contains the full canonical catalog and
-zero test students, courses, universities, or attachments. Production was never
-connected to this cleanup. A restored production-backup rehearsal and rollback
-proof remain mandatory before production migration.
+- explicitly configured official structured APIs;
+- Schema.org `Course` and `CourseInstance` JSON-LD;
+- official XML sitemaps;
+- semantic official HTML catalogs;
+- reviewed institution-specific manual connectors.
 
-## Routes
+Discovery is demand-driven. A request returns cached candidates immediately,
+reuses a recent completed scan and schedules stale refreshes without blocking
+onboarding. Vercel Workflow provides the durable multi-step path (one workflow,
+eight steps); a bounded one-source-per-request runner persists the same
+checkpoints if Workflow start is unavailable.
 
-Added:
+Safety boundaries include:
 
-- `/my-courses`
-- `/profile`
-- `/api/account/export`
-- `/api/health`
-- `/courses/[slug]/settings`
-- `/courses/[slug]/settings/members`
-- `/courses/[slug]/settings/curriculum`
-- `/courses/[slug]/settings/privacy`
-- `/privacy`
-- `/terms`
-- `/community-guidelines`
-- `/copyright`
-- `/contact`
-- `/robots.txt`
-- `/sitemap.xml`
+- verified ROR domains and explicitly approved provider domains only;
+- HTTPS/port 443, approved-domain redirects and fail-closed DNS checks;
+- private, loopback, link-local, reserved and cloud-metadata IP blocking;
+- robots.txt evaluation before crawl, with longest-match handling;
+- descriptive configurable crawler user agent and contact;
+- serial per-domain requests with durable pauses;
+- crawl depth 2, maximum 40 pages, 10-second timeout and 2 MB responses;
+- HTML, JSON and XML content types only;
+- no remote JavaScript execution, authentication bypass, browser automation,
+  executable downloads, arbitrary PDFs or unrestricted internet crawling.
 
-Changed/retired:
+Normalized sources, scans, candidates, evidence, snapshots, matches,
+corrections and metadata reviews remain distinct from official offerings and
+community pages. Low-confidence candidates are never auto-published. Candidate
+creation prefills only explicit official metadata; the user still chooses
+canonical templates and classifies curriculum coverage. Changed official
+metadata creates an Owner review and never overwrites community curriculum.
 
-- `/dashboard` reliably redirects to `/my-courses`.
-- `/admin/login` redirects to normal `/login?next=/admin`; dedicated
-  username/password admin actions and UI were removed.
-- Public course tabs are Overview, Curriculum, Resources, and Exam.
-  Contributors and Community are no longer public tabs.
-- Legacy `/subjects/[slug]/survey`, `/swipe`, and `/gaps` redirect using the
-  reliable subject slug to the read-only subject view.
-- Legacy records and `/subjects/[slug]/track` remain preserved outside primary
-  navigation. No uncertain legacy progress mapping was attempted.
+Deduplication uses, in order, stable external ID, normalized course code,
+canonical official URL, then normalized name/programme/academic year. Fuzzy name
+similarity alone can only suggest a match for human confirmation.
 
-## Curriculum catalog
+## Schema and Preview data
 
-Totals: 47 templates, 306 topics, 1,173 subtopics. Deterministic validation
-checksum: `d4574cb439e44b86`.
+The complete 13-file migration chain was applied with the repository's
+advisory-locked, file-by-file PostgreSQL runner to the isolated Preview
+database. New files:
 
-| Template | Topics | Subtopics |
-|---|---:|---:|
-| Anatomy and Physiology | 6 | 18 |
-| Biology for Engineers | 6 | 18 |
-| Biomaterials | 6 | 18 |
-| Biomechanics | 6 | 18 |
-| Biomedical Signals | 6 | 18 |
-| Calculus I | 12 | 105 |
-| Calculus II | 6 | 18 |
-| Circuit Analysis | 6 | 18 |
-| Classical Mechanics | 12 | 97 |
-| Complex Numbers and Transform Methods | 6 | 18 |
-| Computer Architecture and Digital Logic | 6 | 18 |
-| Control Systems | 6 | 18 |
-| Data Science Fundamentals | 6 | 18 |
-| Data Structures and Algorithms | 6 | 18 |
-| Database Fundamentals | 6 | 18 |
-| Discrete Mathematics | 6 | 18 |
-| Dynamics | 6 | 18 |
-| Electricity and Magnetism | 6 | 18 |
-| Electronics | 6 | 18 |
-| Engineering Design | 6 | 18 |
-| Engineering Drawing and CAD | 6 | 18 |
-| Engineering Project Management | 6 | 18 |
-| Engineering Thermodynamics | 6 | 18 |
-| Fluid Mechanics | 6 | 18 |
-| General Chemistry for Engineers | 12 | 96 |
-| Linear Algebra | 12 | 101 |
-| Engineering Materials and Manufacturing Processes | 6 | 18 |
-| Materials Science and Engineering | 6 | 18 |
-| Measurement and Instrumentation | 6 | 18 |
-| Mechanics of Materials | 6 | 18 |
-| Medical Imaging | 6 | 18 |
-| Modern Physics Fundamentals | 6 | 18 |
-| Multivariable Calculus | 6 | 18 |
-| Numerical Methods | 6 | 18 |
-| Object-Oriented Programming | 6 | 18 |
-| Optimization Fundamentals | 6 | 18 |
-| Ordinary Differential Equations | 6 | 18 |
-| Organic and Biochemistry for Engineers | 6 | 18 |
-| Probability and Statistics | 6 | 18 |
-| Programming Fundamentals | 6 | 18 |
-| Scientific Computing | 6 | 18 |
-| Signals and Systems | 6 | 18 |
-| Statics | 6 | 18 |
-| Technical Communication | 6 | 18 |
-| Thermodynamics | 6 | 18 |
-| Waves and Optics | 6 | 18 |
-| Web and Software Engineering Fundamentals | 6 | 18 |
-| Total | 306 | 1,173 |
+- `0009_pale_doctor_octopus.sql` — academic fields, organizational units,
+  degree programmes and official offerings;
+- `0010_slim_wallow.sql` — degree-programme bridge constraint;
+- `0011_polite_madame_hydra.sql` — trusted domains, sources, scans,
+  candidates, snapshots, matches, corrections and metadata reviews;
+- `0012_melted_strong_guy.sql` — distinct institutional programme choices
+  and richer enrollment context.
 
-Source families stored per template:
+The migrations preserve existing rows. Migration `0012` replaces one obsolete
+organization-plus-taxonomy unique constraint with two partial unique indexes so
+two real degrees in the same broad field remain distinct. It does not drop data
+columns or rows.
 
-- MIT OpenCourseWare course and search pages
-- OpenStax Calculus, University Physics, Chemistry, Biology, and Anatomy and
-  Physiology
-- ACM/IEEE Computing Curricula 2020 and CS2023 recommendations
-- ABET Criteria for Accrediting Engineering Programs 2025–2026
+The canonical seed ran twice on Preview with identical results:
 
-Descriptions are paraphrased. The canonical seed has no fake reviews, comments,
-exam questions, occurrences, or other social data.
+- 73 academic fields;
+- 83 programme choices;
+- 76 templates;
+- 451 topics;
+- 1,753 subtopics;
+- 1,148 prerequisite edges.
 
-## Environment
+`db:verify` reports 13 migrations and integrity `ok`. Six existing Preview
+students and three resources were preserved. No demo seed, cleanup or migration
+was run against production.
 
-Documented variables:
+## Canonical curriculum library
 
-- `DATABASE_URL`
-- `DATABASE_URL_UNPOOLED`
-- `AUTH_SECRET`
-- `BLOB_READ_WRITE_TOKEN` (or Vercel OIDC)
-- `ADMIN_EMAILS` (bootstrap only)
-- `NEXT_PUBLIC_APP_URL`
-- `NEXT_PUBLIC_CONTACT_EMAIL`
+Engineering remains available as one domain. The release adds 29 curated
+templates across medicine, nursing, public health, biology, biotechnology,
+chemistry, physics, mathematics, literature, linguistics, history, philosophy,
+economics, law, political science, sociology, psychology, education and
+communication.
 
-Preview-only configuration provisioned:
+Every template has a stable key, English and Italian name, description,
+academic domain, discipline tags, degree levels, stage, version, curricular
+status, validation metadata, source references, topics, subtopics, depth and
+prerequisites. Workload is left unspecified when a defensible source does not
+support it; the validator requires an explicit reason instead of fake
+precision.
 
-- isolated Neon store `engdepthanal-preview-v1`
-- isolated private Blob store `engdepthanal-preview-attachments` in FRA1
-- rotated Preview `AUTH_SECRET`
+The generated catalog is deterministic:
 
-Still missing for production release:
+- templates: 76
+- topics: 451
+- subtopics: 1,753
+- validation checksum: `4d1eca8d6cb27e9e`
 
-- monitored contact email
-- authorized mail provider if password reset/email verification is enabled
+Primary reference families stored with the templates include OpenStax,
+MIT OpenCourseWare, WHO public-health frameworks, AACN nursing essentials,
+Cornell Legal Information Institute and Open Yale Courses. Descriptions and
+topic outlines are original summaries; generated canonical content is never
+labelled as an official university syllabus.
 
-No secret, database URL, token, `.vercel` metadata, or PII export is committed.
+## Verification
 
-## Verification evidence
+Passed in the Cloud checkout at `c64b40b`:
 
-Passed locally and/or against the protected Vercel Preview:
+- fresh `npm ci` using the lockfile;
+- `npm run curriculum:validate` — 76/451/1,753;
+- `npm run typecheck` — zero errors;
+- `npm test` — 42 passed, 0 failed;
+- `AUTH_SECRET=build-only-not-a-runtime-secret npm run build`;
+- `git diff --check`;
+- all 13 migrations against a production-like legacy fixture;
+- distinct institutional-programme and taxonomy-fallback rehearsal;
+- discovery scan idempotency and source-snapshot idempotency;
+- safe-crawl, robots, redirect, size-limit and SSRF test matrix;
+- no-auto-publication assertion for a 0.90-confidence candidate.
 
-- `npm ci`
-- `npm run curriculum:validate` — 47/306/1,173
-- `npm run typecheck` — zero errors
-- `npm test` — 16 passed, 0 failed
-- `npm run build` — success, 24 static pages/assets; build command unchanged
-  and no DB/seed/migration invocation
-- `git diff --check`
-- Drizzle Preview rehearsal — all 6 migrations applied
-- canonical seed idempotency — two runs, identical totals and zero duplicates
-- Playwright public/device matrix — 28 passed, 6 intentional
-  device-specific skips
-- Playwright authenticated Pixel 7 journey — signup, onboarding, private
-  course, combined templates, curriculum publish, contextual resource,
-  private Markdown attachment, anonymous course/attachment denial,
-  hide/restore/permanent Blob removal, and account export
-- final iPhone SE smoke — home, horizontal overflow, and `/api/health`
-- final deployment runtime logs — no `error` or `fatal` entries
-- Lighthouse mobile — Performance 89, Accessibility 100, Best Practices 100,
-  SEO 63
+The final Vercel artifact is `READY` and uses only `npm run build`. It
+compiled one Workflow with eight steps and 30 app routes. First-load sizes
+remain 106 kB for Home, 135 kB for Discover, 137 kB for course creation and
+133 kB for onboarding. The only build warning is the known dynamic dependency
+inside the beta `@vercel/queue` package used by Workflow.
 
-Unit/integration coverage includes curriculum validation/cycles, attachment
-MIME/extension/signatures, course normalization/slugs, visibility permissions,
-role capabilities, private attachment metadata, low/high-confidence exam
-ranking, and deterministic recurring-question duplicate suggestions.
+Live protected-Preview checks:
 
-The Lighthouse SEO score is intentionally reduced by Vercel's protected Preview
-`noindex` response; the application's robots audit passes. Accessibility 100 is
-automated evidence, not a substitute for a complete manual keyboard,
-focus-order, and screen-reader audit.
+- `/api/health`: 200, database reachable;
+- Home and Discover: 200, English document language and `noindex`;
+- existing public university/course grouping preserved;
+- onboarding and admin catalog remain authentication-protected;
+- no runtime `error`, `warning` or `fatal` logs for the final deployment.
 
-`npm audit` still reports 10 transitive findings (4 moderate, 4 high, 2
-critical). No breaking dependency upgrade was applied without a separate
-compatibility pass.
+Authenticated live scanning was not executed because this Cloud session has no
+approved disposable Preview identity. Connector, authorization, deduplication
+and review behavior are covered by deterministic unit/integration tests with
+stored sanitized official-catalog fixtures; no test depends on live university
+network availability.
 
-## Known limits and next release
+## Rollback and production boundary
 
-The Preview candidate is suitable for review, but these safeguards remain
-before merge or production promotion:
+Production aliases, production database, production Blob storage and production
+environment variables were not modified. The Preview maintenance deployment
+`dpl_B9298ZWmEa2RHQxwEpjvYoHPfteK` performed the isolated migration/seed
+rehearsal. The final review artifact is the clean deployment
+`dpl_2r9NkV5ZA4UHGapeuZQ6JEJawAvA`.
 
-1. take and restore-test a production backup, rehearse the additive migrations
-   against that restored copy, document rollback, and verify existing
-   users/courses;
-2. resolve or explicitly accept the 10 `npm audit` findings after compatibility
-   testing;
-3. complete manual keyboard/focus/screen-reader review and extend authenticated
-   write E2E beyond Pixel 7 to the remaining target devices;
-4. exercise join/roles, exam occurrence/report moderation, admin, and account
-   deletion against a production-like restored dataset;
-5. configure a monitored contact address and an approved mail provider before
-   enabling reset/verification;
-6. add required GitHub checks and branch protection because the draft PR
-   currently has no CI status checks;
-7. review production placeholders with an explicit export/backup before any
-   archive or delete action.
+Before any production migration:
 
-Keep PR #18 draft and do not merge, migrate production, or promote the Preview
-until these items are closed.
+1. take and restore-test a fresh production backup;
+2. rehearse the exact 13-file chain against the isolated restoration;
+3. record organization, programme, course, membership, curriculum and resource
+   counts before and after;
+4. run the canonical seed twice and `db:verify`;
+5. verify Owner/Co-owner/Visitor and catalog-review behavior with an approved
+   test identity;
+6. deploy the already-verified application artifact only after explicit
+   authorization.
+
+Rollback is application-first: redeploy the previous application while keeping
+the additive schema. Prefer a forward fix. If data rollback is required, use
+the pre-migration snapshot; do not drop new tables or enum values during an
+incident.

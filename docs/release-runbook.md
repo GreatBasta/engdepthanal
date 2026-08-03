@@ -1,4 +1,4 @@
-# Publishable mobile v1 release runbook
+# Multidisciplinary official catalogs release runbook
 
 This runbook is intentionally stop-the-line. A failed or unavailable gate leaves
 the branch as a preview; it does not justify a production migration or promote.
@@ -28,11 +28,12 @@ the branch as a preview; it does not justify a production migration or promote.
    additive schema. Database rollback is forward-fix by default because removing
    columns or enum values is destructive.
 
-### Organization and membership rollout
+### Organization, taxonomy and catalog rollout
 
 Run `npm run db:migrate`. The repository's migration runner takes a PostgreSQL
 advisory lock and applies each numbered Drizzle migration in its own committed
-transaction. The new files must therefore run in their numbered order:
+transaction. Files `0006` through `0012` must therefore run in their numbered
+order:
 
 1. `0006_add_course_member_roles.sql` adds the `coowner` and `visitor` enum
    values. PostgreSQL does not allow a newly-added enum value to be used until
@@ -45,6 +46,18 @@ transaction. The new files must therefore run in their numbered order:
    membership/invite roles (`editor` to `coowner`; `contributor` and `viewer`
    to `visitor`). The application stops producing the deprecated roles, but the
    old enum values remain available for a later verified cleanup.
+4. `0009_pale_doctor_octopus.sql` adds the multidisciplinary taxonomy,
+   organizational units, degree programmes and official offerings without
+   collapsing them into collaborative course pages.
+5. `0010_slim_wallow.sql` adds the deferred degree-programme bridge foreign
+   key.
+6. `0011_polite_madame_hydra.sql` adds trusted catalog boundaries, sources,
+   scans, candidates, snapshots, matches, corrections and metadata reviews.
+7. `0012_melted_strong_guy.sql` replaces the obsolete
+   university-plus-taxonomy uniqueness rule with partial taxonomy and real
+   degree-programme indexes, then adds optional enrollment unit and requested
+   programme context. Verify that institutions can retain two degrees in the
+   same academic field.
 
 Do not replace this command with `drizzle-kit migrate` for this release:
 Drizzle Kit wraps all pending PostgreSQL files in one transaction, which does
@@ -65,7 +78,8 @@ request tables can remain dormant until a forward fix is deployed.
 
 ## 3. Preview gates
 
-Deploy `release/publishable-mobile-v1` to project `engdepthanal` under team
+Deploy `feature/multidisciplinary-official-catalogs` to project
+`engdepthanal` under team
 `ste11`. Use an isolated preview DB and Blob store. Verify:
 
 - public Home, Discover, legal pages, sitemap, robots, and `/api/health`;
@@ -79,6 +93,14 @@ Deploy `release/publishable-mobile-v1` to project `engdepthanal` under team
 - exam overview/material permission/occurrence duplicate protection,
   low-confidence and threshold-qualified ranking;
 - profile edit, data export, account deletion, normal-account admin access;
+- real programme/taxonomy/Programme-not-found onboarding without waiting for a
+  catalog scan;
+- confirmed/review/outdated catalog states and official evidence links;
+- cached scan response, stale refresh, persisted progress and retry;
+- admin domain approval, connector disable/retry, evidence inspection,
+  candidate confirmation/rejection and duplicate merge;
+- metadata change review without overwriting community curriculum;
+- trusted-domain, robots, redirect, response-size and SSRF protections;
 - structured server errors and absence of credentials, private content, and
   private Blob URLs in logs.
 
