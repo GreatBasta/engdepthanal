@@ -36,12 +36,11 @@ test("signup to private course, resource upload, moderation, and denial", async 
     .fill("Politecnico di Milano");
   await page.getByRole("option").first().click();
   await page
-    .getByLabel("Your course (engineering discipline)")
-    .selectOption("computer-engineering");
+    .getByRole("combobox", { name: "Degree programme or field of study" })
+    .fill("Computer Science");
+  await page.getByRole("option", { name: /Computer Science/ }).click();
   await page.getByRole("radio", { name: "I'm actively attending" }).check();
-  await page
-    .getByRole("button", { name: "Unlock the first-year database" })
-    .click();
+  await page.getByRole("button", { name: "Save study context" }).click();
   await page.waitForURL(/\/$/);
 
   await page.goto("/courses/new");

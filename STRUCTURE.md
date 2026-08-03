@@ -1,9 +1,14 @@
-# First-Year Engineering Learning Database — Full Structure
+# Historical v0 Design — Superseded
 
-A platform where first-year engineering students see exactly what they need to
-learn, track what they have covered, and — through aggregated data from
-students who finished each subject — discover what their own university does
-**not** teach them.
+This document records the original engineering-only prototype and is retained
+for historical context. The implemented product is now the multidisciplinary
+Course Atlas described in [`README.md`](README.md); the authoritative schema is
+[`src/lib/db/schema.ts`](src/lib/db/schema.ts), not the simplified DDL below.
+
+The original prototype let students compare a canonical curriculum with
+observed course coverage. That concept remains, but it now supports flexible
+organizational units, real degree programmes, official course candidates,
+collaborative pages, and canonical templates across academic domains.
 
 Stack: Next.js (App Router) + Drizzle ORM + Postgres, matching this repo.
 

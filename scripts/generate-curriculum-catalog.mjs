@@ -1,8 +1,10 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const ACCESSED_AT = "2026-07-30";
-const GENERATED_AT = "2026-07-30T00:00:00.000Z";
+import { buildMultidisciplinaryTemplates } from "./multidisciplinary-templates.mjs";
+
+const ACCESSED_AT = "2026-08-03";
+const GENERATED_AT = "2026-08-03T00:00:00.000Z";
 
 const sources = {
   mathematics: [
@@ -264,10 +266,57 @@ function outlineTemplate([templateKey, name, category, degreePrograms, year, sem
   };
 }
 
+const domainByCategory = {
+  "health-medicine": "health-medicine",
+  "life-sciences": "life-sciences",
+  mathematics: "mathematics-statistics",
+  physics: "physical-sciences",
+  "chemistry-materials": "physical-sciences",
+  computing: "computing-information",
+  "engineering-core": "engineering-technology",
+  biomedical: "engineering-technology",
+  "architecture-design": "architecture-design",
+  "agriculture-veterinary": "agriculture-veterinary",
+  "business-economics": "business-economics",
+  law: "law",
+  "social-sciences": "social-sciences",
+  psychology: "psychology",
+  education: "education",
+  humanities: "humanities",
+  "languages-literature": "languages-literature",
+  "arts-music": "arts-music",
+  "communication-media": "communication-media",
+  interdisciplinary: "interdisciplinary-studies",
+};
+
+function completeMetadata(template) {
+  return {
+    localizedNames: { en: template.name },
+    academicDomainKey: domainByCategory[template.category],
+    typicalDegreeLevels: ["bachelor"],
+    typicalStage: `typical year ${template.typicalYear}`,
+    curricularStatus: "core",
+    validationMetadata: {
+      reviewedAt: ACCESSED_AT,
+      reviewedBy: "Course Atlas curriculum validator",
+      contentStandard: template.sourceReferences
+        .map((reference) => reference.title)
+        .join("; "),
+      notes: [
+        "Canonical synthesis only; never an official university syllabus.",
+      ],
+    },
+    ...template,
+  };
+}
+
 const templates = [
   ...legacyTemplates.map(convertLegacy),
   ...outlines.map(outlineTemplate),
-].sort((a, b) => a.templateKey.localeCompare(b.templateKey));
+  ...buildMultidisciplinaryTemplates(slugify),
+]
+  .map(completeMetadata)
+  .sort((a, b) => a.templateKey.localeCompare(b.templateKey));
 
 writeFileSync(
   resolve(process.cwd(), "curriculum", "catalog.json"),
