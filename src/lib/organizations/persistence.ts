@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/lib/db/client";
 import {
@@ -100,6 +100,7 @@ export async function persistOrganizationProgramSelection(
       and(
         eq(universityPrograms.universityId, organizationId),
         eq(universityPrograms.programId, program.id),
+        isNull(universityPrograms.degreeProgrammeId),
       ),
     )
     .limit(1);
@@ -119,9 +120,7 @@ export async function persistOrganizationProgramSelection(
       programId: program.id,
       status: selection.verified ? "verified" : "unverified",
     })
-    .onConflictDoNothing({
-      target: [universityPrograms.universityId, universityPrograms.programId],
-    })
+    .onConflictDoNothing()
     .returning({ id: universityPrograms.id });
   if (inserted) {
     return {
@@ -139,6 +138,7 @@ export async function persistOrganizationProgramSelection(
       and(
         eq(universityPrograms.universityId, organizationId),
         eq(universityPrograms.programId, program.id),
+        isNull(universityPrograms.degreeProgrammeId),
       ),
     )
     .limit(1);

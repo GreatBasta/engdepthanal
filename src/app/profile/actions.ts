@@ -11,7 +11,11 @@ import { db } from "@/lib/db/client";
 import { enrollments, students } from "@/lib/db/schema";
 import { getPrimaryEnrollmentForStudent } from "@/lib/enrollment";
 import { localeCookieName, localeSchema } from "@/lib/i18n/config";
-import { persistOrganizationProgramSelection } from "@/lib/organizations/persistence";
+import {
+  onboardingProgrammeChoiceSchema,
+  onboardingUnitChoiceSchema,
+  persistOnboardingProgrammeChoice,
+} from "@/lib/onboarding/programmes";
 import { parseOrganizationSelection } from "@/lib/organizations/schema";
 
 export async function updateProfileAction(formData: FormData) {
@@ -33,8 +37,11 @@ export async function updateProfileAction(formData: FormData) {
 }
 
 const studyContextSchema = z.object({
-  programSlug: z.string().trim().min(1).max(120),
+  programmeChoice: onboardingProgrammeChoiceSchema,
+  unitChoice: onboardingUnitChoiceSchema.optional().default(""),
   intakeYear: z.coerce.number().int().min(2000).max(2100),
+  academicContext: z.string().trim().max(160).optional().default(""),
+  requestedProgrammeName: z.string().trim().max(160).optional().default(""),
   preferredLocale: localeSchema,
 });
 
@@ -46,8 +53,11 @@ export async function updateStudyContextAction(formData: FormData) {
     formData.get("organizationSelection"),
   );
   const parsed = studyContextSchema.safeParse({
-    programSlug: formData.get("programSlug"),
+    programmeChoice: formData.get("programmeChoice"),
+    unitChoice: formData.get("unitChoice") ?? "",
     intakeYear: formData.get("intakeYear"),
+    academicContext: formData.get("academicContext") ?? "",
+    requestedProgrammeName: formData.get("requestedProgrammeName") ?? "",
     preferredLocale: formData.get("preferredLocale"),
   });
   if (!organization || !parsed.success) {
@@ -56,13 +66,14 @@ export async function updateStudyContextAction(formData: FormData) {
 
   const current = await getPrimaryEnrollmentForStudent(studentId);
   let selection: Awaited<
-    ReturnType<typeof persistOrganizationProgramSelection>
+    ReturnType<typeof persistOnboardingProgrammeChoice>
   >;
   try {
-    selection = await persistOrganizationProgramSelection(
+    selection = await persistOnboardingProgrammeChoice({
       organization,
-      parsed.data.programSlug,
-    );
+      programmeChoice: parsed.data.programmeChoice,
+      unitChoice: parsed.data.unitChoice,
+    });
   } catch {
     redirect("/profile?error=invalid-study-context");
   }
@@ -77,7 +88,10 @@ export async function updateStudyContextAction(formData: FormData) {
       .values({
         studentId,
         universityProgramId: selection.universityProgramId,
+        organizationalUnitId: selection.organizationalUnitId,
         intakeYear: parsed.data.intakeYear,
+        academicContext: parsed.data.academicContext || null,
+        requestedProgrammeName: parsed.data.requestedProgrammeName || null,
         phase: current?.phase ?? "attending",
         isPrimary: true,
       })
@@ -88,6 +102,9 @@ export async function updateStudyContextAction(formData: FormData) {
           enrollments.intakeYear,
         ],
         set: {
+          organizationalUnitId: selection.organizationalUnitId,
+          academicContext: parsed.data.academicContext || null,
+          requestedProgrammeName: parsed.data.requestedProgrammeName || null,
           isPrimary: true,
           phase: current?.phase ?? "attending",
           updatedAt: new Date(),

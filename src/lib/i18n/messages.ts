@@ -82,12 +82,38 @@ export const en = {
   "onboarding.yourUniversity": "Your university",
   "onboarding.degree": "Degree programme or field of study",
   "onboarding.pickDegree": "Pick your course…",
-  "onboarding.intake": "Intake year or academic context",
+  "onboarding.programmeSearchPlaceholder":
+    "Search official programmes and academic fields…",
+  "onboarding.programmeResults": "Degree programme and field results",
+  "onboarding.catalogChecking": "Checking the university catalogue…",
+  "onboarding.catalogUnavailable":
+    "Catalogue status is temporarily unavailable. You can still continue with an academic field.",
+  "onboarding.catalogStatus": "Catalog {status}; last checked {date}.",
+  "onboarding.catalogWillScan":
+    "No completed catalogue scan yet. A background scan will be requested after setup; it will not block your account.",
+  "onboarding.selectUniversityFirst":
+    "Select a university to see its discovered programmes. Global academic fields are always available.",
+  "onboarding.globalField": "Global field",
+  "onboarding.officialProgramme": "Official programme",
+  "onboarding.localProgramme": "Local programme",
+  "onboarding.programmeNotFound": "Programme not found",
+  "onboarding.programmeNotFoundHelp":
+    "Enter the programme name and choose a temporary broad field. You can refine it when the official catalogue becomes available.",
+  "onboarding.programmeName": "Programme name",
+  "onboarding.temporaryField": "Temporary broad field",
+  "onboarding.pickField": "Choose a broad field…",
+  "onboarding.unitOptional": "Faculty, school or department (optional)",
+  "onboarding.noUnit": "No organizational unit selected",
+  "onboarding.intake": "Intake year",
+  "onboarding.preferredLanguage": "Preferred language",
+  "onboarding.academicContextOptional": "Academic context (optional)",
+  "onboarding.academicContextPlaceholder":
+    "For example: first year, exchange semester, 2026/27 curriculum",
   "onboarding.phaseQuestion":
-    "Are you starting first year, or actively attending it?",
+    "Are you preparing to begin, or already attending this programme?",
   "onboarding.starting": "I'm starting",
   "onboarding.startingHelp":
-    "Get the full outlook of every topic and subtopic you will need to learn, and how deep each one goes.",
+    "Explore the programme and compare courses before teaching begins.",
   "onboarding.attending": "I'm actively attending",
   "onboarding.attendingHelp":
     "Track what you have covered and help map what your university really teaches.",
@@ -839,12 +865,38 @@ export const it: Messages = {
   "onboarding.yourUniversity": "La tua università",
   "onboarding.degree": "Corso di laurea o ambito di studio",
   "onboarding.pickDegree": "Scegli il tuo corso…",
+  "onboarding.programmeSearchPlaceholder":
+    "Cerca corsi di laurea ufficiali e ambiti accademici…",
+  "onboarding.programmeResults": "Risultati per corso di laurea e ambito",
+  "onboarding.catalogChecking": "Verifica del catalogo universitario…",
+  "onboarding.catalogUnavailable":
+    "Lo stato del catalogo non è temporaneamente disponibile. Puoi continuare scegliendo un ambito accademico.",
+  "onboarding.catalogStatus": "Catalogo {status}; ultimo controllo {date}.",
+  "onboarding.catalogWillScan":
+    "Non c'è ancora una scansione completata. Dopo la configurazione verrà richiesta una scansione in background, senza bloccare l'account.",
+  "onboarding.selectUniversityFirst":
+    "Seleziona un'università per vedere i corsi scoperti. Gli ambiti accademici globali sono sempre disponibili.",
+  "onboarding.globalField": "Ambito globale",
+  "onboarding.officialProgramme": "Corso ufficiale",
+  "onboarding.localProgramme": "Corso locale",
+  "onboarding.programmeNotFound": "Corso non trovato",
+  "onboarding.programmeNotFoundHelp":
+    "Inserisci il nome del corso e scegli temporaneamente un ambito generale. Potrai perfezionarlo quando il catalogo ufficiale sarà disponibile.",
+  "onboarding.programmeName": "Nome del corso",
+  "onboarding.temporaryField": "Ambito generale temporaneo",
+  "onboarding.pickField": "Scegli un ambito generale…",
+  "onboarding.unitOptional": "Facoltà, scuola o dipartimento (facoltativo)",
+  "onboarding.noUnit": "Nessuna unità organizzativa selezionata",
   "onboarding.intake": "Anno di immatricolazione",
+  "onboarding.preferredLanguage": "Lingua preferita",
+  "onboarding.academicContextOptional": "Contesto accademico (facoltativo)",
+  "onboarding.academicContextPlaceholder":
+    "Per esempio: primo anno, semestre Erasmus, ordinamento 2026/27",
   "onboarding.phaseQuestion":
-    "Stai iniziando il primo anno o lo stai già frequentando?",
+    "Devi ancora iniziare o stai già frequentando questo corso?",
   "onboarding.starting": "Sto iniziando",
   "onboarding.startingHelp":
-    "Scopri tutti gli argomenti e sottoargomenti da imparare e il livello di approfondimento richiesto.",
+    "Esplora il programma e confronta gli insegnamenti prima dell'inizio delle lezioni.",
   "onboarding.attending": "Sto già frequentando",
   "onboarding.attendingHelp":
     "Monitora ciò che hai studiato e aiuta a descrivere cosa insegna davvero la tua università.",

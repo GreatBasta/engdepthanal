@@ -111,9 +111,9 @@ async function seedAcademicTaxonomyAndPrograms() {
     fieldIdByKey.set(field.key, id);
   }
 
-  const taxonomyPrograms = academicTaxonomy.filter(
-    (field) => field.level !== "domain",
-  );
+  // Top-level domains are valid temporary onboarding choices when an
+  // institution has not published a discoverable degree catalogue yet.
+  const taxonomyPrograms = academicTaxonomy;
   const allPrograms = [
     ...taxonomyPrograms.map((field) => ({
       slug: field.key,

@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
 import type { Metadata } from "next";
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { Suspense } from "react";
 
 import { currentStudentId } from "@/auth";
 import { LanguageSelector } from "@/components/language-selector";
 import { db } from "@/lib/db/client";
-import { enrollments, programs } from "@/lib/db/schema";
+import { enrollments } from "@/lib/db/schema";
 import { getI18n } from "@/lib/i18n/server";
+import { getTaxonomyOnboardingOptions } from "@/lib/onboarding/programmes";
 import { OnboardingForm } from "./ui";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -27,11 +28,7 @@ export default async function OnboardingPage() {
     .limit(1);
   if (existing) redirect("/");
 
-  const programRows = await db
-    .select({ slug: programs.slug, name: programs.name })
-    .from(programs)
-    .orderBy(asc(programs.name));
-  const { t } = await getI18n();
+  const { t, locale } = await getI18n();
 
   return (
     <main className="mx-auto max-w-lg px-6 py-16">
@@ -44,7 +41,10 @@ export default async function OnboardingPage() {
       <p className="mb-8 text-sm text-zinc-600 dark:text-zinc-400">
         {t("onboarding.subtitle")}
       </p>
-      <OnboardingForm programs={programRows} />
+      <OnboardingForm
+        taxonomyOptions={getTaxonomyOnboardingOptions(locale)}
+        defaultLocale={locale}
+      />
     </main>
   );
 }

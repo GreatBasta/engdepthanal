@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 
 import { currentStudentId, signOut } from "@/auth";
 import { OrganizationCombobox } from "@/components/organization-combobox";
 import { db } from "@/lib/db/client";
-import { programs, students } from "@/lib/db/schema";
+import { students } from "@/lib/db/schema";
 import { getI18n } from "@/lib/i18n/server";
+import {
+  getInstitutionOnboardingOptions,
+  getTaxonomyOnboardingOptions,
+} from "@/lib/onboarding/programmes";
 import {
   getPrimaryEnrollmentForStudent,
   organizationResultFromPrimaryEnrollment,
@@ -39,7 +43,7 @@ export default async function ProfilePage({
   ]);
   const { t } = i18n;
   if (!studentId) redirect("/login?next=/profile");
-  const [[student], primaryEnrollment, degreePrograms] = await Promise.all([
+  const [[student], primaryEnrollment] = await Promise.all([
     db
       .select({
         displayName: students.displayName,
@@ -50,16 +54,18 @@ export default async function ProfilePage({
       .where(eq(students.id, studentId))
       .limit(1),
     getPrimaryEnrollmentForStudent(studentId),
-    db
-      .select({ slug: programs.slug, name: programs.name })
-      .from(programs)
-      .where(eq(programs.status, "verified"))
-      .orderBy(asc(programs.name)),
   ]);
   if (!student) redirect("/login");
   const defaultOrganization = primaryEnrollment
     ? organizationResultFromPrimaryEnrollment(primaryEnrollment)
     : null;
+  const institutionOptions = primaryEnrollment
+    ? await getInstitutionOnboardingOptions(
+        primaryEnrollment.organizationId,
+        i18n.locale,
+      )
+    : null;
+  const taxonomyOptions = getTaxonomyOnboardingOptions(i18n.locale);
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-4 py-8 sm:px-6">
@@ -136,14 +142,44 @@ export default async function ProfilePage({
             <label className="block text-sm font-semibold">
               {t("profile.degree")}
               <select
-                name="programSlug"
-                defaultValue={primaryEnrollment.programSlug}
+                name="programmeChoice"
+                defaultValue={`local:${primaryEnrollment.universityProgramId}`}
                 required
                 className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3"
               >
-                {degreePrograms.map((program) => (
-                  <option key={program.slug} value={program.slug}>
-                    {program.name}
+                {institutionOptions?.programmes.length ? (
+                  <optgroup label={t("onboarding.officialProgramme")}>
+                    {institutionOptions.programmes.map((program) => (
+                      <option key={program.value} value={program.value}>
+                        {program.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                ) : null}
+                <optgroup label={t("onboarding.globalField")}>
+                  {taxonomyOptions.map((program) => (
+                    <option key={program.value} value={program.value}>
+                      {program.name}
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </label>
+            <label className="block text-sm font-semibold">
+              {t("onboarding.unitOptional")}
+              <select
+                name="unitChoice"
+                defaultValue={
+                  primaryEnrollment.organizationalUnitId
+                    ? `unit:${primaryEnrollment.organizationalUnitId}`
+                    : ""
+                }
+                className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3"
+              >
+                <option value="">{t("onboarding.noUnit")}</option>
+                {(institutionOptions?.units ?? []).map((unit) => (
+                  <option key={unit.value} value={unit.value}>
+                    {unit.name} · {unit.type.replaceAll("_", " ")}
                   </option>
                 ))}
               </select>
@@ -157,6 +193,24 @@ export default async function ProfilePage({
                 max={2100}
                 required
                 defaultValue={primaryEnrollment.intakeYear}
+                className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3"
+              />
+            </label>
+            <label className="block text-sm font-semibold">
+              {t("onboarding.academicContextOptional")}
+              <input
+                name="academicContext"
+                maxLength={160}
+                defaultValue={primaryEnrollment.academicContext ?? ""}
+                className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3"
+              />
+            </label>
+            <label className="block text-sm font-semibold">
+              {t("onboarding.programmeName")} · {t("onboarding.programmeNotFound")}
+              <input
+                name="requestedProgrammeName"
+                maxLength={160}
+                defaultValue={primaryEnrollment.requestedProgrammeName ?? ""}
                 className="mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3"
               />
             </label>

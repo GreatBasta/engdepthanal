@@ -519,7 +519,12 @@ export const universityPrograms = pgTable(
       .defaultNow(),
   },
   (t) => [
-    unique().on(t.universityId, t.programId),
+    uniqueIndex("uq_university_program_taxonomy")
+      .on(t.universityId, t.programId)
+      .where(sql`${t.degreeProgrammeId} is null`),
+    uniqueIndex("uq_university_program_degree")
+      .on(t.degreeProgrammeId)
+      .where(sql`${t.degreeProgrammeId} is not null`),
     index("idx_university_programs_organization").on(t.universityId),
     index("idx_university_programs_unit").on(t.organizationalUnitId),
     uniqueIndex("uq_university_program_external")
@@ -1264,8 +1269,12 @@ export const enrollments = pgTable(
     universityProgramId: uuid("university_program_id")
       .notNull()
       .references(() => universityPrograms.id),
+    organizationalUnitId: uuid("organizational_unit_id").references(
+      () => organizationalUnits.id,
+    ),
     intakeYear: smallint("intake_year").notNull(), // cohort; curricula change
     academicContext: text("academic_context"),
+    requestedProgrammeName: text("requested_programme_name"),
     phase: enrollmentPhase("phase").notNull(),
     isPrimary: boolean("is_primary").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -1278,6 +1287,7 @@ export const enrollments = pgTable(
   (t) => [
     unique().on(t.studentId, t.universityProgramId, t.intakeYear),
     index("idx_enrollments_student").on(t.studentId),
+    index("idx_enrollments_unit").on(t.organizationalUnitId),
     uniqueIndex("uq_enrollments_one_primary")
       .on(t.studentId)
       .where(sql`${t.isPrimary} = true`),
