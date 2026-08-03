@@ -1,0 +1,1 @@
+ALTER TABLE "university_programs" ADD CONSTRAINT "university_programs_degree_programme_id_degree_programmes_id_fk" FOREIGN KEY ("degree_programme_id") REFERENCES "public"."degree_programmes"("id") ON DELETE no action ON UPDATE no action;

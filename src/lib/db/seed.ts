@@ -7,9 +7,12 @@ import {
   type CurriculumCatalog,
   validateCurriculumCatalog,
 } from "../curriculum/schema";
+import { academicTaxonomy } from "../academics/taxonomy";
 import { closeDb, db } from "./client";
 import {
   curriculumTemplates,
+  academicFields,
+  programAcademicFields,
   programs,
   subjects,
   subtopicPrerequisites,
@@ -21,14 +24,15 @@ import {
 } from "./schema";
 
 /**
- * Idempotent seed: canonical programs + the curriculum JSON files in
+ * Idempotent seed: multilingual academic taxonomy, canonical programmes and
+ * the curriculum JSON files in
  * curriculum/. Everything is keyed on slugs, so re-running updates names,
  * descriptions, depths, and ordering in place — it never duplicates.
  *
  * Run with: npm run db:seed
  */
 
-const ENGINEERING_PROGRAMS = [
+const LEGACY_ENGINEERING_PROGRAMS = [
   { slug: "mechanical-engineering", name: "Mechanical Engineering" },
   { slug: "electrical-engineering", name: "Electrical Engineering" },
   { slug: "civil-engineering", name: "Civil Engineering" },
@@ -72,17 +76,105 @@ const CURRICULUM_FILES = [
   "chemistry-1.json",
 ];
 
-async function seedPrograms() {
-  for (const program of ENGINEERING_PROGRAMS) {
+async function seedAcademicTaxonomyAndPrograms() {
+  const fieldIdByKey = new Map<string, string>();
+  for (const field of academicTaxonomy) {
+    const id = deterministicUuid(`academic-field:${field.key}`);
+    const parentId = field.parentKey
+      ? fieldIdByKey.get(field.parentKey) ?? null
+      : null;
+    await db
+      .insert(academicFields)
+      .values({
+        id,
+        stableKey: field.key,
+        parentId,
+        level: field.level,
+        labels: field.labels,
+        aliases: field.aliases,
+        typicalDegreeLevels: field.typicalDegreeLevels,
+        classificationReferences: field.classificationReferences,
+      })
+      .onConflictDoUpdate({
+        target: academicFields.stableKey,
+        set: {
+          parentId,
+          level: field.level,
+          labels: field.labels,
+          aliases: field.aliases,
+          typicalDegreeLevels: field.typicalDegreeLevels,
+          classificationReferences: field.classificationReferences,
+          active: true,
+          updatedAt: new Date(),
+        },
+      });
+    fieldIdByKey.set(field.key, id);
+  }
+
+  const taxonomyPrograms = academicTaxonomy.filter(
+    (field) => field.level !== "domain",
+  );
+  const allPrograms = [
+    ...taxonomyPrograms.map((field) => ({
+      slug: field.key,
+      name: field.labels.en,
+      localizedNames: field.labels,
+      aliases: field.aliases,
+      typicalDegreeLevels: field.typicalDegreeLevels,
+      academicFieldKey: field.key,
+    })),
+    ...LEGACY_ENGINEERING_PROGRAMS.map((program) => ({
+      ...program,
+      localizedNames: { en: program.name },
+      aliases: { en: [], it: [] },
+      typicalDegreeLevels: ["bachelor", "master"] as const,
+      academicFieldKey:
+        program.slug === "general-engineering" ? "engineering" : program.slug,
+    })),
+  ];
+
+  for (const program of allPrograms) {
     await db
       .insert(programs)
-      .values({ ...program, status: "verified" })
+      .values({
+        slug: program.slug,
+        name: program.name,
+        localizedNames: program.localizedNames,
+        aliases: program.aliases,
+        typicalDegreeLevels: [...program.typicalDegreeLevels],
+        status: "verified",
+      })
       .onConflictDoUpdate({
         target: programs.slug,
-        set: { name: program.name },
+        set: {
+          name: program.name,
+          localizedNames: program.localizedNames,
+          aliases: program.aliases,
+          typicalDegreeLevels: [...program.typicalDegreeLevels],
+        },
       });
+
+    const academicFieldId = fieldIdByKey.get(program.academicFieldKey);
+    if (!academicFieldId) continue;
+    const [programRow] = await db
+      .select({ id: programs.id })
+      .from(programs)
+      .where(sql`${programs.slug} = ${program.slug}`)
+      .limit(1);
+    if (programRow) {
+      await db
+        .insert(programAcademicFields)
+        .values({
+          programId: programRow.id,
+          academicFieldId,
+          isPrimary: true,
+        })
+        .onConflictDoNothing();
+    }
   }
-  console.log(`Seeded ${ENGINEERING_PROGRAMS.length} programs`);
+  console.log(
+    `Seeded ${academicTaxonomy.length} academic fields and ${allPrograms.length} programme choices`,
+  );
 }
 
 async function seedCurriculum(file: string) {
@@ -342,12 +434,18 @@ async function seedCatalog() {
         templateKey: template.templateKey,
         version: template.version,
         name: template.name,
+        localizedNames: template.localizedNames,
         description: template.description,
         category: template.category,
+        academicDomainKey: template.academicDomainKey,
         disciplineTags: template.disciplineTags,
         recommendedDegreePrograms: template.recommendedDegreePrograms,
         typicalYear: template.typicalYear,
         typicalSemester: template.typicalSemester,
+        typicalDegreeLevels: template.typicalDegreeLevels,
+        typicalStage: template.typicalStage,
+        curricularStatus: template.curricularStatus,
+        validationMetadata: template.validationMetadata,
         year: template.typicalYear,
         sourceReferences: template.sourceReferences,
       });
@@ -421,7 +519,7 @@ async function seedCatalog() {
 }
 
 async function main() {
-  await seedPrograms();
+  await seedAcademicTaxonomyAndPrograms();
   for (const file of CURRICULUM_FILES) {
     await seedCurriculum(file);
   }

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { academicTaxonomy, degreeLevels } from "../academics/taxonomy";
 import { curriculumCategoryKeys } from "./taxonomy";
 
 export const curriculumDepthLevels = [
@@ -41,14 +42,30 @@ export const curriculumTopicSchema = z.object({
 export const curriculumTemplateSchema = z.object({
   templateKey: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
   name: z.string().trim().min(1),
+  localizedNames: z.record(z.string().trim().min(1)).default({}),
   description: z.string().trim().min(1),
   category: z.enum(curriculumCategoryKeys),
+  academicDomainKey: z
+    .string()
+    .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+    .optional(),
   disciplineTags: z.array(z.string().trim().min(1)).min(1),
   recommendedDegreePrograms: z.array(z.string().trim().min(1)).min(1),
   typicalYear: z.number().int().min(1).max(6),
   typicalSemester: z.number().int().min(1).max(12),
+  typicalDegreeLevels: z.array(z.enum(degreeLevels)).default([]),
+  typicalStage: z.string().trim().min(1).optional(),
+  curricularStatus: z.enum(["core", "optional", "mixed"]).default("core"),
   version: z.number().int().positive(),
   sourceReferences: z.array(sourceReferenceSchema).min(1),
+  validationMetadata: z
+    .object({
+      reviewedAt: z.string().date().optional(),
+      reviewedBy: z.string().trim().min(1).optional(),
+      contentStandard: z.string().trim().min(1).optional(),
+      notes: z.array(z.string().trim().min(1)).optional(),
+    })
+    .default({}),
   topics: z.array(curriculumTopicSchema).min(1),
 });
 
@@ -84,6 +101,11 @@ export function validateCurriculumCatalog(input: unknown): {
   const issues: CurriculumValidationIssue[] = [];
   const templateKeys = new Set<string>();
   const globalStableIds = new Set<string>();
+  const domainKeys = new Set(
+    academicTaxonomy
+      .filter((field) => field.level === "domain")
+      .map((field) => field.key),
+  );
 
   for (const template of catalog.templates) {
     if (templateKeys.has(template.templateKey)) {
@@ -93,6 +115,12 @@ export function validateCurriculumCatalog(input: unknown): {
       });
     }
     templateKeys.add(template.templateKey);
+    if (template.academicDomainKey && !domainKeys.has(template.academicDomainKey)) {
+      issues.push({
+        path: `${template.templateKey}.academicDomainKey`,
+        message: "must reference a top-level academic domain",
+      });
+    }
     if (!template.disciplineTags.includes(template.category)) {
       issues.push({
         path: `${template.templateKey}.disciplineTags`,
