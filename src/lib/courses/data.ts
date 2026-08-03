@@ -16,11 +16,15 @@ import {
 } from "@/lib/db/schema";
 
 import {
+  canContribute,
   canEditCourse,
+  canManageCoownershipRequests,
+  canManageCourseSettings,
   canManageMembers,
   canModerateCourse,
   canPostToCourse,
   canViewCourse,
+  effectiveCourseRole,
   type CoursePermissionContext,
 } from "./permissions";
 
@@ -165,12 +169,14 @@ export async function getCourseBySlugForViewer(
     versions,
     permissions: {
       canEdit: canEditCourse(context),
+      canContribute: canContribute(context),
+      canManageCourseSettings: canManageCourseSettings(context),
+      canManageCoownershipRequests: canManageCoownershipRequests(context),
       canManageMembers: canManageMembers(context),
       canPost: canPostToCourse(context),
       canModerate: canModerateCourse(context),
-      role: context.membership?.role ?? null,
+      role: effectiveCourseRole(context.membership?.role),
       attendance: context.membership?.attendance ?? null,
     },
   };
 }
-

@@ -33,6 +33,12 @@ body {
   background-attachment: fixed;
 }
 
+@media (max-width: 767px) {
+  body {
+    background-attachment: scroll;
+  }
+}
+
 * {
   min-width: 0;
 }

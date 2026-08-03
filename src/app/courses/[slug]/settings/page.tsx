@@ -10,11 +10,10 @@ import {
   universities,
   universityPrograms,
 } from "@/lib/db/schema";
+import { OrganizationCombobox } from "@/components/organization-combobox";
+import { getI18n } from "@/lib/i18n/server";
 
-import {
-  archiveCourseAction,
-  updateCourseSettingsAction,
-} from "../actions";
+import { archiveCourseAction, updateCourseSettingsAction } from "../actions";
 import {
   moderateCourseContentAction,
   permanentlyDeleteCourseAttachmentAction,
@@ -27,44 +26,95 @@ export default async function GeneralCourseSettings({
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ saved?: string }>;
 }) {
-  const [{ slug }, query, studentId] = await Promise.all([
+  const [{ slug }, query, studentId, i18n] = await Promise.all([
     params,
     searchParams,
     currentStudentId(),
+    getI18n(),
   ]);
+  const { t, formatDate } = i18n;
   const detail = await getCourseBySlugForViewer(slug, studentId);
-  if (!detail?.permissions.canEdit) notFound();
-  const [deletedAttachments, programOptions] = await Promise.all([
-    db
-      .select({
-        id: courseAttachments.id,
-        fileName: courseAttachments.fileName,
-        sizeBytes: courseAttachments.sizeBytes,
-        deletedAt: courseAttachments.deletedAt,
-      })
-      .from(courseAttachments)
-      .where(
-        and(
-          eq(courseAttachments.coursePageId, detail.course.id),
-          isNotNull(courseAttachments.deletedAt),
-        ),
-      )
-      .orderBy(desc(courseAttachments.deletedAt)),
-    db
-      .select({
-        id: universityPrograms.id,
-        universityName: universities.name,
-        programName: programs.name,
-        localName: universityPrograms.localName,
-      })
-      .from(universityPrograms)
-      .innerJoin(
-        universities,
-        eq(universityPrograms.universityId, universities.id),
-      )
-      .innerJoin(programs, eq(universityPrograms.programId, programs.id))
-      .orderBy(asc(universities.name), asc(programs.name)),
-  ]);
+  if (!detail?.permissions.canManageCourseSettings) notFound();
+  const [deletedAttachments, programOptions, organizationRows] =
+    await Promise.all([
+      db
+        .select({
+          id: courseAttachments.id,
+          fileName: courseAttachments.fileName,
+          sizeBytes: courseAttachments.sizeBytes,
+          deletedAt: courseAttachments.deletedAt,
+        })
+        .from(courseAttachments)
+        .where(
+          and(
+            eq(courseAttachments.coursePageId, detail.course.id),
+            isNotNull(courseAttachments.deletedAt),
+          ),
+        )
+        .orderBy(desc(courseAttachments.deletedAt)),
+      db
+        .select({ slug: programs.slug, name: programs.name })
+        .from(programs)
+        .where(eq(programs.status, "verified"))
+        .orderBy(asc(programs.name)),
+      db
+        .select({
+          localId: universities.id,
+          rorId: universities.rorId,
+          canonicalName: universities.canonicalName,
+          displayName: universities.displayName,
+          fallbackName: universities.name,
+          aliases: universities.aliases,
+          acronyms: universities.acronyms,
+          organizationType: universities.organizationType,
+          city: universities.city,
+          region: universities.region,
+          countryCode: universities.countryCode,
+          countryName: universities.countryName,
+          domains: universities.domains,
+          websiteUrl: universities.websiteUrl,
+          externalSource: universities.externalSource,
+          externalUpdatedAt: universities.externalUpdatedAt,
+          verificationStatus: universities.status,
+          programSlug: programs.slug,
+        })
+        .from(universityPrograms)
+        .innerJoin(
+          universities,
+          eq(universityPrograms.universityId, universities.id),
+        )
+        .innerJoin(programs, eq(universityPrograms.programId, programs.id))
+        .where(eq(universityPrograms.id, detail.course.universityProgramId))
+        .limit(1),
+    ]);
+  const organization = organizationRows[0];
+  if (!organization) notFound();
+  const canonicalName =
+    organization.canonicalName ??
+    organization.displayName ??
+    organization.fallbackName;
+  const defaultOrganization = {
+    localId: organization.localId,
+    rorId: organization.rorId,
+    canonicalName,
+    displayName: organization.displayName ?? canonicalName,
+    aliases: organization.aliases,
+    acronyms: organization.acronyms,
+    organizationType: organization.organizationType ?? "education",
+    city: organization.city,
+    region: organization.region,
+    countryCode: organization.countryCode,
+    countryName: organization.countryName,
+    domains: organization.domains,
+    websiteUrl: organization.websiteUrl,
+    source:
+      organization.externalSource === "ror" && organization.rorId
+        ? ("ror" as const)
+        : ("local" as const),
+    verified: organization.verificationStatus === "verified",
+    externalUpdatedAt:
+      organization.externalUpdatedAt?.toISOString().slice(0, 10) ?? null,
+  };
   const input =
     "mt-1 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-slate-950";
 
@@ -75,7 +125,7 @@ export default async function GeneralCourseSettings({
           role="status"
           className="rounded-xl bg-emerald-50 p-4 text-sm font-medium text-emerald-800"
         >
-          Course settings saved.
+          {t("settings.saved")}
         </p>
       ) : null}
       <form
@@ -85,23 +135,31 @@ export default async function GeneralCourseSettings({
         <input type="hidden" name="coursePageId" value={detail.course.id} />
         <input type="hidden" name="courseSlug" value={slug} />
         <input type="hidden" name="returnTo" value="general" />
+        <input
+          type="hidden"
+          name="universityProgramId"
+          value={detail.course.universityProgramId}
+        />
+        <OrganizationCombobox
+          name="organizationSelection"
+          defaultOrganization={defaultOrganization}
+        />
         <label className="block text-sm font-semibold">
-          University and degree program
+          {t("settings.degree")}
           <select
-            name="universityProgramId"
-            defaultValue={detail.course.universityProgramId}
+            name="programSlug"
+            defaultValue={organization.programSlug}
             className={input}
           >
             {programOptions.map((option) => (
-              <option key={option.id} value={option.id}>
-                {option.universityName} —{" "}
-                {option.localName || option.programName}
+              <option key={option.slug} value={option.slug}>
+                {option.name}
               </option>
             ))}
           </select>
         </label>
         <label className="block text-sm font-semibold">
-          Local course name
+          {t("settings.localName")}
           <input
             name="localName"
             required
@@ -111,7 +169,7 @@ export default async function GeneralCourseSettings({
         </label>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="block text-sm font-semibold">
-            Code
+            {t("settings.code")}
             <input
               name="courseCode"
               defaultValue={detail.course.courseCode ?? ""}
@@ -119,7 +177,7 @@ export default async function GeneralCourseSettings({
             />
           </label>
           <label className="block text-sm font-semibold">
-            Professor
+            {t("course.professor")}
             <input
               name="professorName"
               defaultValue={detail.course.professorName ?? ""}
@@ -127,7 +185,7 @@ export default async function GeneralCourseSettings({
             />
           </label>
           <label className="block text-sm font-semibold">
-            Academic year
+            {t("course.academicYear")}
             <input
               name="academicYear"
               required
@@ -136,7 +194,7 @@ export default async function GeneralCourseSettings({
             />
           </label>
           <label className="block text-sm font-semibold">
-            Cohort year
+            {t("settings.cohortYear")}
             <input
               name="cohortYear"
               type="number"
@@ -147,7 +205,7 @@ export default async function GeneralCourseSettings({
             />
           </label>
           <label className="block text-sm font-semibold">
-            Semester
+            {t("course.semester")}
             <input
               name="semester"
               type="number"
@@ -159,7 +217,7 @@ export default async function GeneralCourseSettings({
           </label>
         </div>
         <label className="block text-sm font-semibold">
-          Description
+          {t("settings.description")}
           <textarea
             name="description"
             rows={5}
@@ -173,16 +231,17 @@ export default async function GeneralCourseSettings({
           value={detail.course.visibility}
         />
         <button className="min-h-11 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white">
-          Save settings
+          {t("settings.save")}
         </button>
       </form>
 
       {deletedAttachments.length ? (
         <section className="rounded-2xl border border-rose-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold">Hidden attachments</h2>
+          <h2 className="text-lg font-bold">
+            {t("settings.hiddenAttachments")}
+          </h2>
           <p className="mt-1 text-sm text-slate-600">
-            Moderated files remain recoverable until an editor permanently
-            removes both the private Blob object and its database metadata.
+            {t("settings.hiddenHelp")}
           </p>
           <ul className="mt-4 space-y-3">
             {deletedAttachments.map((attachment) => (
@@ -195,8 +254,12 @@ export default async function GeneralCourseSettings({
                     {attachment.fileName}
                   </p>
                   <p className="text-xs text-slate-500">
-                    {Math.ceil(attachment.sizeBytes / 1024)} KB · hidden{" "}
-                    {attachment.deletedAt?.toLocaleDateString("en")}
+                    {Math.ceil(attachment.sizeBytes / 1024)} KB ·{" "}
+                    {t("settings.hiddenOn", {
+                      date: attachment.deletedAt
+                        ? formatDate(attachment.deletedAt)
+                        : t("course.notSpecified"),
+                    })}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-start gap-2">
@@ -207,11 +270,7 @@ export default async function GeneralCourseSettings({
                       value={detail.course.id}
                     />
                     <input type="hidden" name="courseSlug" value={slug} />
-                    <input
-                      type="hidden"
-                      name="targetType"
-                      value="attachment"
-                    />
+                    <input type="hidden" name="targetType" value="attachment" />
                     <input
                       type="hidden"
                       name="targetId"
@@ -228,12 +287,12 @@ export default async function GeneralCourseSettings({
                       value="restore"
                       className="min-h-11 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold"
                     >
-                      Restore
+                      {t("common.restore")}
                     </button>
                   </form>
                   <details className="rounded-xl border border-rose-300 bg-white">
                     <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-semibold text-rose-800">
-                      Delete permanently
+                      {t("settings.deletePermanent")}
                     </summary>
                     <form
                       action={permanentlyDeleteCourseAttachmentAction}
@@ -251,8 +310,7 @@ export default async function GeneralCourseSettings({
                         value={attachment.id}
                       />
                       <p className="text-xs text-slate-600">
-                        This removes the private Blob object and cannot be
-                        undone.
+                        {t("settings.deleteAttachmentHelp")}
                       </p>
                       <button
                         type="submit"
@@ -260,7 +318,7 @@ export default async function GeneralCourseSettings({
                         value="delete"
                         className="mt-3 min-h-11 w-full rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white"
                       >
-                        Confirm permanent deletion
+                        {t("settings.confirmDelete")}
                       </button>
                     </form>
                   </details>
@@ -273,15 +331,15 @@ export default async function GeneralCourseSettings({
 
       {detail.permissions.role === "owner" ? (
         <section className="rounded-2xl border border-rose-200 bg-white p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-rose-900">Course lifecycle</h2>
+          <h2 className="text-lg font-bold text-rose-900">
+            {t("settings.lifecycle")}
+          </h2>
           <p className="mt-1 text-sm text-slate-600">
-            Archive this custom course before deleting it. Archiving removes it
-            from Discover and member access, but you can restore it from My
-            courses.
+            {t("settings.lifecycleHelp")}
           </p>
           <details className="mt-4 rounded-xl border border-rose-300">
             <summary className="flex min-h-11 cursor-pointer items-center px-4 text-sm font-semibold text-rose-800">
-              Archive course
+              {t("settings.archive")}
             </summary>
             <form
               action={archiveCourseAction}
@@ -293,11 +351,10 @@ export default async function GeneralCourseSettings({
                 value={detail.course.id}
               />
               <p className="text-sm text-slate-600">
-                You can restore it later or permanently delete it from the
-                archived section.
+                {t("settings.archiveHelp")}
               </p>
               <button className="mt-3 min-h-11 rounded-xl bg-rose-700 px-4 text-sm font-semibold text-white">
-                Confirm archive
+                {t("settings.confirmArchive")}
               </button>
             </form>
           </details>

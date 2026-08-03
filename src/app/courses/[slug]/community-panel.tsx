@@ -81,7 +81,7 @@ export async function CommunityPanel({
           </form>
         ) : (
           <div className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm text-zinc-600 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400">
-            Course members with contributor access can participate. Public
+            Visitors, Co-owners and the Owner can participate. Public
             readers can still follow the discussion.
           </div>
         )}

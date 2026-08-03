@@ -12,7 +12,11 @@ import {
   type DuplicateCourseWarning,
 } from "@/lib/courses/create";
 import { db } from "@/lib/db/client";
-import { coursePages, universityPrograms } from "@/lib/db/schema";
+import { coursePages } from "@/lib/db/schema";
+import { getPrimaryEnrollmentForStudent } from "@/lib/enrollment";
+import { persistOrganizationProgramSelection } from "@/lib/organizations/persistence";
+import { parseOrganizationSelection } from "@/lib/organizations/schema";
+import { getI18n } from "@/lib/i18n/server";
 
 export interface CreateCourseState {
   error: string | null;
@@ -32,7 +36,6 @@ const optionalInteger = (minimum: number, maximum: number) =>
   );
 
 const createCourseSchema = z.object({
-  universityProgramId: z.string().uuid(),
   localName: z.string().trim().min(2).max(180),
   courseCode: optionalText(40),
   professorName: optionalText(120),
@@ -52,11 +55,11 @@ export async function createCourseAction(
   _previous: CreateCourseState,
   formData: FormData,
 ): Promise<CreateCourseState> {
-  const studentId = await currentStudentId();
+  const [studentId, i18n] = await Promise.all([currentStudentId(), getI18n()]);
+  const { t } = i18n;
   if (!studentId) redirect("/login?next=/courses/new");
 
   const parsed = createCourseSchema.safeParse({
-    universityProgramId: formData.get("universityProgramId"),
     localName: formData.get("localName"),
     courseCode: formData.get("courseCode"),
     professorName: formData.get("professorName"),
@@ -70,18 +73,57 @@ export async function createCourseAction(
   });
   if (!parsed.success) {
     return {
-      error: parsed.error.issues[0]?.message ?? "Check the course details.",
+      error: t("create.invalid"),
       duplicates: [],
     };
   }
 
-  const [universityProgram] = await db
-    .select({ id: universityPrograms.id })
-    .from(universityPrograms)
-    .where(eq(universityPrograms.id, parsed.data.universityProgramId))
-    .limit(1);
-  if (!universityProgram) {
-    return { error: "That university program is unavailable.", duplicates: [] };
+  let universityProgramId: string;
+  if (formData.get("useDifferentOrganization") === "yes") {
+    const organization = parseOrganizationSelection(
+      formData.get("organizationSelection"),
+    );
+    const programSlug = z
+      .string()
+      .trim()
+      .min(1)
+      .max(120)
+      .safeParse(formData.get("programSlug"));
+    if (!organization || !programSlug.success) {
+      return {
+        error: t("create.selectOrganization"),
+        duplicates: [],
+      };
+    }
+    try {
+      const selection = await persistOrganizationProgramSelection(
+        organization,
+        programSlug.data,
+      );
+      universityProgramId = selection.universityProgramId;
+    } catch {
+      return {
+        error: t("create.organizationUnavailable"),
+        duplicates: [],
+      };
+    }
+  } else {
+    const primary = await getPrimaryEnrollmentForStudent(studentId);
+    const submittedProgram = z
+      .string()
+      .uuid()
+      .safeParse(formData.get("universityProgramId"));
+    if (!primary) redirect("/onboarding");
+    if (
+      !submittedProgram.success ||
+      submittedProgram.data !== primary.universityProgramId
+    ) {
+      return {
+        error: t("create.contextChanged"),
+        duplicates: [],
+      };
+    }
+    universityProgramId = primary.universityProgramId;
   }
 
   // A lightweight server-side creation limit prevents accidental or scripted
@@ -98,12 +140,16 @@ export async function createCourseAction(
     );
   if (Number(recent?.value ?? 0) >= 10) {
     return {
-      error: "You have created several courses recently. Try again in an hour.",
+      error: t("create.rateLimited"),
       duplicates: [],
     };
   }
 
-  const input = { ...parsed.data, createdBy: studentId };
+  const input = {
+    ...parsed.data,
+    universityProgramId,
+    createdBy: studentId,
+  };
   const duplicates = await findDuplicateCourses(input);
   const duplicateConfirmed = formData.get("confirmDuplicate") === "yes";
   if (duplicates.length > 0 && !duplicateConfirmed) {
@@ -116,13 +162,14 @@ export async function createCourseAction(
   } catch (error) {
     console.error("course creation failed", error);
     return {
-      error: "The course could not be created. Please try again.",
+      error: t("create.failed"),
       duplicates: [],
     };
   }
 
   revalidatePath("/courses");
+  revalidatePath("/");
   revalidatePath("/my-courses");
   revalidateTag("course-directory");
-  redirect(`/courses/${course.slug}?tab=curriculum`);
+  redirect(`/courses/${course.slug}/settings/curriculum`);
 }

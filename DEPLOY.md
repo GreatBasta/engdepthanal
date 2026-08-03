@@ -45,21 +45,15 @@ Keep this string handy — it's your `DATABASE_URL`.
    (toggle "Override" on) to:
 
    ```
-   npm run db:deploy && npm run build
+   npm run build
    ```
 
-   `db:deploy` applies migrations and re-runs the idempotent seed, but **only
-   when `VERCEL_ENV=production`**. Preview builds print a "skipped" line and
-   touch nothing, so they can never race or mutate the production database. It
-   also holds a Postgres advisory lock, so two concurrent production builds
-   serialise instead of running the same migrations at once.
+   Database migrations and seed writes must not run in Vercel builds. Preview
+   builds can run concurrently and should never mutate the production
+   database.
 
-   This keeps production self-healing: a deploy can no longer ship code that
-   expects tables the database doesn't have yet.
-
-5. (Optional) You can still run the database steps by hand from a trusted
-   checkout — useful for a first initialisation, or to migrate without
-   deploying:
+5. Initialize the database once from a trusted checkout after linking the
+   Vercel project and pulling its development variables:
 
    ```bash
    vercel link
@@ -70,8 +64,8 @@ Keep this string handy — it's your `DATABASE_URL`.
 
    Drizzle records applied migrations, and the seed upserts programs,
    subjects, topics, and subtopics by their unique keys, so both commands are
-   safe to repeat deliberately. Locally, `DB_DEPLOY=1 npm run db:deploy` does
-   both in one step.
+   safe to repeat deliberately. They are kept outside the deployment build so
+   previews cannot race or modify production data.
 
 6. Click **Deploy**. Wait ~2 minutes.
 

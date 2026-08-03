@@ -24,6 +24,7 @@ export default async function CurriculumSettings({
       coursePageId={detail.course.id}
       courseSlug={slug}
       canEdit
+      lastAppliedAt={detail.course.updatedAt}
       selectedTopic={query.topic}
       settingsMode
       viewerStudentId={studentId}

@@ -5,17 +5,21 @@ import { and, count, eq, gt, gte, sql } from "drizzle-orm";
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { getI18n } from "@/lib/i18n/server";
 
 import { currentStudentId } from "@/auth";
 import { courseDuplicateKey } from "@/lib/courses/core";
+import { persistOrganizationProgramSelection } from "@/lib/organizations/persistence";
+import { parseOrganizationSelection } from "@/lib/organizations/schema";
 import {
   archiveOwnedCourse,
   permanentlyDeleteOwnedCourse,
   restoreOwnedCourse,
 } from "@/lib/courses/lifecycle";
 import {
-  canEditCourse,
+  canManageCourseSettings,
   canManageMembers,
+  effectiveCourseRole,
   loadCoursePermissionContext,
 } from "@/lib/courses/permissions";
 import { db } from "@/lib/db/client";
@@ -32,15 +36,13 @@ export interface InviteMemberState {
   inviteUrl: string | null;
 }
 
-const memberRole = z.enum(["owner", "editor", "contributor", "viewer"]);
-const inviteRole = z.enum(["editor", "contributor", "viewer"]);
 const attendance = z.enum(["attended", "not_attended"]);
 
 const manageMemberSchema = z.object({
   coursePageId: z.string().uuid(),
   courseSlug: z.string().min(1).max(120),
   studentId: z.string().uuid(),
-  role: memberRole,
+  role: z.literal("visitor"),
   attendance,
 });
 
@@ -48,7 +50,6 @@ const inviteSchema = z.object({
   coursePageId: z.string().uuid(),
   courseSlug: z.string().min(1).max(120),
   email: z.string().trim().toLowerCase().email().max(320),
-  role: inviteRole,
   attendance,
 });
 
@@ -109,19 +110,42 @@ export async function updateCourseSettingsAction(formData: FormData) {
     parsed.data.coursePageId,
     studentId,
   );
-  if (!context || !canEditCourse(context)) return;
+  if (!context || !canManageCourseSettings(context)) return;
 
   const { coursePageId, courseSlug, returnTo, ...course } = parsed.data;
+  let universityProgramId = course.universityProgramId;
+  if (returnTo === "general") {
+    const organization = parseOrganizationSelection(
+      formData.get("organizationSelection"),
+    );
+    const programSlug = z
+      .string()
+      .trim()
+      .min(1)
+      .max(120)
+      .safeParse(formData.get("programSlug"));
+    if (!organization || !programSlug.success) return;
+    try {
+      const selection = await persistOrganizationProgramSelection(
+        organization,
+        programSlug.data,
+      );
+      universityProgramId = selection.universityProgramId;
+    } catch {
+      return;
+    }
+  }
+  const updatedCourse = { ...course, universityProgramId };
   await db
     .update(coursePages)
     .set({
-      ...course,
-      courseCode: course.courseCode ?? null,
-      professorName: course.professorName ?? null,
-      cohortYear: course.cohortYear ?? null,
-      semester: course.semester ?? null,
-      description: course.description ?? null,
-      duplicateKey: courseDuplicateKey(course),
+      ...updatedCourse,
+      courseCode: updatedCourse.courseCode ?? null,
+      professorName: updatedCourse.professorName ?? null,
+      cohortYear: updatedCourse.cohortYear ?? null,
+      semester: updatedCourse.semester ?? null,
+      description: updatedCourse.description ?? null,
+      duplicateKey: courseDuplicateKey(updatedCourse),
       updatedAt: new Date(),
     })
     .where(
@@ -227,11 +251,13 @@ export async function joinCourseAction(formData: FormData) {
     .values({
       coursePageId: parsed.data.coursePageId,
       studentId,
-      role: "viewer",
+      role: "visitor",
       attendance: parsed.data.attendance,
     })
     .onConflictDoNothing();
   revalidatePath(`/courses/${parsed.data.courseSlug}`);
+  revalidatePath("/");
+  revalidatePath("/my-courses");
   redirect(`/courses/${parsed.data.courseSlug}?tab=curriculum`);
 }
 
@@ -249,16 +275,16 @@ export async function inviteMemberAction(
   _previous: InviteMemberState,
   formData: FormData,
 ): Promise<InviteMemberState> {
+  const { t } = await getI18n();
   const parsed = inviteSchema.safeParse({
     coursePageId: formData.get("coursePageId"),
     courseSlug: formData.get("courseSlug"),
     email: formData.get("email"),
-    role: formData.get("role"),
     attendance: formData.get("attendance"),
   });
   if (!parsed.success) {
     return {
-      error: parsed.error.issues[0]?.message ?? "Check the invitation.",
+      error: t("members.inviteInvalid"),
       message: null,
       inviteUrl: null,
     };
@@ -269,7 +295,7 @@ export async function inviteMemberAction(
     managerId = await requireMemberManager(parsed.data.coursePageId);
   } catch {
     return {
-      error: "You do not have permission to invite course members.",
+      error: t("members.inviteDenied"),
       message: null,
       inviteUrl: null,
     };
@@ -286,7 +312,7 @@ export async function inviteMemberAction(
     );
   if (Number(recent?.value ?? 0) >= 20) {
     return {
-      error: "Invitation limit reached. Try again in an hour.",
+      error: t("members.inviteLimited"),
       message: null,
       inviteUrl: null,
     };
@@ -308,9 +334,9 @@ export async function inviteMemberAction(
         ),
       )
       .limit(1);
-    if (membership?.role === "owner") {
+    if (membership) {
       return {
-        error: "An owner cannot be changed through an invitation.",
+        error: t("members.alreadyMember"),
         message: null,
         inviteUrl: null,
       };
@@ -320,21 +346,14 @@ export async function inviteMemberAction(
       .values({
         coursePageId: parsed.data.coursePageId,
         studentId: student.id,
-        role: parsed.data.role,
+        role: "visitor",
         attendance: parsed.data.attendance,
       })
-      .onConflictDoUpdate({
-        target: [courseMembers.coursePageId, courseMembers.studentId],
-        set: {
-          role: parsed.data.role,
-          attendance: parsed.data.attendance,
-          updatedAt: new Date(),
-        },
-      });
+      .onConflictDoNothing();
     revalidatePath(`/courses/${parsed.data.courseSlug}`);
     return {
       error: null,
-      message: "The existing account was added to the course.",
+      message: t("members.accountAdded"),
       inviteUrl: null,
     };
   }
@@ -344,7 +363,7 @@ export async function inviteMemberAction(
   await db.insert(courseInvites).values({
     coursePageId: parsed.data.coursePageId,
     email: parsed.data.email,
-    role: parsed.data.role,
+    role: "visitor",
     attendance: parsed.data.attendance,
     tokenHash: tokenHash(rawToken),
     status: "pending",
@@ -354,7 +373,7 @@ export async function inviteMemberAction(
 
   return {
     error: null,
-    message: "Share this one-time invitation link. It expires in 7 days.",
+    message: t("members.shareInvite"),
     inviteUrl: `/courses/invitations/${rawToken}`,
   };
 }
@@ -382,18 +401,9 @@ export async function updateCourseMemberAction(formData: FormData) {
     .limit(1);
   if (!target) return;
 
-  if (target.role === "owner" && parsed.data.role !== "owner") {
-    const [owners] = await db
-      .select({ value: count() })
-      .from(courseMembers)
-      .where(
-        and(
-          eq(courseMembers.coursePageId, parsed.data.coursePageId),
-          eq(courseMembers.role, "owner"),
-        ),
-      );
-    if (Number(owners?.value ?? 0) <= 1) return;
-  }
+  // Co-ownership promotion only happens through an accepted visitor request.
+  // The original owner is immutable; this action only demotes a co-owner.
+  if (effectiveCourseRole(target.role) !== "coowner") return;
 
   await db
     .update(courseMembers)
@@ -409,6 +419,9 @@ export async function updateCourseMemberAction(formData: FormData) {
       ),
     );
   revalidatePath(`/courses/${parsed.data.courseSlug}`);
+  revalidatePath(`/courses/${parsed.data.courseSlug}/settings/members`);
+  revalidatePath("/");
+  revalidatePath("/my-courses");
 }
 
 const acceptInviteSchema = z.object({
@@ -459,7 +472,7 @@ export async function acceptCourseInviteAction(formData: FormData) {
       .values({
         coursePageId: invite.coursePageId,
         studentId,
-        role: invite.role,
+        role: "visitor",
         attendance: invite.attendance,
       })
       .onConflictDoNothing();
@@ -478,5 +491,9 @@ export async function acceptCourseInviteAction(formData: FormData) {
       );
   });
 
-  redirect(`/courses/${invite.slug}/settings/members`);
+  revalidatePath("/");
+  revalidatePath("/my-courses");
+  revalidatePath(`/courses/${invite.slug}`);
+
+  redirect(`/courses/${invite.slug}`);
 }
