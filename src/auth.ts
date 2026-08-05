@@ -21,8 +21,14 @@ const credentialsSchema = z.object({
  *
  * Signup lives in a server action (`src/app/login/actions.ts`); this
  * provider only verifies existing accounts.
+ *
+ * The config is a function, not an object, so `env()` runs on the first
+ * request rather than at import time. Importing a route during `next build`
+ * must not require production secrets — same reasoning as the lazy database
+ * proxy in `lib/db/client.ts`. A missing AUTH_SECRET still fails loudly, and
+ * `/api/health` reports it before any user hits a login page.
  */
-export const { handlers, auth, signIn, signOut } = NextAuth({
+export const { handlers, auth, signIn, signOut } = NextAuth(() => ({
   secret: env().AUTH_SECRET,
   session: { strategy: "jwt" },
   trustHost: true,
@@ -65,7 +71,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return session;
     },
   },
-});
+}));
 
 /** The signed-in student's id, or null. */
 export const currentStudentId = cache(async (): Promise<string | null> => {
