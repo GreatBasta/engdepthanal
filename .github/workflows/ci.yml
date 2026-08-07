@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch makes an in-flight run obsolete.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Validate curriculum catalog
+        run: npm run curriculum:validate
+
+      # No DATABASE_URL, no AUTH_SECRET: the build must not need production
+      # credentials. The database client and the auth config are both lazy, so
+      # this step also guards that property against regressions.
+      - name: Build
+        run: npm run build
+
+      - name: Check for stray build artifacts
+        run: |
+          # `next build` writes generated routes into src/ for some plugins
+          # (e.g. the Workflow package's .well-known handler). Those belong in
+          # .gitignore, not in a commit.
+          if [ -n "$(git status --porcelain --untracked-files=all -- src)" ]; then
+            echo "::error::the build left untracked or modified files under src/:"
+            git status --porcelain --untracked-files=all -- src
+            exit 1
+          fi
+
+  migrations:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: engdepthanal
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/engdepthanal
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Migrations are applied by hand in production (see DEPLOY.md), which
+      # means nothing else proves the chain still applies to an empty database
+      # until someone runs it against a real one. Prove it here instead.
+      - name: Apply migrations to a fresh database
+        run: npm run db:migrate
+
+      - name: Migrations are complete and in order
+        run: npm run db:status
+
+      - name: Seed is idempotent
+        run: |
+          npm run db:seed
+          npm run db:seed
+
+      - name: Verify seeded database
+        run: npm run db:verify
+
+      - name: Re-applying migrations is a no-op
+        run: |
+          npm run db:migrate
+          npm run db:status

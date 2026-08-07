@@ -8,3 +8,5 @@ next-env.d.ts
 playwright-report/
 test-results/
 .tools/
+# Generated into the app tree by the Workflow package during `next build`.
+src/app/.well-known/
