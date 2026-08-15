@@ -1,16 +1,15 @@
 "use server";
 
-import {
-  and,
-  asc,
-  eq,
-  inArray,
-  max,
-} from "drizzle-orm";
+import { and, asc, eq, inArray, max, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { currentStudentId } from "@/auth";
+import { hasExactCurriculumChangeScope } from "@/lib/courses/curriculum-change-rules";
+import type {
+  CurriculumApplyResult,
+  CurriculumCoverageChange,
+} from "@/lib/courses/curriculum-contract";
 import { reserveUniqueSlug } from "@/lib/courses/core";
 import {
   canEditCourse,
@@ -19,10 +18,12 @@ import {
 import { db } from "@/lib/db/client";
 import {
   courseCurriculumVersions,
+  coursePages,
   courseSubtopicPrerequisites,
   courseSubtopics,
   courseTopics,
 } from "@/lib/db/schema";
+import { getI18n } from "@/lib/i18n/server";
 
 const courseIdentitySchema = z.object({
   coursePageId: z.string().uuid(),
@@ -55,7 +56,7 @@ const subtopicEditSchema = subtopicSchema.extend({
     (value) => (value === "" || value == null ? undefined : value),
     z.coerce.number().min(0).max(999).optional(),
   ),
-  coverage: z.enum(["unknown", "covered", "not_covered"]),
+  coverage: z.enum(["unknown", "covered", "not_covered"]).optional(),
 });
 
 const addSubtopicSchema = courseIdentitySchema.extend({
@@ -300,7 +301,7 @@ export async function updateCourseSubtopicAction(formData: FormData) {
       description: parsed.data.description || null,
       depthLevel: parsed.data.depthLevel,
       estHours: parsed.data.estHours?.toString() ?? null,
-      coverage: parsed.data.coverage,
+      ...(parsed.data.coverage ? { coverage: parsed.data.coverage } : {}),
     })
     .where(eq(courseSubtopics.id, parsed.data.subtopicId));
   await touchDraft(draft.id, parsed.data.courseSlug);
@@ -403,10 +404,7 @@ export async function bulkUpdateCourseSubtopicsAction(formData: FormData) {
   const allowedIds = allowedRows.map((row) => row.id);
   if (allowedIds.length === 0) return;
 
-  if (
-    parsed.data.operation === "hide" ||
-    parsed.data.operation === "restore"
-  ) {
+  if (parsed.data.operation === "hide" || parsed.data.operation === "restore") {
     await db
       .update(courseSubtopics)
       .set({
@@ -422,164 +420,331 @@ export async function bulkUpdateCourseSubtopicsAction(formData: FormData) {
   await touchDraft(draft.id, parsed.data.courseSlug);
 }
 
+const curriculumApplySchema = courseIdentitySchema.extend({
+  changes: z
+    .array(
+      z.object({
+        subtopicStableId: z.string().uuid(),
+        coverage: z.enum(["unknown", "covered", "not_covered"]),
+      }),
+    )
+    .max(500),
+});
+
+class CurriculumApplyError extends Error {
+  constructor(
+    readonly code: NonNullable<CurriculumApplyResult["code"]>,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+export async function applyCurriculumChangesAction(input: {
+  coursePageId: string;
+  courseSlug: string;
+  changes: CurriculumCoverageChange[];
+}): Promise<CurriculumApplyResult> {
+  const { t } = await getI18n();
+  const parsed = curriculumApplySchema.safeParse(input);
+  if (!parsed.success) {
+    return { ok: false, code: "invalid", message: t("curriculum.invalid") };
+  }
+  if (
+    new Set(parsed.data.changes.map((change) => change.subtopicStableId))
+      .size !== parsed.data.changes.length
+  ) {
+    return {
+      ok: false,
+      code: "invalid",
+      message: t("curriculum.duplicate"),
+    };
+  }
+
+  const studentId = await currentStudentId();
+  if (!studentId) {
+    return {
+      ok: false,
+      code: "forbidden",
+      message: t("curriculum.signIn"),
+    };
+  }
+  const context = await loadCoursePermissionContext(
+    parsed.data.coursePageId,
+    studentId,
+  );
+  if (!context || !canEditCourse(context)) {
+    return {
+      ok: false,
+      code: "forbidden",
+      message: t("curriculum.forbidden"),
+    };
+  }
+
+  try {
+    const updatedAt = await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`select ${coursePages.id} from ${coursePages} where ${coursePages.id} = ${parsed.data.coursePageId} for update`,
+      );
+      const [course] = await tx
+        .select({ id: coursePages.id })
+        .from(coursePages)
+        .where(
+          and(
+            eq(coursePages.id, parsed.data.coursePageId),
+            eq(coursePages.slug, parsed.data.courseSlug),
+          ),
+        )
+        .limit(1);
+      if (!course) {
+        throw new CurriculumApplyError(
+          "cross_course",
+          t("curriculum.identityMismatch"),
+        );
+      }
+
+      const [draft] = await tx
+        .select({
+          id: courseCurriculumVersions.id,
+          version: courseCurriculumVersions.version,
+        })
+        .from(courseCurriculumVersions)
+        .where(
+          and(
+            eq(courseCurriculumVersions.coursePageId, parsed.data.coursePageId),
+            eq(courseCurriculumVersions.status, "draft"),
+          ),
+        )
+        .limit(1);
+      if (!draft) {
+        throw new CurriculumApplyError("failed", t("curriculum.unavailable"));
+      }
+
+      if (parsed.data.changes.length) {
+        const stableIds = parsed.data.changes.map(
+          (change) => change.subtopicStableId,
+        );
+        const allowedRows = await tx
+          .select({ stableId: courseSubtopics.stableId })
+          .from(courseSubtopics)
+          .innerJoin(
+            courseTopics,
+            eq(courseSubtopics.courseTopicId, courseTopics.id),
+          )
+          .where(
+            and(
+              eq(courseTopics.curriculumVersionId, draft.id),
+              inArray(courseSubtopics.stableId, stableIds),
+            ),
+          );
+        if (
+          !hasExactCurriculumChangeScope(
+            stableIds,
+            allowedRows.map((row) => row.stableId),
+          )
+        ) {
+          throw new CurriculumApplyError(
+            "cross_course",
+            t("curriculum.crossCourse"),
+          );
+        }
+        const values = sql.join(
+          parsed.data.changes.map(
+            (change) =>
+              sql`(${change.subtopicStableId}::uuid, ${change.coverage}::course_coverage_state)`,
+          ),
+          sql`, `,
+        );
+        await tx.execute(sql`
+          update "course_subtopics" as subtopic
+          set "coverage" = changes.coverage
+          from (values ${values}) as changes(stable_id, coverage),
+               "course_topics" as topic
+          where subtopic."stable_id" = changes.stable_id
+            and topic."id" = subtopic."course_topic_id"
+            and topic."curriculum_version_id" = ${draft.id}
+        `);
+      }
+
+      const sourceTopics = await tx
+        .select()
+        .from(courseTopics)
+        .where(eq(courseTopics.curriculumVersionId, draft.id))
+        .orderBy(asc(courseTopics.position));
+      const sourceSubtopics = await tx
+        .select()
+        .from(courseSubtopics)
+        .innerJoin(
+          courseTopics,
+          eq(courseSubtopics.courseTopicId, courseTopics.id),
+        )
+        .where(eq(courseTopics.curriculumVersionId, draft.id))
+        .then((rows) => rows.map((row) => row.course_subtopics));
+      if (
+        sourceTopics.every((topic) => topic.hiddenAt !== null) ||
+        sourceSubtopics.every((subtopic) => subtopic.hiddenAt !== null)
+      ) {
+        throw new Error("A published curriculum needs visible content");
+      }
+
+      await tx
+        .update(courseCurriculumVersions)
+        .set({ status: "archived" })
+        .where(
+          and(
+            eq(courseCurriculumVersions.coursePageId, parsed.data.coursePageId),
+            eq(courseCurriculumVersions.status, "published"),
+          ),
+        );
+      const now = new Date();
+      await tx
+        .update(courseCurriculumVersions)
+        .set({ status: "published", publishedAt: now, updatedAt: now })
+        .where(eq(courseCurriculumVersions.id, draft.id));
+
+      const [highestVersion] = await tx
+        .select({ value: max(courseCurriculumVersions.version) })
+        .from(courseCurriculumVersions)
+        .where(
+          eq(courseCurriculumVersions.coursePageId, parsed.data.coursePageId),
+        );
+      const [nextDraft] = await tx
+        .insert(courseCurriculumVersions)
+        .values({
+          coursePageId: parsed.data.coursePageId,
+          version: Number(highestVersion?.value ?? draft.version) + 1,
+          status: "draft",
+          basedOnVersionId: draft.id,
+          createdBy: studentId,
+        })
+        .returning({ id: courseCurriculumVersions.id });
+
+      const nextTopics = await tx
+        .insert(courseTopics)
+        .values(
+          sourceTopics.map((topic) => ({
+            curriculumVersionId: nextDraft.id,
+            stableId: topic.stableId,
+            sourceTemplateTopicId: topic.sourceTemplateTopicId,
+            provenance: topic.provenance,
+            slug: topic.slug,
+            name: topic.name,
+            description: topic.description,
+            position: topic.position,
+            hiddenAt: topic.hiddenAt,
+          })),
+        )
+        .returning({
+          id: courseTopics.id,
+          stableId: courseTopics.stableId,
+        });
+      const nextTopicByStableId = new Map(
+        nextTopics.map((topic) => [topic.stableId, topic.id]),
+      );
+      const sourceTopicById = new Map(
+        sourceTopics.map((topic) => [topic.id, topic]),
+      );
+      const nextSubtopics = await tx
+        .insert(courseSubtopics)
+        .values(
+          sourceSubtopics.map((subtopic) => {
+            const sourceTopic = sourceTopicById.get(subtopic.courseTopicId);
+            const courseTopicId = sourceTopic
+              ? nextTopicByStableId.get(sourceTopic.stableId)
+              : undefined;
+            if (!courseTopicId) {
+              throw new Error("Failed to clone a course topic");
+            }
+            return {
+              courseTopicId,
+              stableId: subtopic.stableId,
+              sourceTemplateSubtopicId: subtopic.sourceTemplateSubtopicId,
+              provenance: subtopic.provenance,
+              slug: subtopic.slug,
+              name: subtopic.name,
+              description: subtopic.description,
+              depthLevel: subtopic.depthLevel,
+              estHours: subtopic.estHours,
+              position: subtopic.position,
+              coverage: subtopic.coverage,
+              hiddenAt: subtopic.hiddenAt,
+            };
+          }),
+        )
+        .returning({
+          id: courseSubtopics.id,
+          stableId: courseSubtopics.stableId,
+        });
+      const nextSubtopicByStableId = new Map(
+        nextSubtopics.map((subtopic) => [subtopic.stableId, subtopic.id]),
+      );
+      const sourceSubtopicById = new Map(
+        sourceSubtopics.map((subtopic) => [subtopic.id, subtopic]),
+      );
+      const sourceIds = sourceSubtopics.map((subtopic) => subtopic.id);
+      const edges =
+        sourceIds.length > 0
+          ? await tx
+              .select()
+              .from(courseSubtopicPrerequisites)
+              .where(inArray(courseSubtopicPrerequisites.subtopicId, sourceIds))
+          : [];
+      const nextEdges = edges.flatMap((edge) => {
+        const source = sourceSubtopicById.get(edge.subtopicId);
+        const prerequisite = sourceSubtopicById.get(edge.prerequisiteId);
+        const subtopicId = source
+          ? nextSubtopicByStableId.get(source.stableId)
+          : undefined;
+        const prerequisiteId = prerequisite
+          ? nextSubtopicByStableId.get(prerequisite.stableId)
+          : undefined;
+        return subtopicId && prerequisiteId
+          ? [{ subtopicId, prerequisiteId }]
+          : [];
+      });
+      if (nextEdges.length > 0) {
+        await tx
+          .insert(courseSubtopicPrerequisites)
+          .values(nextEdges)
+          .onConflictDoNothing();
+      }
+      await tx
+        .update(coursePages)
+        .set({ updatedAt: now })
+        .where(eq(coursePages.id, parsed.data.coursePageId));
+      return now;
+    });
+
+    revalidatePath("/");
+    revalidatePath("/courses");
+    revalidatePath("/my-courses");
+    revalidatePath(`/courses/${parsed.data.courseSlug}`);
+    revalidatePath(`/courses/${parsed.data.courseSlug}/settings/curriculum`);
+    return {
+      ok: true,
+      message: t("curriculum.applied"),
+      updatedAt: updatedAt.toISOString(),
+    };
+  } catch (error) {
+    if (error instanceof CurriculumApplyError) {
+      return { ok: false, code: error.code, message: error.message };
+    }
+    return {
+      ok: false,
+      code: "failed",
+      message: t("curriculum.applyFailed"),
+    };
+  }
+}
+
+/** Compatibility action for old forms; standard UI uses the staged Apply bar. */
 export async function publishCourseCurriculumAction(formData: FormData) {
   const parsed = courseIdentitySchema.safeParse({
     coursePageId: formData.get("coursePageId"),
     courseSlug: formData.get("courseSlug"),
   });
   if (!parsed.success) return;
-  const draft = await editableDraft(parsed.data.coursePageId);
-  if (!draft) return;
-
-  await db.transaction(async (tx) => {
-    const sourceTopics = await tx
-      .select()
-      .from(courseTopics)
-      .where(eq(courseTopics.curriculumVersionId, draft.id))
-      .orderBy(asc(courseTopics.position));
-    const sourceSubtopics = await tx
-      .select()
-      .from(courseSubtopics)
-      .innerJoin(courseTopics, eq(courseSubtopics.courseTopicId, courseTopics.id))
-      .where(eq(courseTopics.curriculumVersionId, draft.id))
-      .then((rows) => rows.map((row) => row.course_subtopics));
-    if (
-      sourceTopics.every((topic) => topic.hiddenAt !== null) ||
-      sourceSubtopics.every((subtopic) => subtopic.hiddenAt !== null)
-    ) {
-      throw new Error("A published curriculum needs visible content");
-    }
-
-    await tx
-      .update(courseCurriculumVersions)
-      .set({ status: "archived" })
-      .where(
-        and(
-          eq(
-            courseCurriculumVersions.coursePageId,
-            parsed.data.coursePageId,
-          ),
-          eq(courseCurriculumVersions.status, "published"),
-        ),
-      );
-    const now = new Date();
-    await tx
-      .update(courseCurriculumVersions)
-      .set({ status: "published", publishedAt: now, updatedAt: now })
-      .where(eq(courseCurriculumVersions.id, draft.id));
-
-    const [highestVersion] = await tx
-      .select({ value: max(courseCurriculumVersions.version) })
-      .from(courseCurriculumVersions)
-      .where(
-        eq(
-          courseCurriculumVersions.coursePageId,
-          parsed.data.coursePageId,
-        ),
-      );
-    const [nextDraft] = await tx
-      .insert(courseCurriculumVersions)
-      .values({
-        coursePageId: parsed.data.coursePageId,
-        version: Number(highestVersion?.value ?? draft.version) + 1,
-        status: "draft",
-        basedOnVersionId: draft.id,
-        createdBy: draft.studentId,
-      })
-      .returning({ id: courseCurriculumVersions.id });
-
-    const nextTopics = await tx
-      .insert(courseTopics)
-      .values(
-        sourceTopics.map((topic) => ({
-          curriculumVersionId: nextDraft.id,
-          stableId: topic.stableId,
-          sourceTemplateTopicId: topic.sourceTemplateTopicId,
-          provenance: topic.provenance,
-          slug: topic.slug,
-          name: topic.name,
-          description: topic.description,
-          position: topic.position,
-          hiddenAt: topic.hiddenAt,
-        })),
-      )
-      .returning({
-        id: courseTopics.id,
-        stableId: courseTopics.stableId,
-      });
-    const nextTopicByStableId = new Map(
-      nextTopics.map((topic) => [topic.stableId, topic.id]),
-    );
-    const sourceTopicById = new Map(
-      sourceTopics.map((topic) => [topic.id, topic]),
-    );
-    const nextSubtopics = await tx
-      .insert(courseSubtopics)
-      .values(
-        sourceSubtopics.map((subtopic) => {
-          const sourceTopic = sourceTopicById.get(subtopic.courseTopicId);
-          const courseTopicId = sourceTopic
-            ? nextTopicByStableId.get(sourceTopic.stableId)
-            : undefined;
-          if (!courseTopicId) {
-            throw new Error("Failed to clone a course topic");
-          }
-          return {
-            courseTopicId,
-            stableId: subtopic.stableId,
-            sourceTemplateSubtopicId: subtopic.sourceTemplateSubtopicId,
-            provenance: subtopic.provenance,
-            slug: subtopic.slug,
-            name: subtopic.name,
-            description: subtopic.description,
-            depthLevel: subtopic.depthLevel,
-            estHours: subtopic.estHours,
-            position: subtopic.position,
-            coverage: subtopic.coverage,
-            hiddenAt: subtopic.hiddenAt,
-          };
-        }),
-      )
-      .returning({
-        id: courseSubtopics.id,
-        stableId: courseSubtopics.stableId,
-      });
-    const nextSubtopicByStableId = new Map(
-      nextSubtopics.map((subtopic) => [subtopic.stableId, subtopic.id]),
-    );
-    const sourceSubtopicById = new Map(
-      sourceSubtopics.map((subtopic) => [subtopic.id, subtopic]),
-    );
-    const sourceIds = sourceSubtopics.map((subtopic) => subtopic.id);
-    const edges =
-      sourceIds.length > 0
-        ? await tx
-            .select()
-            .from(courseSubtopicPrerequisites)
-            .where(inArray(courseSubtopicPrerequisites.subtopicId, sourceIds))
-        : [];
-    const nextEdges = edges.flatMap((edge) => {
-      const source = sourceSubtopicById.get(edge.subtopicId);
-      const prerequisite = sourceSubtopicById.get(edge.prerequisiteId);
-      const subtopicId = source
-        ? nextSubtopicByStableId.get(source.stableId)
-        : undefined;
-      const prerequisiteId = prerequisite
-        ? nextSubtopicByStableId.get(prerequisite.stableId)
-        : undefined;
-      return subtopicId && prerequisiteId
-        ? [{ subtopicId, prerequisiteId }]
-        : [];
-    });
-    if (nextEdges.length > 0) {
-      await tx
-        .insert(courseSubtopicPrerequisites)
-        .values(nextEdges)
-        .onConflictDoNothing();
-    }
-  });
-
-  revalidatePath(`/courses/${parsed.data.courseSlug}`);
+  await applyCurriculumChangesAction({ ...parsed.data, changes: [] });
 }
 
 async function touchDraft(draftId: string, courseSlug: string) {
@@ -589,4 +754,3 @@ async function touchDraft(draftId: string, courseSlug: string) {
     .where(eq(courseCurriculumVersions.id, draftId));
   revalidatePath(`/courses/${courseSlug}`);
 }
-

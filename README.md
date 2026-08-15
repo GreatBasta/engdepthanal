@@ -2,7 +2,7 @@
 
 Course Atlas is a mobile-first collaborative platform for real university
 course pages. Students can discover a local course, compare its syllabus with
-canonical engineering curriculum templates, track personal progress privately,
+canonical multidisciplinary curriculum templates, track personal progress privately,
 and share contextual resources and student-reported exam information.
 
 The public curriculum coverage of a course and a member's private learning
@@ -31,6 +31,8 @@ and 5 unique contributors.
 | Deterministic production seed | `src/lib/db/seed.ts` |
 | Optional local demo seed | `src/lib/db/seed-demo.ts` |
 | Course permissions and actions | `src/app/courses/[slug]/` |
+| Official catalog connectors and policy | `src/lib/catalog/` |
+| Durable catalog scan workflow | `src/workflows/catalog-scan.ts` |
 | Attachment policy and authorization | `src/lib/courses/attachment-policy.ts`, `src/app/api/courses/` |
 | Release and migration runbook | `docs/release-runbook.md` |
 
@@ -50,13 +52,17 @@ from public discovery; private data is never cacheable or indexed.
 
 ## Canonical curriculum
 
-The catalog contains 47 reusable engineering templates. Each JSON record has:
+The catalog contains 76 reusable templates across health, life sciences,
+physical sciences, mathematics, computing, engineering, law, social sciences,
+psychology, education, humanities, languages, economics, and communication.
+Engineering remains one supported academic domain among many. Each JSON record has:
 
-`templateKey`, `name`, `description`, `category`, `disciplineTags`,
-`recommendedDegreePrograms`, `typicalYear`, `typicalSemester`, `version`,
-`sourceReferences`, `topics`, `subtopics`, `stableId`, `slug`, `description`,
-`depthLevel`, `estimatedHours`, `prerequisiteStableIds`, `optional`, and
-`position`.
+`templateKey`, `name`, `localizedNames`, `description`, `category`,
+`academicDomainKey`, `disciplineTags`, `recommendedDegreePrograms`,
+`typicalYear`, `typicalSemester`, `typicalDegreeLevels`, `typicalStage`,
+`curricularStatus`, `version`, `sourceReferences`, `validationMetadata`,
+`topics`, `subtopics`, `stableId`, `slug`, `description`, `depthLevel`,
+`estimatedHours`, `prerequisiteStableIds`, `optional`, and `position`.
 
 Validate the committed catalog:
 
@@ -69,10 +75,12 @@ unique keys/stable IDs, scoped slug uniqueness, contiguous order, duplicate
 subtopics, valid source metadata, and existing acyclic prerequisites. Catalog
 generation and seeded UUIDs are deterministic.
 
-The source references point to public, authoritative curriculum pages including
-MIT OpenCourseWare, OpenStax, ACM/IEEE curriculum recommendations, and ABET
-criteria. Descriptions are original paraphrases; the seed contains no fictional
-reviews, exam questions, comments, or user contributions.
+The source references point to public, authoritative curriculum pages and
+frameworks including MIT OpenCourseWare, Open Yale Courses, OpenStax, WHO,
+AACN, Cornell Law School, ACM/IEEE curriculum recommendations, and ABET.
+Descriptions are original paraphrases. A canonical template is never labeled
+as an official university syllabus, and the seed contains no fictional reviews,
+exam questions, comments, or user contributions.
 
 ## Local setup
 

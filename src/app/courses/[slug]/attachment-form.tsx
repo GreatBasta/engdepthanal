@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useRef, useState } from "react";
+import { useI18n } from "@/components/locale-provider";
 
 import {
   uploadCourseAttachmentAction,
@@ -31,8 +32,7 @@ async function compressImage(file: File): Promise<File> {
     if (!context) return file;
     context.drawImage(bitmap, 0, 0, width, height);
 
-    const outputType =
-      file.type === "image/png" ? "image/webp" : file.type;
+    const outputType = file.type === "image/png" ? "image/webp" : file.type;
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, outputType, 0.82),
     );
@@ -70,6 +70,7 @@ export function AttachmentForm({
     | "course_resource";
   parentId: string;
 }) {
+  const { t } = useI18n();
   const fileInput = useRef<HTMLInputElement>(null);
   const [preparing, setPreparing] = useState(false);
   const [preparationMessage, setPreparationMessage] = useState<string | null>(
@@ -102,12 +103,12 @@ export function AttachmentForm({
           Math.round((1 - compressed.size / original.size) * 100),
         );
         setPreparationMessage(
-          `Image optimized on this device (${savedPercent}% smaller).`,
+          t("attachment.optimized", { percent: savedPercent }),
         );
       }
     } catch {
       // Unsupported image decoders fall back to the original validated file.
-      setPreparationMessage("The original image will be uploaded.");
+      setPreparationMessage(t("attachment.original"));
     } finally {
       setPreparing(false);
     }
@@ -129,7 +130,7 @@ export function AttachmentForm({
           name="file"
           required
           accept=".pdf,.txt,.md,.markdown,.jpg,.jpeg,.png,.webp"
-          aria-label="Attachment file"
+          aria-label={t("attachment.file")}
           onChange={prepareSelectedImage}
           disabled={pending || preparing}
           className="min-w-0 text-xs file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-xs file:font-medium dark:file:bg-zinc-800"
@@ -137,29 +138,35 @@ export function AttachmentForm({
         <select
           name="access"
           defaultValue="course"
-          aria-label="Attachment access"
+          aria-label={t("attachment.access")}
           className="rounded-lg border border-zinc-300 bg-white px-2 py-2 text-xs dark:border-zinc-700 dark:bg-zinc-900"
         >
-          <option value="course">Members only</option>
-          <option value="public">Course viewers</option>
+          <option value="course">{t("attachment.members")}</option>
+          <option value="public">{t("attachment.viewers")}</option>
         </select>
         <button
           type="submit"
           disabled={pending || preparing}
           className="rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
         >
-          {preparing ? "Optimizing…" : pending ? "Uploading…" : "Attach"}
+          {preparing
+            ? t("attachment.optimizing")
+            : pending
+              ? t("attachment.uploading")
+              : t("attachment.attach")}
         </button>
       </div>
       {preparing || pending ? (
         <progress
-          aria-label={preparing ? "Optimizing image" : "Uploading attachment"}
+          aria-label={
+            preparing
+              ? t("attachment.optimizingImage")
+              : t("attachment.uploadingFile")
+          }
           className="mt-3 h-1.5 w-full overflow-hidden rounded-full accent-indigo-600"
         />
       ) : null}
-      <p className="mt-2 text-[11px] text-zinc-500">
-        PDF, text, Markdown, or image · 4 MB maximum.
-      </p>
+      <p className="mt-2 text-[11px] text-zinc-500">{t("attachment.limits")}</p>
       {preparationMessage ? (
         <p aria-live="polite" className="mt-2 text-xs text-indigo-700">
           {preparationMessage}

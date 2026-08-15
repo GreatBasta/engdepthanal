@@ -11,7 +11,25 @@ test("the production catalog satisfies the shared curriculum schema", () => {
   );
   const result = validateCurriculumCatalog(catalog);
   assert.deepEqual(result.issues, []);
-  assert.ok((result.catalog?.templates.length ?? 0) >= 24);
+  assert.ok((result.catalog?.templates.length ?? 0) >= 70);
+  assert.ok(
+    new Set(result.catalog?.templates.map((template) => template.category)).size >=
+      12,
+  );
+  assert.ok(
+    (result.catalog?.templates.filter((template) => template.localizedNames.it)
+      .length ?? 0) >= 25,
+  );
+  assert.ok(
+    result.catalog?.templates.every(
+      (template) =>
+        template.sourceReferences.length > 0 &&
+        template.academicDomainKey &&
+        template.typicalDegreeLevels.length > 0 &&
+        template.typicalStage &&
+        template.validationMetadata.reviewedAt,
+    ),
+  );
 });
 
 test("rejects missing prerequisites and prerequisite cycles", () => {
@@ -21,12 +39,17 @@ test("rejects missing prerequisites and prerequisite cycles", () => {
     templates: Array.from({ length: 24 }, (_, index) => ({
       templateKey: `template-${index}`,
       name: `Template ${index}`,
+      localizedNames: { en: `Template ${index}` },
       description: "Validation fixture",
       category: "mathematics",
+      academicDomainKey: "mathematics-statistics",
       disciplineTags: ["all-engineering"],
       recommendedDegreePrograms: ["all-engineering"],
       typicalYear: 1,
       typicalSemester: 1,
+      typicalDegreeLevels: ["bachelor"],
+      typicalStage: "foundation",
+      curricularStatus: "core",
       version: 1,
       sourceReferences: [
         {
@@ -36,6 +59,12 @@ test("rejects missing prerequisites and prerequisite cycles", () => {
           accessedAt: "2026-07-30",
         },
       ],
+      validationMetadata: {
+        reviewedAt: "2026-08-03",
+        reviewedBy: "Test",
+        contentStandard: "Test fixture",
+        notes: [],
+      },
       topics: [
         {
           stableId: `template-${index}.topic.one`,

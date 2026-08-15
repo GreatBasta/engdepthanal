@@ -9,6 +9,7 @@ import {
   coursePages,
   coursePageTemplates,
   curriculumTemplates,
+  officialCourseOfferings,
   programs,
   students,
   universities,
@@ -16,11 +17,15 @@ import {
 } from "@/lib/db/schema";
 
 import {
+  canContribute,
   canEditCourse,
+  canManageCoownershipRequests,
+  canManageCourseSettings,
   canManageMembers,
   canModerateCourse,
   canPostToCourse,
   canViewCourse,
+  effectiveCourseRole,
   type CoursePermissionContext,
 } from "./permissions";
 
@@ -55,6 +60,9 @@ export async function getCourseBySlugForViewer(
       countryCode: universities.countryCode,
       programName: programs.name,
       creatorName: students.displayName,
+      officialSourceUrl: officialCourseOfferings.officialUrl,
+      officialSourceName: officialCourseOfferings.canonicalSourceName,
+      officialCredits: officialCourseOfferings.credits,
       viewerRole: courseMembers.role,
       viewerAttendance: courseMembers.attendance,
     })
@@ -66,6 +74,10 @@ export async function getCourseBySlugForViewer(
     .innerJoin(universities, eq(universityPrograms.universityId, universities.id))
     .innerJoin(programs, eq(universityPrograms.programId, programs.id))
     .innerJoin(students, eq(coursePages.createdBy, students.id))
+    .leftJoin(
+      officialCourseOfferings,
+      eq(coursePages.officialOfferingId, officialCourseOfferings.id),
+    )
     .leftJoin(
       courseMembers,
       studentId
@@ -159,18 +171,23 @@ export async function getCourseBySlugForViewer(
       countryCode: course.countryCode,
       programName: course.programName,
       creatorName: course.creatorName,
+      officialSourceUrl: course.officialSourceUrl,
+      officialSourceName: course.officialSourceName,
+      officialCredits: course.officialCredits,
     },
     templates,
     members: memberRows,
     versions,
     permissions: {
       canEdit: canEditCourse(context),
+      canContribute: canContribute(context),
+      canManageCourseSettings: canManageCourseSettings(context),
+      canManageCoownershipRequests: canManageCoownershipRequests(context),
       canManageMembers: canManageMembers(context),
       canPost: canPostToCourse(context),
       canModerate: canModerateCourse(context),
-      role: context.membership?.role ?? null,
+      role: effectiveCourseRole(context.membership?.role),
       attendance: context.membership?.attendance ?? null,
     },
   };
 }
-

@@ -1,4 +1,5 @@
 import {
+  type AnyPgColumn,
   boolean,
   char,
   check,
@@ -101,6 +102,103 @@ export const courseMemberRole = pgEnum("course_member_role", [
   "editor",
   "contributor",
   "viewer",
+  "coowner",
+  "visitor",
+]);
+
+export const coownershipRequestStatus = pgEnum(
+  "coownership_request_status",
+  ["pending", "accepted", "rejected", "cancelled"],
+);
+
+export const organizationRequestStatus = pgEnum(
+  "organization_request_status",
+  ["pending", "matched", "approved", "rejected"],
+);
+
+export const academicFieldLevel = pgEnum("academic_field_level", [
+  "domain",
+  "broad_field",
+  "discipline",
+  "subdiscipline",
+  "professional_area",
+]);
+
+export const degreeLevel = pgEnum("degree_level", [
+  "bachelor",
+  "master",
+  "single_cycle",
+  "doctoral",
+  "professional",
+  "other",
+]);
+
+export const organizationalUnitType = pgEnum("organizational_unit_type", [
+  "faculty",
+  "school",
+  "college",
+  "department",
+  "institute",
+  "division",
+  "academy",
+  "campus",
+  "other",
+]);
+
+export const officialOfferingStatus = pgEnum("official_offering_status", [
+  "active",
+  "outdated",
+  "withdrawn",
+]);
+
+export const catalogSourceType = pgEnum("catalog_source_type", [
+  "official_api",
+  "structured_data",
+  "sitemap",
+  "official_catalog",
+  "official_pdf",
+  "manual",
+]);
+
+export const robotsPermissionStatus = pgEnum("robots_permission_status", [
+  "unknown",
+  "allowed",
+  "disallowed",
+  "unavailable",
+  "error",
+]);
+
+export const catalogScanStatus = pgEnum("catalog_scan_status", [
+  "queued",
+  "running",
+  "completed",
+  "partial",
+  "failed",
+]);
+
+export const catalogCandidateStatus = pgEnum("catalog_candidate_status", [
+  "candidate",
+  "confirmed",
+  "rejected",
+  "outdated",
+  "merged",
+]);
+
+export const candidateMatchStatus = pgEnum("candidate_match_status", [
+  "suggested",
+  "confirmed",
+  "rejected",
+]);
+
+export const metadataChangeReviewStatus = pgEnum(
+  "metadata_change_review_status",
+  ["pending", "accepted", "rejected"],
+);
+
+export const catalogCorrectionStatus = pgEnum("catalog_correction_status", [
+  "pending",
+  "accepted",
+  "rejected",
 ]);
 
 /**
@@ -225,7 +323,7 @@ export const examMergeRequestStatus = pgEnum(
 );
 
 // ---------------------------------------------------------------------------
-// Reference data: universities and programs
+// Academic organizations, organizational units, fields and degree programmes
 // ---------------------------------------------------------------------------
 
 export const universities = pgTable(
@@ -233,29 +331,153 @@ export const universities = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
+    rorId: text("ror_id"),
+    canonicalName: text("canonical_name"),
+    displayName: text("display_name"),
+    normalizedName: text("normalized_name"),
+    aliases: jsonb("aliases").$type<string[]>().notNull().default([]),
+    acronyms: jsonb("acronyms").$type<string[]>().notNull().default([]),
+    organizationType: text("organization_type"),
     countryCode: char("country_code", { length: 2 }).notNull(),
+    countryName: text("country_name"),
     city: text("city"),
+    region: text("region"),
+    domains: jsonb("domains").$type<string[]>().notNull().default([]),
+    primaryDomain: text("primary_domain"),
+    websiteUrl: text("website_url"),
+    externalSource: text("external_source"),
+    externalUpdatedAt: timestamp("external_updated_at", { withTimezone: true }),
     status: verificationStatus("status").notNull().default("unverified"),
     addedBy: uuid("added_by"), // student who added it, if any
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
   },
-  (t) => [unique().on(t.name, t.countryCode)],
+  (t) => [
+    unique().on(t.name, t.countryCode),
+    uniqueIndex("uq_universities_ror_id")
+      .on(t.rorId)
+      .where(sql`${t.rorId} is not null`),
+    index("idx_universities_normalized_name").on(t.normalizedName),
+    index("idx_universities_country").on(t.countryCode),
+    index("idx_universities_type").on(t.organizationType),
+    index("idx_universities_domain").on(t.primaryDomain),
+  ],
 );
 
-/** Engineering disciplines: mechanical, electrical, civil, computer, ... */
+/**
+ * Flexible institution hierarchy. Universities do not need to use the word
+ * "faculty": schools, colleges, departments, institutes and campuses coexist
+ * in the same parent/child tree.
+ */
+export const organizationalUnits = pgTable(
+  "organizational_units",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => universities.id),
+    parentId: uuid("parent_id").references(
+      (): AnyPgColumn => organizationalUnits.id,
+    ),
+    unitType: organizationalUnitType("unit_type").notNull(),
+    canonicalName: text("canonical_name").notNull(),
+    localizedNames: jsonb("localized_names")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
+    aliases: jsonb("aliases").$type<string[]>().notNull().default([]),
+    externalSourceId: text("external_source_id"),
+    officialUrl: text("official_url"),
+    sourceEvidence: jsonb("source_evidence")
+      .$type<Array<{ url: string; label?: string }>>()
+      .notNull()
+      .default([]),
+    status: verificationStatus("status").notNull().default("unverified"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_organizational_units_organization").on(
+      t.organizationId,
+      t.unitType,
+    ),
+    index("idx_organizational_units_parent").on(t.parentId),
+    uniqueIndex("uq_organizational_unit_external")
+      .on(t.organizationId, t.externalSourceId)
+      .where(sql`${t.externalSourceId} is not null`),
+  ],
+);
+
+/** Extensible multilingual hierarchy, conceptually informed by ISCED-F. */
+export const academicFields = pgTable(
+  "academic_fields",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    stableKey: text("stable_key").notNull().unique(),
+    parentId: uuid("parent_id").references((): AnyPgColumn => academicFields.id),
+    level: academicFieldLevel("level").notNull(),
+    labels: jsonb("labels")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
+    aliases: jsonb("aliases")
+      .$type<Record<string, string[]>>()
+      .notNull()
+      .default({}),
+    typicalDegreeLevels: jsonb("typical_degree_levels")
+      .$type<Array<"bachelor" | "master" | "single_cycle" | "doctoral" | "professional" | "other">>()
+      .notNull()
+      .default([]),
+    classificationReferences: jsonb("classification_references")
+      .$type<Array<{ scheme: string; code?: string; url?: string }>>()
+      .notNull()
+      .default([]),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_academic_fields_parent").on(t.parentId, t.level),
+    index("idx_academic_fields_active").on(t.active, t.level),
+  ],
+);
+
+/** Global academic programme/field concepts used as reusable search choices. */
 export const programs = pgTable("programs", {
   id: uuid("id").primaryKey().defaultRandom(),
   slug: text("slug").notNull().unique(),
   name: text("name").notNull(),
+  localizedNames: jsonb("localized_names")
+    .$type<Record<string, string>>()
+    .notNull()
+    .default({}),
+  aliases: jsonb("aliases")
+    .$type<Record<string, string[]>>()
+    .notNull()
+    .default({}),
+  typicalDegreeLevels: jsonb("typical_degree_levels")
+    .$type<Array<"bachelor" | "master" | "single_cycle" | "doctoral" | "professional" | "other">>()
+    .notNull()
+    .default([]),
   status: verificationStatus("status").notNull().default("verified"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
 });
 
-/** A university offering a program ("the course" a student names at signup). */
+/** A real degree/study programme offered by one organization. */
 export const universityPrograms = pgTable(
   "university_programs",
   {
@@ -266,13 +488,615 @@ export const universityPrograms = pgTable(
     programId: uuid("program_id")
       .notNull()
       .references(() => programs.id),
-    localName: text("local_name"), // the uni's own name for the course
+    degreeProgrammeId: uuid("degree_programme_id").references(
+      (): AnyPgColumn => degreeProgrammes.id,
+    ),
+    organizationalUnitId: uuid("organizational_unit_id").references(
+      () => organizationalUnits.id,
+    ),
+    localName: text("local_name"),
+    localizedNames: jsonb("localized_names")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
+    degreeLevel: degreeLevel("degree_level"),
+    externalSourceId: text("external_source_id"),
+    officialUrl: text("official_url"),
+    languageCodes: jsonb("language_codes")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    credits: numeric("credits", { precision: 6, scale: 1 }),
+    durationYears: numeric("duration_years", { precision: 3, scale: 1 }),
+    sourceEvidence: jsonb("source_evidence")
+      .$type<Array<{ url: string; label?: string }>>()
+      .notNull()
+      .default([]),
+    sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }),
     status: verificationStatus("status").notNull().default("unverified"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
-  (t) => [unique().on(t.universityId, t.programId)],
+  (t) => [
+    uniqueIndex("uq_university_program_taxonomy")
+      .on(t.universityId, t.programId)
+      .where(sql`${t.degreeProgrammeId} is null`),
+    uniqueIndex("uq_university_program_degree")
+      .on(t.degreeProgrammeId)
+      .where(sql`${t.degreeProgrammeId} is not null`),
+    index("idx_university_programs_organization").on(t.universityId),
+    index("idx_university_programs_unit").on(t.organizationalUnitId),
+    uniqueIndex("uq_university_program_external")
+      .on(t.universityId, t.externalSourceId)
+      .where(sql`${t.externalSourceId} is not null`),
+  ],
+);
+
+/** Many-to-many classification supports genuinely cross-disciplinary degrees. */
+export const programAcademicFields = pgTable(
+  "program_academic_fields",
+  {
+    programId: uuid("program_id")
+      .notNull()
+      .references(() => programs.id),
+    academicFieldId: uuid("academic_field_id")
+      .notNull()
+      .references(() => academicFields.id),
+    isPrimary: boolean("is_primary").notNull().default(false),
+  },
+  (t) => [
+    primaryKey({ columns: [t.programId, t.academicFieldId] }),
+    index("idx_program_academic_fields_field").on(t.academicFieldId),
+  ],
+);
+
+/**
+ * A real institutional degree/study programme. This stays distinct from the
+ * global `programs` taxonomy choices and from the legacy enrollment bridge in
+ * `university_programs`.
+ */
+export const degreeProgrammes = pgTable(
+  "degree_programmes",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => universities.id),
+    organizationalUnitId: uuid("organizational_unit_id").references(
+      () => organizationalUnits.id,
+    ),
+    externalSourceId: text("external_source_id"),
+    canonicalName: text("canonical_name").notNull(),
+    localizedNames: jsonb("localized_names")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
+    aliases: jsonb("aliases").$type<string[]>().notNull().default([]),
+    degreeLevel: degreeLevel("degree_level"),
+    officialUrl: text("official_url"),
+    languageCodes: jsonb("language_codes")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    credits: numeric("credits", { precision: 6, scale: 1 }),
+    durationYears: numeric("duration_years", { precision: 3, scale: 1 }),
+    sourceEvidence: jsonb("source_evidence")
+      .$type<Array<{ url: string; label?: string }>>()
+      .notNull()
+      .default([]),
+    sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }),
+    status: verificationStatus("status").notNull().default("unverified"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_degree_programmes_organization").on(
+      t.organizationId,
+      t.degreeLevel,
+      t.status,
+    ),
+    index("idx_degree_programmes_unit").on(t.organizationalUnitId),
+    uniqueIndex("uq_degree_programme_external")
+      .on(t.organizationId, t.externalSourceId)
+      .where(sql`${t.externalSourceId} is not null`),
+    uniqueIndex("uq_degree_programme_url")
+      .on(t.organizationId, t.officialUrl)
+      .where(sql`${t.officialUrl} is not null`),
+  ],
+);
+
+export const degreeProgrammeAcademicFields = pgTable(
+  "degree_programme_academic_fields",
+  {
+    degreeProgrammeId: uuid("degree_programme_id")
+      .notNull()
+      .references(() => degreeProgrammes.id),
+    academicFieldId: uuid("academic_field_id")
+      .notNull()
+      .references(() => academicFields.id),
+    isPrimary: boolean("is_primary").notNull().default(false),
+  },
+  (t) => [
+    primaryKey({ columns: [t.degreeProgrammeId, t.academicFieldId] }),
+    index("idx_degree_programme_fields_field").on(t.academicFieldId),
+  ],
+);
+
+/**
+ * Confirmed official teaching unit. It is evidence-backed source data, not a
+ * collaborative Course Atlas page and not a canonical curriculum template.
+ */
+export const officialCourseOfferings = pgTable(
+  "official_course_offerings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    courseCandidateId: uuid("course_candidate_id").references(
+      (): AnyPgColumn => organizationCourseCandidates.id,
+    ),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => universities.id),
+    degreeProgrammeId: uuid("degree_programme_id").references(
+      () => degreeProgrammes.id,
+    ),
+    organizationalUnitId: uuid("organizational_unit_id").references(
+      () => organizationalUnits.id,
+    ),
+    externalSourceId: text("external_source_id"),
+    courseCode: text("course_code"),
+    canonicalSourceName: text("canonical_source_name").notNull(),
+    localDisplayName: text("local_display_name"),
+    description: text("description"),
+    credits: numeric("credits", { precision: 6, scale: 2 }),
+    languageCodes: jsonb("language_codes")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    academicYear: text("academic_year"),
+    semester: text("semester"),
+    professorName: text("professor_name"),
+    campus: text("campus"),
+    officialUrl: text("official_url").notNull(),
+    sourceType: text("source_type").notNull(),
+    confidence: numeric("confidence", { precision: 4, scale: 3 }).notNull(),
+    verificationStatus: verificationStatus("verification_status")
+      .notNull()
+      .default("verified"),
+    offeringStatus: officialOfferingStatus("offering_status")
+      .notNull()
+      .default("active"),
+    sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }),
+    discoveredAt: timestamp("discovered_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_official_offerings_directory").on(
+      t.organizationId,
+      t.academicYear,
+      t.offeringStatus,
+    ),
+    uniqueIndex("uq_official_offering_candidate")
+      .on(t.courseCandidateId)
+      .where(sql`${t.courseCandidateId} is not null`),
+    uniqueIndex("uq_official_offering_external_year")
+      .on(t.organizationId, t.externalSourceId, t.academicYear)
+      .where(sql`${t.externalSourceId} is not null`),
+    uniqueIndex("uq_official_offering_url_year")
+      .on(t.organizationId, t.officialUrl, t.academicYear)
+      .where(sql`${t.academicYear} is not null`),
+  ],
+);
+
+/** ROR domains and manually approved official catalog-provider boundaries. */
+export const organizationCatalogDomains = pgTable(
+  "organization_catalog_domains",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => universities.id),
+    domain: text("domain").notNull(),
+    boundarySource: text("boundary_source").notNull(),
+    approved: boolean("approved").notNull().default(false),
+    approvedBy: uuid("approved_by").references((): AnyPgColumn => students.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    evidenceUrl: text("evidence_url"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique("uq_catalog_domain_organization").on(t.organizationId, t.domain),
+    index("idx_catalog_domains_approved").on(t.organizationId, t.approved),
+  ],
+);
+
+export const organizationCatalogSources = pgTable(
+  "organization_catalog_sources",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => universities.id),
+    sourceUrl: text("source_url").notNull(),
+    sourceType: catalogSourceType("source_type").notNull(),
+    connectorId: text("connector_id").notNull(),
+    domain: text("domain").notNull(),
+    domainApproved: boolean("domain_approved").notNull().default(false),
+    robotsStatus: robotsPermissionStatus("robots_status")
+      .notNull()
+      .default("unknown"),
+    robotsCheckedAt: timestamp("robots_checked_at", { withTimezone: true }),
+    lastSuccessfulScanAt: timestamp("last_successful_scan_at", {
+      withTimezone: true,
+    }),
+    lastFailureAt: timestamp("last_failure_at", { withTimezone: true }),
+    lastFailure: text("last_failure"),
+    httpEtag: text("http_etag"),
+    httpLastModified: text("http_last_modified"),
+    contentChecksum: text("content_checksum"),
+    connectorConfig: jsonb("connector_config")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    active: boolean("active").notNull().default(true),
+    approvedBy: uuid("approved_by").references((): AnyPgColumn => students.id),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique("uq_catalog_source_url").on(t.organizationId, t.sourceUrl),
+    index("idx_catalog_sources_active").on(
+      t.organizationId,
+      t.active,
+      t.sourceType,
+    ),
+    index("idx_catalog_sources_domain").on(t.domain, t.domainApproved),
+  ],
+);
+
+export const organizationCatalogScans = pgTable(
+  "organization_catalog_scans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => universities.id),
+    requestedBy: uuid("requested_by").references((): AnyPgColumn => students.id),
+    scanKey: text("scan_key").notNull().unique(),
+    workflowRunId: text("workflow_run_id"),
+    status: catalogScanStatus("status").notNull().default("queued"),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    currentSourceId: uuid("current_source_id").references(
+      () => organizationCatalogSources.id,
+    ),
+    checkpoint: jsonb("checkpoint")
+      .$type<{
+        sourceIndex?: number;
+        pageIndex?: number;
+        cursor?: string;
+        processedSourceIds?: string[];
+      }>()
+      .notNull()
+      .default({}),
+    pagesInspected: integer("pages_inspected").notNull().default(0),
+    unitsFound: integer("units_found").notNull().default(0),
+    programmesFound: integer("programmes_found").notNull().default(0),
+    coursesFound: integer("courses_found").notNull().default(0),
+    warnings: jsonb("warnings").$type<string[]>().notNull().default([]),
+    failureSummary: text("failure_summary"),
+    requestedAt: timestamp("requested_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_catalog_scans_organization").on(
+      t.organizationId,
+      t.status,
+      t.requestedAt,
+    ),
+    uniqueIndex("uq_catalog_scan_active_organization")
+      .on(t.organizationId)
+      .where(sql`${t.status} in ('queued', 'running')`),
+  ],
+);
+
+export const organizationUnitCandidates = pgTable(
+  "organization_unit_candidates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => universities.id),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => organizationCatalogSources.id),
+    lastSeenScanId: uuid("last_seen_scan_id")
+      .notNull()
+      .references(() => organizationCatalogScans.id),
+    externalSourceId: text("external_source_id"),
+    parentExternalSourceId: text("parent_external_source_id"),
+    unitType: organizationalUnitType("unit_type").notNull().default("other"),
+    canonicalSourceName: text("canonical_source_name").notNull(),
+    localizedNames: jsonb("localized_names")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
+    officialUrl: text("official_url").notNull(),
+    evidence: jsonb("evidence")
+      .$type<Array<{ field: string; value: string; sourceUrl: string }>>()
+      .notNull()
+      .default([]),
+    confidence: numeric("confidence", { precision: 4, scale: 3 }).notNull(),
+    status: catalogCandidateStatus("status").notNull().default("candidate"),
+    firstDiscoveredAt: timestamp("first_discovered_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastDiscoveredAt: timestamp("last_discovered_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_unit_candidates_review").on(t.organizationId, t.status),
+    uniqueIndex("uq_unit_candidate_external")
+      .on(t.organizationId, t.externalSourceId)
+      .where(sql`${t.externalSourceId} is not null`),
+    unique("uq_unit_candidate_url").on(t.organizationId, t.officialUrl),
+  ],
+);
+
+export const courseCandidateCorrections = pgTable(
+  "course_candidate_corrections",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    courseCandidateId: uuid("course_candidate_id")
+      .notNull()
+      .references(() => organizationCourseCandidates.id),
+    proposedBy: uuid("proposed_by")
+      .notNull()
+      .references((): AnyPgColumn => students.id),
+    note: text("note").notNull(),
+    proposedFields: jsonb("proposed_fields")
+      .$type<Record<string, string | null>>()
+      .notNull()
+      .default({}),
+    status: catalogCorrectionStatus("status").notNull().default("pending"),
+    reviewedBy: uuid("reviewed_by").references((): AnyPgColumn => students.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_course_candidate_corrections_review").on(
+      t.courseCandidateId,
+      t.status,
+    ),
+  ],
+);
+
+export const organizationProgramCandidates = pgTable(
+  "organization_program_candidates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => universities.id),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => organizationCatalogSources.id),
+    lastSeenScanId: uuid("last_seen_scan_id")
+      .notNull()
+      .references(() => organizationCatalogScans.id),
+    unitCandidateId: uuid("unit_candidate_id").references(
+      () => organizationUnitCandidates.id,
+    ),
+    externalSourceId: text("external_source_id"),
+    canonicalSourceName: text("canonical_source_name").notNull(),
+    localDisplayName: text("local_display_name"),
+    degreeLevel: degreeLevel("degree_level"),
+    academicFieldKeys: jsonb("academic_field_keys")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    languageCodes: jsonb("language_codes")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    credits: numeric("credits", { precision: 6, scale: 1 }),
+    durationYears: numeric("duration_years", { precision: 3, scale: 1 }),
+    officialUrl: text("official_url").notNull(),
+    evidence: jsonb("evidence")
+      .$type<Array<{ field: string; value: string; sourceUrl: string }>>()
+      .notNull()
+      .default([]),
+    confidence: numeric("confidence", { precision: 4, scale: 3 }).notNull(),
+    status: catalogCandidateStatus("status").notNull().default("candidate"),
+    firstDiscoveredAt: timestamp("first_discovered_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    lastDiscoveredAt: timestamp("last_discovered_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_program_candidates_review").on(t.organizationId, t.status),
+    uniqueIndex("uq_program_candidate_external")
+      .on(t.organizationId, t.externalSourceId)
+      .where(sql`${t.externalSourceId} is not null`),
+    unique("uq_program_candidate_url").on(t.organizationId, t.officialUrl),
+  ],
+);
+
+export const organizationCourseCandidates = pgTable(
+  "organization_course_candidates",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: uuid("organization_id")
+      .notNull()
+      .references(() => universities.id),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => organizationCatalogSources.id),
+    lastSeenScanId: uuid("last_seen_scan_id")
+      .notNull()
+      .references(() => organizationCatalogScans.id),
+    programmeCandidateId: uuid("programme_candidate_id").references(
+      () => organizationProgramCandidates.id,
+    ),
+    sourceUrl: text("source_url").notNull(),
+    sourceType: catalogSourceType("source_type").notNull(),
+    externalSourceId: text("external_source_id"),
+    courseCode: text("course_code"),
+    normalizedCourseCode: text("normalized_course_code"),
+    canonicalSourceName: text("canonical_source_name").notNull(),
+    localDisplayName: text("local_display_name"),
+    normalizedCourseName: text("normalized_course_name").notNull(),
+    description: text("description"),
+    credits: numeric("credits", { precision: 6, scale: 2 }),
+    languageCodes: jsonb("language_codes")
+      .$type<string[]>()
+      .notNull()
+      .default([]),
+    department: text("department"),
+    degreeProgramme: text("degree_programme"),
+    academicYear: text("academic_year"),
+    semester: text("semester"),
+    professorName: text("professor_name"),
+    campus: text("campus"),
+    officialUrl: text("official_url").notNull(),
+    fallbackDedupKey: text("fallback_dedup_key").notNull(),
+    evidence: jsonb("evidence")
+      .$type<
+        Array<{
+          field: string;
+          value: string;
+          sourceUrl: string;
+          signal: string;
+        }>
+      >()
+      .notNull()
+      .default([]),
+    confidence: numeric("confidence", { precision: 4, scale: 3 }).notNull(),
+    status: catalogCandidateStatus("status").notNull().default("candidate"),
+    reviewedBy: uuid("reviewed_by").references((): AnyPgColumn => students.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    verificationMethod: text("verification_method"),
+    discoveredAt: timestamp("discovered_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }),
+    lastDiscoveredAt: timestamp("last_discovered_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_course_candidates_review").on(
+      t.organizationId,
+      t.status,
+      t.confidence,
+    ),
+    index("idx_course_candidates_programme").on(t.programmeCandidateId),
+    uniqueIndex("uq_course_candidate_external_year")
+      .on(
+        t.organizationId,
+        t.externalSourceId,
+        sql`coalesce(${t.academicYear}, '')`,
+      )
+      .where(sql`${t.externalSourceId} is not null`),
+    uniqueIndex("uq_course_candidate_code_year")
+      .on(
+        t.organizationId,
+        t.normalizedCourseCode,
+        sql`coalesce(${t.academicYear}, '')`,
+      )
+      .where(sql`${t.normalizedCourseCode} is not null`),
+    uniqueIndex("uq_course_candidate_url_year").on(
+      t.organizationId,
+      t.officialUrl,
+      sql`coalesce(${t.academicYear}, '')`,
+    ),
+    index("idx_course_candidate_fallback").on(
+      t.organizationId,
+      t.fallbackDedupKey,
+    ),
+  ],
+);
+
+/** Short evidence only: never stores a complete copyrighted source page. */
+export const courseSourceSnapshots = pgTable(
+  "course_source_snapshots",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    sourceId: uuid("source_id")
+      .notNull()
+      .references(() => organizationCatalogSources.id),
+    scanId: uuid("scan_id")
+      .notNull()
+      .references(() => organizationCatalogScans.id),
+    courseCandidateId: uuid("course_candidate_id").references(
+      () => organizationCourseCandidates.id,
+    ),
+    previousSnapshotId: uuid("previous_snapshot_id").references(
+      (): AnyPgColumn => courseSourceSnapshots.id,
+    ),
+    sourceUrl: text("source_url").notNull(),
+    httpStatus: smallint("http_status"),
+    contentType: text("content_type"),
+    httpEtag: text("http_etag"),
+    httpLastModified: text("http_last_modified"),
+    contentChecksum: text("content_checksum").notNull(),
+    normalizedData: jsonb("normalized_data")
+      .$type<Record<string, unknown>>()
+      .notNull(),
+    extractedEvidence: jsonb("extracted_evidence")
+      .$type<Array<{ field: string; value: string; selector?: string }>>()
+      .notNull()
+      .default([]),
+    changedFields: jsonb("changed_fields")
+      .$type<Array<{ field: string; before: unknown; after: unknown }>>()
+      .notNull()
+      .default([]),
+    fetchedAt: timestamp("fetched_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("uq_course_snapshot_candidate_checksum")
+      .on(t.courseCandidateId, t.contentChecksum)
+      .where(sql`${t.courseCandidateId} is not null`),
+    index("idx_course_snapshots_candidate").on(
+      t.courseCandidateId,
+      t.fetchedAt,
+    ),
+  ],
 );
 
 // ---------------------------------------------------------------------------
@@ -378,11 +1202,46 @@ export const students = pgTable("students", {
   passwordHash: text("password_hash"), // null when OAuth-only
   adminRole: boolean("admin_role").notNull().default(false),
   emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
+  preferredLocale: text("preferred_locale").notNull().default("en"),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
 });
+
+/** Student-submitted institution lookups and possible ROR matches for review. */
+export const organizationRequests = pgTable(
+  "organization_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    studentId: uuid("student_id")
+      .notNull()
+      .references(() => students.id),
+    requestedName: text("requested_name").notNull(),
+    countryCode: char("country_code", { length: 2 }),
+    city: text("city"),
+    websiteUrl: text("website_url"),
+    localOrganizationId: uuid("local_organization_id").references(
+      () => universities.id,
+    ),
+    candidateRorId: text("candidate_ror_id"),
+    status: organizationRequestStatus("status").notNull().default("pending"),
+    reviewedBy: uuid("reviewed_by").references(() => students.id),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index("idx_organization_requests_queue").on(t.status, t.createdAt),
+    index("idx_organization_requests_student").on(t.studentId, t.status),
+  ],
+);
 
 /** Short-lived hashed rate-limit buckets; never stores raw email or IP. */
 export const rateLimitBuckets = pgTable(
@@ -410,15 +1269,28 @@ export const enrollments = pgTable(
     universityProgramId: uuid("university_program_id")
       .notNull()
       .references(() => universityPrograms.id),
+    organizationalUnitId: uuid("organizational_unit_id").references(
+      () => organizationalUnits.id,
+    ),
     intakeYear: smallint("intake_year").notNull(), // cohort; curricula change
+    academicContext: text("academic_context"),
+    requestedProgrammeName: text("requested_programme_name"),
     phase: enrollmentPhase("phase").notNull(),
+    isPrimary: boolean("is_primary").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
   (t) => [
     unique().on(t.studentId, t.universityProgramId, t.intakeYear),
     index("idx_enrollments_student").on(t.studentId),
+    index("idx_enrollments_unit").on(t.organizationalUnitId),
+    uniqueIndex("uq_enrollments_one_primary")
+      .on(t.studentId)
+      .where(sql`${t.isPrimary} = true`),
   ],
 );
 
@@ -618,8 +1490,13 @@ export const curriculumTemplates = pgTable(
     templateKey: text("template_key").notNull(),
     version: integer("version").notNull().default(1),
     name: text("name").notNull(),
+    localizedNames: jsonb("localized_names")
+      .$type<Record<string, string>>()
+      .notNull()
+      .default({}),
     description: text("description"),
     category: text("category").notNull().default("engineering-core"),
+    academicDomainKey: text("academic_domain_key"),
     disciplineTags: jsonb("discipline_tags")
       .$type<string[]>()
       .notNull()
@@ -630,6 +1507,21 @@ export const curriculumTemplates = pgTable(
       .default([]),
     typicalYear: smallint("typical_year").notNull().default(1),
     typicalSemester: smallint("typical_semester").notNull().default(1),
+    typicalDegreeLevels: jsonb("typical_degree_levels")
+      .$type<Array<"bachelor" | "master" | "single_cycle" | "doctoral" | "professional" | "other">>()
+      .notNull()
+      .default([]),
+    typicalStage: text("typical_stage"),
+    curricularStatus: text("curricular_status").notNull().default("core"),
+    validationMetadata: jsonb("validation_metadata")
+      .$type<{
+        reviewedAt?: string;
+        reviewedBy?: string;
+        contentStandard?: string;
+        notes?: string[];
+      }>()
+      .notNull()
+      .default({}),
     sourceReferences: jsonb("source_references")
       .$type<
         Array<{
@@ -734,6 +1626,9 @@ export const coursePages = pgTable(
     universityProgramId: uuid("university_program_id")
       .notNull()
       .references(() => universityPrograms.id),
+    officialOfferingId: uuid("official_offering_id").references(
+      () => officialCourseOfferings.id,
+    ),
     localName: text("local_name").notNull(),
     courseCode: text("course_code"),
     professorName: text("professor_name"),
@@ -766,10 +1661,74 @@ export const coursePages = pgTable(
       t.universityProgramId,
       t.duplicateKey,
     ),
+    uniqueIndex("uq_course_page_official_offering")
+      .on(t.officialOfferingId)
+      .where(sql`${t.officialOfferingId} is not null`),
     check(
       "course_semester_range",
       sql`${t.semester} is null or (${t.semester} >= 1 and ${t.semester} <= 12)`,
     ),
+  ],
+);
+
+export const courseCandidateMatches = pgTable(
+  "course_candidate_matches",
+  {
+    courseCandidateId: uuid("course_candidate_id")
+      .notNull()
+      .references(() => organizationCourseCandidates.id),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    score: numeric("score", { precision: 4, scale: 3 }).notNull(),
+    reasons: jsonb("reasons").$type<string[]>().notNull().default([]),
+    status: candidateMatchStatus("status").notNull().default("suggested"),
+    reviewedBy: uuid("reviewed_by").references(() => students.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.courseCandidateId, t.coursePageId] }),
+    index("idx_candidate_matches_course").on(t.coursePageId, t.status),
+  ],
+);
+
+/** Owner-visible review; accepting changes never touches course curriculum. */
+export const courseMetadataChangeReviews = pgTable(
+  "course_metadata_change_reviews",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    courseCandidateId: uuid("course_candidate_id")
+      .notNull()
+      .references(() => organizationCourseCandidates.id),
+    snapshotId: uuid("snapshot_id")
+      .notNull()
+      .references(() => courseSourceSnapshots.id),
+    changedFields: jsonb("changed_fields")
+      .$type<Array<{ field: string; before: unknown; after: unknown }>>()
+      .notNull(),
+    status: metadataChangeReviewStatus("status").notNull().default("pending"),
+    reviewedBy: uuid("reviewed_by").references(() => students.id),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    unique("uq_course_metadata_review_snapshot").on(
+      t.coursePageId,
+      t.courseCandidateId,
+      t.snapshotId,
+    ),
+    index("idx_course_metadata_reviews_pending").on(t.coursePageId, t.status),
   ],
 );
 
@@ -806,7 +1765,7 @@ export const courseMembers = pgTable(
     studentId: uuid("student_id")
       .notNull()
       .references(() => students.id),
-    role: courseMemberRole("role").notNull().default("viewer"),
+    role: courseMemberRole("role").notNull().default("visitor"),
     attendance: courseAttendance("attendance")
       .notNull()
       .default("not_attended"),
@@ -831,7 +1790,7 @@ export const courseInvites = pgTable(
       .notNull()
       .references(() => coursePages.id),
     email: text("email").notNull(),
-    role: courseMemberRole("role").notNull().default("viewer"),
+    role: courseMemberRole("role").notNull().default("visitor"),
     attendance: courseAttendance("attendance")
       .notNull()
       .default("not_attended"),
@@ -850,6 +1809,41 @@ export const courseInvites = pgTable(
   (t) => [
     index("idx_course_invites_email").on(t.email, t.status),
     index("idx_course_invites_course").on(t.coursePageId, t.status),
+  ],
+);
+
+/** Visitor-initiated requests which only the original owner may decide. */
+export const courseCoownershipRequests = pgTable(
+  "course_coownership_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    coursePageId: uuid("course_page_id")
+      .notNull()
+      .references(() => coursePages.id),
+    requesterId: uuid("requester_id")
+      .notNull()
+      .references(() => students.id),
+    message: text("message"),
+    status: coownershipRequestStatus("status").notNull().default("pending"),
+    reviewerId: uuid("reviewer_id").references(() => students.id),
+    requestedAt: timestamp("requested_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("uq_course_coownership_pending")
+      .on(t.coursePageId, t.requesterId)
+      .where(sql`${t.status} = 'pending'`),
+    index("idx_course_coownership_owner_queue").on(
+      t.coursePageId,
+      t.status,
+      t.requestedAt,
+    ),
+    index("idx_course_coownership_requester").on(t.requesterId, t.status),
   ],
 );
 

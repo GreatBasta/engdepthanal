@@ -1,5 +1,5 @@
--- First-Year Engineering Learning Database — Postgres schema
--- Companion to ../STRUCTURE.md. Portable to Drizzle table-by-table.
+-- Historical v0 prototype schema. Not used for migrations or deployment.
+-- See ../src/lib/db/schema.ts and ../drizzle/ for the multidisciplinary model.
 
 create extension if not exists pgcrypto;
 
@@ -38,7 +38,7 @@ create table universities (
   unique (name, country_code)
 );
 
--- Engineering disciplines: mechanical, electrical, civil, computer, ...
+-- Prototype global programme list (superseded by the academic taxonomy).
 create table programs (
   id          uuid primary key default gen_random_uuid(),
   slug        text not null unique,            -- 'mechanical-engineering'
