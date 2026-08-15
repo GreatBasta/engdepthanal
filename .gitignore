@@ -9,3 +9,5 @@ playwright-report/
 test-results/
 .tools/
 /.swc
+# Generated into the app tree by the Workflow package during `next build`.
+src/app/.well-known/

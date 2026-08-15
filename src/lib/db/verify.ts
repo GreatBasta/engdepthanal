@@ -78,13 +78,19 @@ async function verify() {
         group by template_key having count(*) > 1
       ) duplicates
     `),
+    // Stable keys are unique within their parent, not globally: the same key
+    // ("limits") is expected to recur across templates, and reusing it is the
+    // whole point — survey answers and progress survive a re-seed because the
+    // key stays put. So check each uniqueness scope as it is actually
+    // declared, which catches a constraint dropped by a future migration or
+    // rows loaded outside the seed.
     scalar(sql`
       select count(*) as value from (
-        select stable_key from (
-          select stable_key from template_topics
-          union all
-          select stable_key from template_subtopics
-        ) ids group by stable_key having count(*) > 1
+        select 1 from template_topics
+        group by template_id, stable_key having count(*) > 1
+        union all
+        select 1 from template_subtopics
+        group by template_topic_id, stable_key having count(*) > 1
       ) duplicates
     `),
     scalar(sql`

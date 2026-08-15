@@ -16,6 +16,7 @@
     "db:seed": "tsx src/lib/db/seed.ts",
     "db:seed:demo": "tsx src/lib/db/seed-demo.ts",
     "db:setup": "npm run db:migrate && tsx src/lib/db/seed.ts",
+    "db:status": "tsx scripts/db-status.ts",
     "db:verify": "tsx src/lib/db/verify.ts",
     "aggregate": "tsx src/lib/aggregate-run.ts"
   },

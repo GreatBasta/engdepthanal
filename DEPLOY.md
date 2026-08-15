@@ -67,10 +67,29 @@ Keep this string handy — it's your `DATABASE_URL`.
    safe to repeat deliberately. They are kept outside the deployment build so
    previews cannot race or modify production data.
 
+   To ask a database whether it has everything the current checkout expects:
+
+   ```bash
+   node --env-file=.env.local ./node_modules/tsx/dist/cli.mjs scripts/db-status.ts
+   ```
+
+   It lists any missing migrations by name and exits non-zero, so it can gate
+   a release step. Run it before promoting a build if you migrate by hand —
+   code that ships ahead of its schema is how `/courses` broke once already.
+
 6. Click **Deploy**. Wait ~2 minutes.
 
 When it finishes, Vercel gives you a URL like
 `https://engdepthanal.vercel.app` — **that's the link you send your friends.**
+
+Check `https://your-app.vercel.app/api/health` first. It answers `200` only
+when the database is reachable, every migration this build expects has been
+applied, and `AUTH_SECRET` is set; otherwise it answers `503` and names what
+is missing:
+
+```json
+{ "status": "degraded", "migrations": { "pending": ["0005_overrated_bullseye"] } }
+```
 
 ---
 
